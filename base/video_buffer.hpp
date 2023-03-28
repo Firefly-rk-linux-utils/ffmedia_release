@@ -1,0 +1,59 @@
+#ifndef __VIDEO_BUFFER_HPP__
+#define __VIDEO_BUFFER_HPP__
+
+#include <inttypes.h>
+#include "pixel_fmt.hpp"
+#include "media_buffer.hpp"
+
+class DrmBuffer;
+typedef void* MppBuffer;
+typedef void* MppBufferGroup;
+
+class VideoBuffer : public MediaBuffer
+{
+public:
+    enum BUFFER_TYPE {
+        DRM_BUFFER_NONCACHEABLE,
+        DRM_BUFFER_CACHEABLE,
+        MALLOC_BUFFER,
+        EXTERNAL_BUFFER
+    };
+
+private:
+    DrmBuffer* drm_buf;
+    MppBuffer mpp_buf;
+    BUFFER_TYPE buffer_type;
+    ImagePara image_para;
+    int buf_fd;
+
+public:
+    VideoBuffer(BUFFER_TYPE type);
+    ~VideoBuffer();
+    void resetBuffer();
+    void allocBuffer(ImagePara para);
+    void allocBuffer(size_t _size);
+    void fillToEmpty();
+    int releaseMppBuffer();
+    void initWithExternalBuffer(void* data_, size_t size_, int fd_);
+    int importToMppBufferGroup(MppBufferGroup group);
+    int importToMppBufferGroupUsed(MppBufferGroup group);
+    int importToMppBufferGroupExtra(MppBufferGroup group, bool used);
+
+public:
+    MppBuffer getMppBuf() const { return mpp_buf; }
+    void setMppBuf(const MppBuffer& mppBuf) { mpp_buf = mppBuf; }
+
+    DrmBuffer* getDrmBuf() const { return drm_buf; }
+    void setDrmBuf(DrmBuffer* drmBuf) { drm_buf = drmBuf; }
+
+    int getBufFd() const { return buf_fd; }
+    void setBufFd(int bufFd) { buf_fd = bufFd; }
+
+    ImagePara getImagePara() const { return image_para; }
+    void setImagePara(const ImagePara& para) { image_para = para; }
+
+    BUFFER_TYPE getBufferType() const { return buffer_type; }
+    void setBufferType(const BUFFER_TYPE& bufferType) { buffer_type = bufferType; }
+};
+
+#endif
