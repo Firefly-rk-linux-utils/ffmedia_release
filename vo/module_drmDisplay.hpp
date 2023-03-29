@@ -47,7 +47,7 @@ public:
     void setPlanePara(uint32_t fmt, uint32_t plane_id, PLANE_TYPE plane_type, uint32_t plane_linear);
     void setPlaneSize(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
     void setWindowSize(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
-    void getDisplayPlaneSize(uint16_t* h, uint16_t* v);
+    void getDisplayPlaneSize(uint32_t* h, uint32_t* v);
 };
 
 #endif

@@ -7,15 +7,7 @@
 #include <math.h>
 #include <termios.h>
 
-#include "base/media_buffer.hpp"
-#include "base/video_buffer.hpp"
-#include "base/pixel_fmt.hpp"
-#include "base/ff_log.h"
-#include "base/ff_synchronize.hpp"
-#include "base/ff_type.hpp"
-
 #include "utils.hpp"
-#include "module/module_media.hpp"
 #include "vi/module_cam.hpp"
 #include "vi/module_rtspClient.hpp"
 #include "vi/module_fileReader.hpp"
@@ -463,7 +455,7 @@ COMMON_SOURCE:
             goto FAILED;
         }
 
-        uint16_t t_h, t_v;
+        uint32_t t_h, t_v;
         inst_data->drm_display->getDisplayPlaneSize(&t_h, &t_v);
         int hc, vc;
         int s = sqrt(inst_count);

@@ -23,17 +23,21 @@
 
 #include "base/pixel_fmt.hpp"
 #include "base/video_buffer.hpp"
+#include "base/ff_synchronize.hpp"
 #include "base/ff_type.hpp"
-
-class Synchronize;
+#include "base/ff_log.h"
 
 using namespace std;
 #ifdef PYBIND11_MODULE
 #include <pybind11/pybind11.h>
-using callback_handler = std::function<void(pybind11::object, MediaBuffer*)>;
+using void_object   = pybind11::object;
+using void_object_p = pybind11::object&;
 #else
-using callback_handler = std::function<void(void*, MediaBuffer*)>;
+using void_object   = void*;
+using void_object_p = void*;
 #endif
+
+using callback_handler = std::function<void(void_object, MediaBuffer*)>;
 
 enum ModuleStatus {
     STATUS_CREATED = 0,
@@ -102,18 +106,16 @@ protected:
     bool HoleModule;
     ModuleStatus module_status;
 
-#ifdef PYBIND11_MODULE
-    pybind11::object callback_ctx;
-#else
-    void* callback_ctx;
-#endif
+    void_object callback_ctx;
     callback_handler output_data_callback;
 
     bool mppModule = false;
     mutex mtx;
     condition_variable produce, consume;
 
-    ModuleMedia* external_consumer;
+    void_object external_enqueue_ctx;
+    callback_handler external_enqueue;
+
     int media_type;
     int index;
     uint64_t blocked_as_consumer;
@@ -168,11 +170,7 @@ public:
     bool isHoleModule();
 
     int initBufferFromExternalBuffer(MediaBuffer** buffers, uint16_t count);
-#ifdef PYBIND11_MODULE
-    void setOutputDataCallback(pybind11::object& ctx, callback_handler callback);
-#else
-    void setOutputDataCallback(void* ctx, callback_handler callback);
-#endif
+    void setOutputDataCallback(void_object_p ctx, callback_handler callback);
     void start();
     void stop();
 
@@ -195,10 +193,9 @@ public:
 
     ModuleStatus getModuleStatus() const { return module_status; }
 
-    void addExternalConsumer(const char* name);
-    MediaBuffer* externalGetoutputBuffer();
-    void externalConsumeBuffer();
-    bool readyForExternalConsumer();
+    ModuleMedia* addExternalConsumer(const char* name,
+                                    void_object_p external_enqueue_ctx,
+                                    callback_handler external_enqueue);
 
     size_t getBufferSize() const { return buffer_size; }
     void setBufferSize(const size_t& bufferSize) { buffer_size = bufferSize; }
