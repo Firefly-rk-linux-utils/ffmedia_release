@@ -36,8 +36,15 @@ add_executable(demo_simple
                demo_simple.cpp
                )
 
+add_executable(demo_multi_drmplane
+               demo_multi_drmplane.cpp
+               )
+
 target_link_libraries(demo ff_media)
 target_link_libraries(demo_simple ff_media)
+target_link_libraries(demo_multi_drmplane ff_media)
+
+INCLUDE(GNUInstallDirs)
 
 IF(DEMO_OPENCV)
 add_executable(demo_opencv
@@ -50,11 +57,12 @@ add_executable(demo_opencv_multi
 
 target_link_libraries(demo_opencv ff_media pthread opencv_core opencv_highgui opencv_imgcodecs)
 target_link_libraries(demo_opencv_multi ff_media pthread opencv_core opencv_highgui opencv_imgcodecs)
+
+install(TARGETS demo_opencv demo_opencv_multi
+	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 ENDIF(DEMO_OPENCV)
 
-INCLUDE(GNUInstallDirs)
-
-install(TARGETS demo
+install(TARGETS demo demo_simple demo_multi_drmplane
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 install(FILES lib/libff_media.so

@@ -23,6 +23,7 @@ private:
 protected:
     virtual EnQueueResult doEnQueue(MediaBuffer* input_buffer, MediaBuffer* output_buffer) override;
     virtual ProcessResult doProcess(MediaBuffer* buffer) override;
+    virtual int initBuffer() override;
     virtual void bufferReleaseCallBack(MediaBuffer* buffer) override;
 
 public:

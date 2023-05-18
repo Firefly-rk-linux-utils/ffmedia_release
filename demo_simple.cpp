@@ -18,7 +18,7 @@ int main(int argc, char** argv)
 
     ff_log_init();
 
-    //1. rtsp client module
+    // 1. rtsp client module
     rtsp_c = new ModuleRtspClient("rtsp://admin:firefly123@168.168.2.96:554/av_stream");
     ret = rtsp_c->init();
     if (ret < 0) {
@@ -26,7 +26,7 @@ int main(int argc, char** argv)
         goto FAILED;
     }
 
-    //2. dec module
+    // 2. dec module
     input_para = rtsp_c->getOutputImagePara();
     dec = new ModuleMppDec(input_para);
     dec->setProductor(rtsp_c);
@@ -36,11 +36,10 @@ int main(int argc, char** argv)
         goto FAILED;
     }
 
-    //3. drm display module
+    // 3. drm display module
     input_para = dec->getOutputImagePara();
     drm_display = new ModuleDrmDisplay(input_para);
-    drm_display->setPlanePara(V4L2_PIX_FMT_NV12, 0,
-                             ModuleDrmDisplay::PLANE_TYPE_OVERLAY_OR_PRIMARY, 1);
+    drm_display->setPlanePara(V4L2_PIX_FMT_NV12, 1);
     drm_display->setProductor(dec);
     ret = drm_display->init();
     if (ret < 0) {
@@ -49,8 +48,8 @@ int main(int argc, char** argv)
     } else {
         uint32_t t_w, t_h;
         drm_display->getDisplayPlaneSize(&t_w, &t_h);
-        uint32_t w = std::min(t_w/2, input_para.width);
-        uint32_t h = std::min(t_h/2, input_para.height);
+        uint32_t w = std::min(t_w / 2, input_para.width);
+        uint32_t h = std::min(t_h / 2, input_para.height);
         uint32_t x = (t_w - w) / 2;
         uint32_t y = (t_h - h) / 2;
 
@@ -58,7 +57,7 @@ int main(int argc, char** argv)
         drm_display->setWindowSize(x, y, w, h);
     }
 
-    //4. start origin producer
+    // 4. start origin producer
     rtsp_c->start();
 
     getchar();
@@ -66,7 +65,7 @@ int main(int argc, char** argv)
     rtsp_c->stop();
 
 FAILED:
-    //Just delete the orign producer and all its consumers will be deleted automatically
+    // Just delete the orign producer and all its consumers will be deleted automatically
     if (rtsp_c)
         delete rtsp_c;
 }

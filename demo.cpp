@@ -25,6 +25,7 @@ struct timeval start_time;
 unsigned long curr, start;
 using namespace std;
 
+#define USE_COMMON_SOURCE false
 ModuleMedia* common_source_module;
 
 typedef struct _demo_data {
@@ -41,6 +42,7 @@ typedef struct _demo_data {
     Synchronize* sync;
 
     int drm_display_plane_id;
+    int drm_display_plane_zpos;
     FILE* file_data;
     char filename[256];
     char mp4mux_filename[256];
@@ -98,6 +100,7 @@ static void usage(char** argv)
         "-b, --outputfmt              Output image format, default NV12\n"
         "-c, --count                  Instance count, default 1\n"
         "-d, --drmdisplay             Drm display, set display plane, set 0 to auto find plane, default disabled\n"
+        "-z, --zpos                   Drm display plane zpos, default auto select\n"
         "-e, --encodetype             Encode encode, set encode type, default disabled\n"
         "-f, --file                   Enable save dec output data to file, set filename, default disabled\n"
         "-p, --port                   Enable rtsp stream, set push port, depend on encode enabled, default disabled\n"
@@ -119,7 +122,7 @@ static void usage(char** argv)
         argv[0]);
 }
 
-static const char* short_options = "i:o:a:b:c:d:e:f:p:m:r:s::A:";
+static const char* short_options = "i:o:a:b:c:d:z:e:f:p:m:r:s::A:";
 
 // clang-format off
 static struct option long_options[] = {
@@ -129,10 +132,11 @@ static struct option long_options[] = {
     {"outputfmt", required_argument, NULL, 'b'},
     {"count", required_argument, NULL, 'c'},
     {"drmdisplay", required_argument, NULL, 'd'},
+    {"zpos", required_argument, NULL, 'z'},
     {"encodetype", required_argument, NULL, 'e'},
     {"file", required_argument, NULL, 'f'},
     {"port",  required_argument, NULL, 'p'},
-    {"mp4mux",  required_argument, NULL, 'm'},
+    {"enmux",  required_argument, NULL, 'm'},
     {"rotate", required_argument, NULL, 'r'},
     {"aplay", required_argument, NULL, 'A'},
     {"sync", optional_argument, NULL, 's' },
@@ -283,8 +287,10 @@ int start_instance(DemoData* inst_data, int inst_index, int inst_count)
         }
     }
 
-    if (common_source_module != NULL)
-        goto COMMON_SOURCE;
+    if (common_source_module != NULL) {
+        inst_data->source_module = common_source_module;
+        goto SOURCE_CREATED;
+    }
 
     if (inst_data->sync_opt)
         inst_data->sync = new Synchronize(SynchronizeType(inst_data->sync_opt - 1));
@@ -292,7 +298,7 @@ int start_instance(DemoData* inst_data, int inst_index, int inst_count)
     if (inst_data->cam_enabled) {
         inst_data->cam = new ModuleCam(inst_data->input_source);
         if ((inst_data->input_para->width > 0) || (inst_data->input_para->height > 0)) {
-            inst_data->cam->setOutputImagePara(*(inst_data->input_para));  //setOutputImage
+            inst_data->cam->setOutputImagePara(*(inst_data->input_para));  // setOutputImage
         }
         inst_data->cam->setProductor(NULL);
         inst_data->cam->setBufferCount(1);
@@ -305,7 +311,7 @@ int start_instance(DemoData* inst_data, int inst_index, int inst_count)
     }
 
     if (inst_data->file_r_enabled) {
-        inst_data->file_reader = new ModuleFileReader(inst_data->input_source, true);
+        inst_data->file_reader = new ModuleFileReader(inst_data->input_source, false);
         if ((inst_data->input_para->width > 0) || (inst_data->input_para->height > 0)) {
             inst_data->file_reader->setOutputImagePara(*(inst_data->input_para));
         }
@@ -348,7 +354,7 @@ int start_instance(DemoData* inst_data, int inst_index, int inst_count)
         /* The synchronization module is not being used for the time being due to
          * a problem with the order in which the RTP package gets the timestamps
          */
-        //inst_data->sync = new Synchronize(SYNCHRONIZETYPE_AUDIO);
+        // inst_data->sync = new Synchronize(SYNCHRONIZETYPE_AUDIO);
 
         if (inst_data->aplay_enable) {
             inst_data->aac_dec = new ModuleAacDec(inst_data->rtsp_c->audioExtraData(),
@@ -365,11 +371,12 @@ int start_instance(DemoData* inst_data, int inst_index, int inst_count)
         }
     }
 
-    common_source_module = inst_data->last_module;
-COMMON_SOURCE:
-    inst_data->last_module = common_source_module;
-
     inst_data->source_module = inst_data->last_module;
+#if USE_COMMON_SOURCE
+    common_source_module = inst_data->last_module;
+#endif
+
+SOURCE_CREATED:
 
     source_output_para = inst_data->source_module->getOutputImagePara();
 
@@ -394,7 +401,9 @@ COMMON_SOURCE:
         inst_data->dec_enabled = true;
     }
 
-    //inst_data->dec_enabled = false;
+    inst_data->last_module = inst_data->source_module;
+
+    // inst_data->dec_enabled = false;
     if (inst_data->dec_enabled) {
         ImagePara input_para = inst_data->last_module->getOutputImagePara();
         inst_data->dec = new ModuleMppDec(input_para);
@@ -444,8 +453,8 @@ COMMON_SOURCE:
         ImagePara input_para = inst_data->last_module->getOutputImagePara();
         inst_data->drm_display = new ModuleDrmDisplay(input_para);
         inst_data->drm_display->setPlanePara(V4L2_PIX_FMT_NV12, inst_data->drm_display_plane_id,
-                                             ModuleDrmDisplay::PLANE_TYPE_OVERLAY_OR_PRIMARY, 1);
-        //inst_data->drm_display->setPlaneSize(0, 0, 1280, 800);
+                                             ModuleDrmDisplay::PLANE_TYPE_OVERLAY_OR_PRIMARY, inst_data->drm_display_plane_zpos);
+        // inst_data->drm_display->setPlaneSize(0, 0, 1280, 800);
         inst_data->drm_display->setBufferCount(1);
         inst_data->drm_display->setProductor(inst_data->last_module);
         inst_data->drm_display->setSynchronize(inst_data->sync);
@@ -589,8 +598,8 @@ COMMON_SOURCE:
 			 inst_data->rtsppush_enabled ? to_string(inst_data->rtsp_push_port).c_str() : "disable");
     // clang-format on
 
-    //inst_data->source_module->dumpPipe();
-    //inst_data->source_module->start();
+    // inst_data->source_module->dumpPipe();
+    // inst_data->source_module->start();
 
     return 0;
 
@@ -612,6 +621,7 @@ int main(int argc, char** argv)
     demo.output_para = &_output_para;
     demo.rotate = RGA_ROTATE_NONE;
     demo.encode_type = ENCODE_TYPE_H264;
+    demo.drm_display_plane_zpos = 0xFF;
 
     strcpy(demo.filename, "");
     strcpy(demo.mp4mux_filename, "");
@@ -647,6 +657,9 @@ int main(int argc, char** argv)
             case 'd':
                 demo.drm_display_plane_id = atoi(optarg);
                 demo.drmdisplay_enabled = true;
+                break;
+            case 'z':
+                demo.drm_display_plane_zpos = atoi(optarg);
                 break;
             case 'e':
                 ret = parse_encode_parameters(optarg, &demo.encode_type);
@@ -730,9 +743,16 @@ int main(int argc, char** argv)
         if (start_instance(insts + i, i, instance_count))
             goto EXIT;
     }
-    common_source_module->dumpPipe();
-    common_source_module->start();
 
+    if (common_source_module != NULL) {
+        common_source_module->start();
+        common_source_module->dumpPipe();
+    } else {
+        for (int i = 0; i < instance_count; i++) {
+            insts[i].source_module->start();
+            insts[i].source_module->dumpPipe();
+        }
+    }
 
     while (mygetch() != 'q') {
         usleep(10000);
@@ -741,18 +761,18 @@ int main(int argc, char** argv)
 EXIT:
     for (int i = 0; i < instance_count; i++) {
         if (insts + i != NULL) {
-            /*
-            if (insts[i].source_module == NULL)
-                continue;
-            insts[i].source_module->stop();
-            delete insts[i].source_module;
-*/
-
             if (common_source_module != NULL) {
                 common_source_module->dumpPipeSummary();
                 common_source_module->stop();
                 delete common_source_module;
                 common_source_module = NULL;
+            } else {
+                if (insts[i].source_module == NULL)
+                    continue;
+                insts[i].source_module->dumpPipeSummary();
+                insts[i].source_module->stop();
+                delete insts[i].source_module;
+                insts[i].source_module = NULL;
             }
             if (insts[i].file_data > 0)
                 fclose(insts[i].file_data);

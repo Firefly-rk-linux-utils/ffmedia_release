@@ -23,20 +23,7 @@ ffmedia一共包含以下单元
 ## 软件框架：
 
 整个框架采用Productor/Consumer模型，将各个单元都抽象为ModuleMedia类。
-
 一个Productor可以有多个Consumer，一个Consumer只有一个Productor. 输入源单元没有Productor.
-
-每个单元管理一个输出Buffer队列。各单元的输入Buffer来自其Productor的输出Buffer队列。没有Productor的单元不需要输入Buffer.
-
-所有单元均抽象为ModuleMedia类，ModuleMedia主要有两个操作：doEnqueue, doProcess.
-
-doEnqueue 取Productor的Buffer队列中的一个Buffer作为输入buffer, 取本单元的Buffer队列中的一个Buffer作为输出buffer。
-
-doProcess 执行数据的处理操作，将处理后的数据写入输出Buffer.
-
-各个单元的Buffer都统一采用MediaBuffer结构。
-
-各个单元独立运行，流程参考ModuleMedia::work函数，从Productor的buffer队列中取一个buffer作为输入buffer，从单元自身的buffer队列中取一个buffer作为输出buffer，顺序执行doEnqueue和doProcess。
 
 ## 安装编译环境
 ```

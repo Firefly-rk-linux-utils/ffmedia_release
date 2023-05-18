@@ -25,6 +25,8 @@ public:
     void setSrcPara(uint32_t fmt, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t hstride, uint32_t vstride);
     void setDstPara(uint32_t fmt, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t hstride, uint32_t vstride);
     void setRotate(RgaRotate rotate);
+    MediaBuffer* newModuleMediaBuffer(VideoBuffer::BUFFER_TYPE buffer_type = VideoBuffer::BUFFER_TYPE::DRM_BUFFER_CACHEABLE);
+    MediaBuffer* exportUseMediaBuffer(MediaBuffer* match_buffer, MediaBuffer* input_buffer, int flag);
 };
 
 #endif  //__MODULE_RGA_HPP__

@@ -5,6 +5,7 @@
 #include "module/module_media.hpp"
 class ModuleRga;
 struct DrmDisplayDevice;
+struct DrmDisplayPlane;
 
 class ModuleDrmDisplay : public ModuleMedia
 {
@@ -14,22 +15,25 @@ private:
 
 private:
     static DrmDisplayDevice* display_device;
+    DrmDisplayPlane* plane_device;
     static std::mutex device_mtx;
     uint32_t window_x;
     uint32_t window_y;
     uint32_t window_w;
     uint32_t window_h;
+    int index_in_plane;
 
 public:
     ModuleDrmDisplay(ImagePara& input_para);
     ~ModuleDrmDisplay();
 
 private:
-    bool createDisplayDevice();
-    int getDrmDisplayPara();
-    uint32_t drmFindPlane(uint32_t drm_fmt);
+    bool setupPlaneDevice();
+    bool setupDisplayDevice();
+    int drmFindPlane();
     int drmCreateFb(VideoBuffer* buffer);
     bool checkPlaneType(uint64_t plane_drm_type);
+    bool isSamePlane(DrmDisplayPlane* a, DrmDisplayPlane* b);
 
 protected:
     virtual EnQueueResult doEnQueue(MediaBuffer* input_buffer, MediaBuffer* output_buffer) override;
@@ -44,7 +48,11 @@ public:
     };
 
     int init();
-    void setPlanePara(uint32_t fmt, uint32_t plane_id, PLANE_TYPE plane_type, uint32_t plane_linear);
+    int move(uint32_t x, uint32_t y);
+    void setPlanePara(uint32_t fmt);
+    void setPlanePara(uint32_t fmt, uint32_t plane_zpos);
+    void setPlanePara(uint32_t fmt, uint32_t plane_id, PLANE_TYPE plane_type, uint32_t plane_zpos);
+    void setPlanePara(uint32_t fmt, uint32_t plane_id, PLANE_TYPE plane_type, uint32_t plane_zpos, uint32_t plane_linear);
     void setPlaneSize(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
     void setWindowSize(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
     void getDisplayPlaneSize(uint32_t* h, uint32_t* v);

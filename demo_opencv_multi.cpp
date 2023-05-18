@@ -26,7 +26,7 @@ struct External_ctx {
 
 void callback_external(void* _ctx, MediaBuffer* buffer)
 {
-    External_ctx* ctx = static_cast<External_ctx *>(_ctx);
+    External_ctx* ctx = static_cast<External_ctx*>(_ctx);
     ModuleMedia* module = ctx->module;
 
     if (buffer == NULL || buffer->getMediaBufferType() != BUFFER_TYPE_VIDEO)
@@ -105,7 +105,7 @@ int main(int argc, char** argv)
     rtsp_c->stop();
 
 FAILED:
-    //Just delete the orign producer and all its consumers will be deleted automatically
+    // Just delete the orign producer and all its consumers will be deleted automatically
     if (rtsp_c)
         delete rtsp_c;
 

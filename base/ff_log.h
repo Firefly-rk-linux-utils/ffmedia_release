@@ -8,7 +8,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 
-//Set ff_log_level by "export ff_log_level=#level#
+// Set ff_log_level by "export ff_log_level=#level#
 extern unsigned int ff_log_level;
 
 void ff_log_init();

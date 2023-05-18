@@ -32,11 +32,11 @@ public:
     ~ModuleAacEnc();
     int init();
 
-    //aot == 2;  "LC"
-    //aot == 5;  "HE-AAC"
-    //aot == 29; "HE-AACv2"
-    //aot == 23; "LD"
-    //aot == 39; "ELD"
+    // aot == 2;  "LC"
+    // aot == 5;  "HE-AAC"
+    // aot == 29; "HE-AACv2"
+    // aot == 23; "LD"
+    // aot == 39; "ELD"
     void setAot(int _aot) { aot = _aot; }
     int getAot() { return aot; }
     void setBitrate(int bitrate) { bit_rate = bitrate; }
