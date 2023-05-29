@@ -67,7 +67,11 @@ def get_parameters():
     parser.add_argument("-f", "--save_file", dest='save_file', type=str, help="Enable save dec output data to file, set filename, default disabled")
     parser.add_argument("-o", "--output", dest='output', type=str, help="Output image size, default same as input")
     parser.add_argument("-b", "--outputfmt", dest='outputfmt', type=str, default="NV12", help="Output image format, default NV12")
-    parser.add_argument("-p", "--rtsp_transport", dest='rtsp_transport', type=int, default=0, help="Set the rtsp transport type，default 0(udp)")
+    parser.add_argument("-e", "--encodetype", dest='encodetype', type=int, default=-1, help="Encode encode, set encode type, default disabled")
+    parser.add_argument("-m", "--enmux", dest='enmux', type=str, help="Enable save encode data to file, Enable package as mp4, mkv, or raw stream files depending on the file name suffix. default disabled")
+    parser.add_argument("-M", "--filemaxframe", dest='filemaxframe', type=int, default= 0, help="Set the maximum number of frames that can be saved. The default number is unlimited")
+    parser.add_argument("-p", "--port", dest='port', type=int, default=0, help="Enable rtsp stream, set push port, depend on encode enabled, default disabled\n")
+    parser.add_argument("--rtsp_transport", dest='rtsp_transport', type=int, default=0, help="Set the rtsp transport type，default 0(udp)")
     parser.add_argument("-s", "--sync", dest="sync", type=int, default=-1, help="Enable synchronization module, default disabled. Enable the default 0(audio)")
     parser.add_argument("-a", "--aplay", dest='aplay', type=str, help="Enable play audio, default disabled. e.g. -a plughw:3,0")
     parser.add_argument("-r", "--rotate", dest='rotate',type=int, default=0, help="Image rotation degree, default 0" )
@@ -194,6 +198,41 @@ def main():
             return 1
         cv_display = Cv2Display("Cv2Display", None, sync, args.cvdisplay)
         cv_display.module = last_module.addExternalConsumer("Cv2Display", cv_display, cv2_extcall_back)
+
+    if args.encodetype != -1:
+        input_para = last_module.getOutputImagePara()
+        enc = m.ModuleMppEnc(m.EncodeType(args.encodetype), input_para)
+        enc.setProductor(last_module)
+        enc.setBufferCount(8)
+        ret = enc.init()
+        if ret < 0:
+            print("ModuleMppEnc init failed")
+            return 1
+        last_module = enc
+
+        if args.port != 0:
+            input_para = last_module.getOutputImagePara()
+            rtsp_out = m.ModuleRtspServer(input_para, "/live/0", args.port)
+            rtsp_out.setProductor(last_module)
+            rtsp_out.setBufferCount(0)
+            rtsp_out.setSynchronize(sync)
+            ret = rtsp_out.init()
+            if ret < 0:
+                print("rtsp_out init failed")
+                return 1
+
+    if args.enmux is not None:
+        input_para = last_module.getOutputImagePara()
+        enm = m.ModuleFileWriter(input_para, args.enmux)
+        enm.setProductor(last_module)
+        enm.setBufferCount(1)
+
+        if args.filemaxframe > 0:
+            enm.setMaxFrameCount(args.filemaxframe)
+        enm.init()
+        if ret < 0:
+            print("ModuleFileWriter init failed")
+            return 1
 
     if args.save_file is not None:
         file = open(args.save_file, "wb")

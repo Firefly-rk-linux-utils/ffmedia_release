@@ -14,7 +14,7 @@
 #include "vp/module_rga.hpp"
 #include "vp/module_mppdec.hpp"
 #include "vp/module_mppenc.hpp"
-#include "vo/module_mp4enm.hpp"
+#include "vo/module_fileWriter.hpp"
 #include "vo/module_drmDisplay.hpp"
 #include "vo/module_rtspServer.hpp"
 #include "vp/module_aacdec.hpp"
@@ -33,7 +33,7 @@ typedef struct _demo_data {
     ModuleMppEnc* enc;
     ModuleMppDec* dec;
     ModuleRga* rga;
-    ModuleMp4Enm* enm;
+    ModuleFileWriter* file_writer;
     ModuleRtspClient* rtsp_c;
     ModuleDrmDisplay* drm_display;
     ModuleFileReader* file_reader;
@@ -45,8 +45,8 @@ typedef struct _demo_data {
     int drm_display_plane_zpos;
     FILE* file_data;
     char filename[256];
-    char mp4mux_filename[256];
-    uint64_t mp4mux_filemaxsize;
+    char output_filename[256];
+    uint32_t output_maxframe;
     char alsa_device[64];
 
     bool cam_enabled;
@@ -55,7 +55,7 @@ typedef struct _demo_data {
     bool rga_enabled;
     bool drmdisplay_enabled;
     bool enc_enabled;
-    bool enm_enabled;
+    bool file_w_enabled;
     bool rtsp_c_enabled;
     bool rtsppush_enabled;
     bool savetofile_enabled;
@@ -63,6 +63,11 @@ typedef struct _demo_data {
 
     ModuleMedia* last_module;
     ModuleMedia* source_module;
+
+    const uint8_t* video_extra_data;
+    unsigned video_extra_size;
+    const uint8_t* audio_extra_data;
+    unsigned audio_extra_size;
 
     char input_source[256];
     RgaRotate rotate;
@@ -106,8 +111,9 @@ static void usage(char** argv)
         "-p, --port                   Enable rtsp stream, set push port, depend on encode enabled, default disabled\n"
         "--rtsp_transport             Set the rtsp transport type，default udp.\n"
         "                               e.g. --rtsp_transport tcp | --rtsp_transport multicast\n"
-        "-m, --enmux                  Enable save encode data to mp4 file, depend on encode enabled, default disabled\n"
-        "--enmux_filemaxsize          Set the maximum size of the saved MP4 file in bytes, default unrestricted size\n"
+        "-m, --enmux                  Enable save encode data to file, Enable package as mp4, mkv, or raw stream files depending on the file name suffix\n"
+        "                               default disabled. e.g. -m out.mp4 | -m out.mkv | -m out.yuv\n"
+        "-M, --filemaxframe           Set the maximum number of frames that can be saved. The default number is unlimited\n"
         "-s, --sync                   Enable synchronization module, default disabled. Enable the default audio.\n"
         "                               e.g. -s | --sync=video | --sync=abs\n"
         "-A, --aplay                  Enable play audio, default disabled. e.g. --aplay plughw:3,0\n"
@@ -122,7 +128,7 @@ static void usage(char** argv)
         argv[0]);
 }
 
-static const char* short_options = "i:o:a:b:c:d:z:e:f:p:m:r:s::A:";
+static const char* short_options = "i:o:a:b:c:d:z:e:f:p:m:r:s::A:M:";
 
 // clang-format off
 static struct option long_options[] = {
@@ -141,7 +147,7 @@ static struct option long_options[] = {
     {"aplay", required_argument, NULL, 'A'},
     {"sync", optional_argument, NULL, 's' },
     {"rtsp_transport", required_argument, NULL, 'P'},
-    {"enmux_filemaxsize", required_argument, NULL, 'M'},
+    {"filemaxframe", required_argument, NULL, 'M'},
     {NULL, 0, NULL, 0}
 };
 // clang-format on
@@ -322,23 +328,12 @@ int start_instance(DemoData* inst_data, int inst_index, int inst_count)
             ff_error("file reader init failed\n");
             goto FAILED;
         }
+        inst_data->video_extra_data = inst_data->file_reader->videoExtraData();
+        inst_data->video_extra_size = inst_data->file_reader->videoExtraDataSize();
+        inst_data->audio_extra_data = inst_data->file_reader->audioExtraData();
+        inst_data->audio_extra_size = inst_data->file_reader->audioExtraDataSize();
+
         inst_data->last_module = inst_data->file_reader;
-        inst_data->file_reader->setSynchronize(inst_data->sync);
-
-        if (inst_data->aplay_enable) {
-            inst_data->aac_dec = new ModuleAacDec(inst_data->file_reader->audioExtraData(),
-                                                  inst_data->file_reader->audioExtraDataSize(), -1);
-            inst_data->aac_dec->setProductor(inst_data->last_module);
-            inst_data->aac_dec->setBufferCount(1);
-            inst_data->aac_dec->setAlsaDevice(inst_data->alsa_device);
-            inst_data->aac_dec->setSynchronize(inst_data->sync);
-
-            ret = inst_data->aac_dec->init();
-            if (ret < 0) {
-                ff_error("aac_dec init failed\n");
-                goto FAILED;
-            }
-        }
     }
 
     if (inst_data->rtsp_c_enabled) {
@@ -351,32 +346,34 @@ int start_instance(DemoData* inst_data, int inst_index, int inst_count)
             goto FAILED;
         }
         inst_data->last_module = inst_data->rtsp_c;
-        /* The synchronization module is not being used for the time being due to
-         * a problem with the order in which the RTP package gets the timestamps
-         */
-        // inst_data->sync = new Synchronize(SYNCHRONIZETYPE_AUDIO);
-
-        if (inst_data->aplay_enable) {
-            inst_data->aac_dec = new ModuleAacDec(inst_data->rtsp_c->audioExtraData(),
-                                                  inst_data->rtsp_c->audioExtraDataSize(), -1);
-            inst_data->aac_dec->setProductor(inst_data->last_module);
-            inst_data->aac_dec->setBufferCount(1);
-            inst_data->aac_dec->setAlsaDevice(inst_data->alsa_device);
-            inst_data->aac_dec->setSynchronize(inst_data->sync);
-            ret = inst_data->aac_dec->init();
-            if (ret < 0) {
-                ff_error("aac_dec init failed\n");
-                goto FAILED;
-            }
-        }
+        inst_data->video_extra_data = inst_data->rtsp_c->videoExtraData();
+        inst_data->video_extra_size = inst_data->rtsp_c->videoExtraDataSize();
+        inst_data->audio_extra_data = inst_data->rtsp_c->audioExtraData();
+        inst_data->audio_extra_size = inst_data->rtsp_c->audioExtraDataSize();
     }
 
+    inst_data->last_module->setSynchronize(inst_data->sync);
     inst_data->source_module = inst_data->last_module;
 #if USE_COMMON_SOURCE
     common_source_module = inst_data->last_module;
 #endif
 
 SOURCE_CREATED:
+
+    if (inst_data->aplay_enable) {
+        inst_data->aac_dec = new ModuleAacDec(inst_data->audio_extra_data,
+                                              inst_data->audio_extra_size, -1);
+        inst_data->aac_dec->setProductor(inst_data->source_module);
+        inst_data->aac_dec->setBufferCount(1);
+        inst_data->aac_dec->setAlsaDevice(inst_data->alsa_device);
+        inst_data->aac_dec->setSynchronize(inst_data->sync);
+
+        ret = inst_data->aac_dec->init();
+        if (ret < 0) {
+            ff_error("aac_dec init failed\n");
+            goto FAILED;
+        }
+    }
 
     source_output_para = inst_data->source_module->getOutputImagePara();
 
@@ -510,18 +507,18 @@ SOURCE_CREATED:
         inst_data->last_module = inst_data->enc;
     }
 
-    if (inst_data->enm_enabled) {
-        inst_data->file_data = fopen(inst_data->filename, "w+");
+    if (inst_data->file_w_enabled) {
         ImagePara input_para = inst_data->last_module->getOutputImagePara();
-        strcat(inst_data->mp4mux_filename, suffix);
-        inst_data->enm = new ModuleMp4Enm(input_para, 0, 0, 30, inst_data->mp4mux_filename);
-        inst_data->enm->setProductor(inst_data->last_module);
-        if (inst_data->mp4mux_filemaxsize)
-            inst_data->enm->setFileMaxSize(inst_data->mp4mux_filemaxsize);
-        inst_data->enm->setBufferCount(0);
-        ret = inst_data->enm->init();
+        strcat(inst_data->output_filename, suffix);
+        inst_data->file_writer = new ModuleFileWriter(input_para, inst_data->output_filename);
+        inst_data->file_writer->setVideoExtraData(inst_data->video_extra_data, inst_data->video_extra_size);
+        // inst_data->file_writer->setAudioExtraData(inst_data->audio_extra_data, inst_data->audio_extra_size);
+        inst_data->file_writer->setProductor(inst_data->last_module);
+        if (inst_data->output_maxframe)
+            inst_data->file_writer->setMaxFrameCount(inst_data->output_maxframe);
+        ret = inst_data->file_writer->init();
         if (ret < 0) {
-            ff_error("mp4 enm init failed\n");
+            ff_error("ModuleFileWriter init failed\n");
             goto FAILED;
         }
     }
@@ -553,7 +550,7 @@ SOURCE_CREATED:
         strcat(inst_data->filename, suffix);
         inst_data->file_data = fopen(inst_data->filename, "w+");
 #if 1
-        inst_data->file_reader->setOutputDataCallback(inst_data, callback_dumpFrametofile);
+        inst_data->source_module->setOutputDataCallback(inst_data, callback_dumpFrametofile);
 #endif
 #if 0
         inst_data->dec->setOutputDataCallback(inst_data, callback_dumpFrametofile);
@@ -581,8 +578,8 @@ SOURCE_CREATED:
 			 "Decoder:        %s\n"
 			 "Rga:            %s\n"
 			 "Encoder:        %s\n"
-             "Enmux:          %s\n"
 			 "RtspClient:     %s\n"
+             "File writer:    %s\n"
 			 "File:           %s\n"
 			 "Rtsp push:      %s\n",
 			 inst_data->input_source,
@@ -592,9 +589,9 @@ SOURCE_CREATED:
 			 inst_data->dec_enabled ? "enable" : "disable",
 			 inst_data->rga_enabled ? "enable" : "disable",
 			 inst_data->enc_enabled ? "enable" : "disable",
-			 inst_data->enm_enabled ? "enable" : "disable",
 			 inst_data->rtsp_c_enabled ? "enable" : "disable",
-			 inst_data->savetofile_enabled ? inst_data->filename : "disable",
+			 inst_data->file_w_enabled ? inst_data->output_filename : "disable",
+             inst_data->savetofile_enabled ? inst_data->filename : "disable",
 			 inst_data->rtsppush_enabled ? to_string(inst_data->rtsp_push_port).c_str() : "disable");
     // clang-format on
 
@@ -624,7 +621,6 @@ int main(int argc, char** argv)
     demo.drm_display_plane_zpos = 0xFF;
 
     strcpy(demo.filename, "");
-    strcpy(demo.mp4mux_filename, "");
     demo.rtsp_push_port = -1;
 
     ff_log_init();
@@ -681,11 +677,11 @@ int main(int argc, char** argv)
                     demo.rtsp_transport = 2;
                 break;
             case 'm':
-                strcpy(demo.mp4mux_filename, optarg);
-                demo.enm_enabled = true;
+                strcpy(demo.output_filename, optarg);
+                demo.file_w_enabled = true;
                 break;
             case 'M':
-                demo.mp4mux_filemaxsize = strtoull(optarg, NULL, 10);
+                demo.output_maxframe = strtoull(optarg, NULL, 10);
                 break;
             case 's':
                 if (optarg == NULL) {
@@ -759,14 +755,15 @@ int main(int argc, char** argv)
     }
 
 EXIT:
-    for (int i = 0; i < instance_count; i++) {
-        if (insts + i != NULL) {
-            if (common_source_module != NULL) {
-                common_source_module->dumpPipeSummary();
-                common_source_module->stop();
-                delete common_source_module;
-                common_source_module = NULL;
-            } else {
+
+    if (common_source_module != NULL) {
+        common_source_module->dumpPipeSummary();
+        common_source_module->stop();
+        delete common_source_module;
+        common_source_module = NULL;
+    } else {
+        for (int i = 0; i < instance_count; i++) {
+            if (insts + i != NULL) {
                 if (insts[i].source_module == NULL)
                     continue;
                 insts[i].source_module->dumpPipeSummary();
@@ -774,6 +771,11 @@ EXIT:
                 delete insts[i].source_module;
                 insts[i].source_module = NULL;
             }
+        }
+    }
+
+    for (int i = 0; i < instance_count; i++) {
+        if (insts + i != NULL) {
             if (insts[i].file_data > 0)
                 fclose(insts[i].file_data);
 

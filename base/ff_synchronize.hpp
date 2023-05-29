@@ -21,8 +21,8 @@ private:
     Clock absolute;
     SynchronizeType type;
 
-    int estimate_video_duration;
-    int n;
+    //    int estimate_video_duration;
+    //    int n;
 
 public:
     explicit Synchronize(SynchronizeType _type);
@@ -33,9 +33,9 @@ public:
     void setClockTime(SynchronizeType _type, int64_t pts);
     int64_t getClockTime(const Clock& clock);
     int updateVideo(int64_t pts, int64_t duration);
-    int updateAudio(int samples, int samplerate);
+    int updateAudio(int samples, int samplerate, int64_t pts);
     int updateAudioByBytesSize(unsigned bytesSize, int samplerate, int channels,
-                               int bitsPerSample);
+                               int bitsPerSample, int64_t pts);
 };
 
 

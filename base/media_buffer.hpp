@@ -15,8 +15,8 @@ protected:
     size_t size;
     void* active_data;
     size_t active_size;
-    int64_t ustimestamp;
-    int64_t duration;
+    int64_t p_ustimestamp;
+    int64_t d_ustimestamp;
     bool eos;
     void* private_data;
     void* extra_data;
@@ -51,11 +51,11 @@ public:
     size_t getActiveSize() const { return active_size; }
     void setActiveSize(const size_t& activeSize) { active_size = activeSize; }
 
-    int64_t getUstimestamp() const { return ustimestamp; }
-    void setUstimestamp(const int64_t& ustimestamp_) { ustimestamp = ustimestamp_; }
+    int64_t getPUstimestamp() const { return p_ustimestamp; }
+    void setPUstimestamp(const int64_t& ustimestamp_) { p_ustimestamp = ustimestamp_; }
 
-    int64_t getDuration() { return duration; }
-    void setDuration(int64_t _duration) { duration = _duration; }
+    int64_t getDUstimestamp() const { return d_ustimestamp; }
+    void setDUstimestamp(const int64_t& ustimestamp_) { d_ustimestamp = ustimestamp_; }
 
     void* getPrivateData() const { return private_data; }
     void setPrivateData(void* privateData) { private_data = privateData; }

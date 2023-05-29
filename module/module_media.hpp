@@ -166,6 +166,11 @@ protected:
         return true;
     }
 
+    virtual bool teardown()
+    {
+        return true;
+    }
+
 public:
     ModuleMedia();
     ModuleMedia(const char* name_);

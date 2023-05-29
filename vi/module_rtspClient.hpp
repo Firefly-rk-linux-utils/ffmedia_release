@@ -22,16 +22,18 @@ public:
 protected:
     virtual ProcessResult doProcess(MediaBuffer* output_buffer) override;
     virtual bool setup() override;
+    virtual bool teardown() override;
 
 private:
     RTSPClient* rtsp_client;
     int64_t time_msec;
     unsigned stream_type;
-    int64_t last_timestamp;
     string url;
+    const int SESSION_STATUS_OPENED = 0;
+    const int SESSION_STATUS_CLOSED = 1;
+    int session_status;
 
     bool open();
-    void close();
 };
 
 #endif /* ModuleRtspClient_hpp */

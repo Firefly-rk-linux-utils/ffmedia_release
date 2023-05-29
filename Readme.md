@@ -6,7 +6,7 @@ ffmedia一共包含以下单元
 - 输入源单元 VI：
   - Camera:  支持UVC， Mipi CSI
   - RTSP Client: 支持tcp、udp和多播协议
-  - File Reader：支持mkv、mp4文件读入及H264,H265裸流文件读入
+  - File Reader：支持mkv、mp4文件读入及裸流等文件读入
 - 处理单元 VP:
   - MppDec: 视频解码，支持H264,H265,MJpeg
   - MppEnc: 视频编码，支持H264,H265
@@ -16,9 +16,11 @@ ffmedia一共包含以下单元
 - 输出单元 VO
   - DRM Display: 基于libdrm的显示模块
   - RTSP Server:
-  - Mp4 Enmux: 编码后数据输出为Mp4格式的文件
+  - File Writer: 支持mkv、mp4及裸流等文件保存
 - pybind11 pymodule.cpp
   - pymodule: 创建vi、vo、vp等的c++代码的Python绑定，以提供python调用vi、vo、vp等c++模块的python接口
+
+各个模块成员函数及参数说明请参看documentation/ffmedia.docx 。
 
 ## 软件框架：
 
@@ -41,3 +43,23 @@ sed -i 's/.*ff_pymedia*/\#&/' CMakeLists.txt
 sed -i 's/add_subdirectory(pybind11)/\#&/' CMakeLists.txt
 ```
 
+## 多路编解码问题
+
+在多路编解码时，如果出现无法申请buf或者无法初始化等，可能是系统限制了进程使用fd的数量
+更改进程使用的fd数量，临时更改：
+
+```
+ulimit -n #查看当前进程可用fd最大数量
+ulimit -n 102400 #更改进程可用fd最大数量到102400
+```
+永久更改：
+
+```
+sudo vim /etc/security/limits.conf
+#在尾部添加
+*	soft	nofile	102400
+*	hard	nofile	102400
+*	soft	nproc	102400
+*	hard	nproc	102400
+
+```
