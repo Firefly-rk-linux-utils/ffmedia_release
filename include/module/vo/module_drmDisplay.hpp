@@ -24,19 +24,19 @@ private:
     int index_in_plane;
 
 public:
-    ModuleDrmDisplay(ImagePara& input_para);
+    ModuleDrmDisplay(const ImagePara& input_para);
     ~ModuleDrmDisplay();
 
 private:
     bool setupPlaneDevice();
     bool setupDisplayDevice();
     int drmFindPlane();
-    int drmCreateFb(VideoBuffer* buffer);
+    int drmCreateFb(shared_ptr<VideoBuffer> buffer);
     bool checkPlaneType(uint64_t plane_drm_type);
     bool isSamePlane(DrmDisplayPlane* a, DrmDisplayPlane* b);
 
 protected:
-    virtual EnQueueResult doEnQueue(MediaBuffer* input_buffer, MediaBuffer* output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
     virtual bool setup() override;
 
 public:

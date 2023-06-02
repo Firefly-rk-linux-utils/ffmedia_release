@@ -15,18 +15,18 @@ private:
     RgaRotate rotate;
 
 protected:
-    virtual EnQueueResult doEnQueue(MediaBuffer* input_buffer, MediaBuffer* output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
 
 public:
     ModuleRga();
-    ModuleRga(ImagePara& input_para, ImagePara& output_para, RgaRotate rotate);
+    ModuleRga(const ImagePara& input_para, const ImagePara& output_para, RgaRotate rotate);
     ~ModuleRga();
     int init();
     void setSrcPara(uint32_t fmt, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t hstride, uint32_t vstride);
     void setDstPara(uint32_t fmt, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t hstride, uint32_t vstride);
     void setRotate(RgaRotate rotate);
-    MediaBuffer* newModuleMediaBuffer(VideoBuffer::BUFFER_TYPE buffer_type = VideoBuffer::BUFFER_TYPE::DRM_BUFFER_CACHEABLE);
-    MediaBuffer* exportUseMediaBuffer(MediaBuffer* match_buffer, MediaBuffer* input_buffer, int flag);
+    shared_ptr<MediaBuffer> newModuleMediaBuffer(VideoBuffer::BUFFER_TYPE buffer_type = VideoBuffer::BUFFER_TYPE::DRM_BUFFER_CACHEABLE);
+    shared_ptr<MediaBuffer> exportUseMediaBuffer(shared_ptr<MediaBuffer> match_buffer, shared_ptr<MediaBuffer> input_buffer, int flag);
 };
 
 #endif  //__MODULE_RGA_HPP__

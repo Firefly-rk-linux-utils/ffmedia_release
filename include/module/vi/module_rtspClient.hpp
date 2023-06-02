@@ -20,9 +20,10 @@ public:
     void setTimeOutSec(unsigned sec, unsigned nsec) { time_msec = sec * 1000 + nsec / 1000; }
 
 protected:
-    virtual ProcessResult doProcess(MediaBuffer* output_buffer) override;
+    virtual ProduceResult doProduce(shared_ptr<MediaBuffer> output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
+    int fromRtpGetVideoParameter();
 
 private:
     RTSPClient* rtsp_client;
@@ -32,6 +33,7 @@ private:
     const int SESSION_STATUS_OPENED = 0;
     const int SESSION_STATUS_CLOSED = 1;
     int session_status;
+    bool fromRtpGetParameterFlag;
 
     bool open();
 };

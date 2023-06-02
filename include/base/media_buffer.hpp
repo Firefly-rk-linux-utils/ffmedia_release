@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <atomic>
 #include <mutex>
+#include <memory>
 #include "ff_type.hpp"
 
 using namespace std;
@@ -19,7 +20,7 @@ protected:
     int64_t d_ustimestamp;
     bool eos;
     void* private_data;
-    void* extra_data;
+    shared_ptr<MediaBuffer> extra_data;
     int medai_type;
     std::atomic_bool status;
     std::atomic_uint16_t ref_count;
@@ -60,8 +61,8 @@ public:
     void* getPrivateData() const { return private_data; }
     void setPrivateData(void* privateData) { private_data = privateData; }
 
-    void* getExtraData() const { return extra_data; }
-    void setExtraData(void* extraData) { extra_data = extraData; }
+    shared_ptr<MediaBuffer> getExtraData() const { return extra_data; }
+    void setExtraData(shared_ptr<MediaBuffer> extraData) { extra_data = extraData; }
 
     bool getEos() const { return eos; }
     void setEos(const bool& eos_) { eos = eos_; }

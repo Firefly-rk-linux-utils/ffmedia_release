@@ -15,7 +15,7 @@ private:
     generalFileWrite* writer;
 
 public:
-    ModuleFileWriter(ImagePara& para, string path);
+    ModuleFileWriter(const ImagePara& para, string path);
     ~ModuleFileWriter();
     int init();
     int restart(string file_name);
@@ -26,7 +26,7 @@ public:
     void setAudioExtraData(const uint8_t* extra_data, unsigned extra_size);
 
 protected:
-    virtual EnQueueResult doEnQueue(MediaBuffer* input_buffer, MediaBuffer* output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
 };
 
 #endif

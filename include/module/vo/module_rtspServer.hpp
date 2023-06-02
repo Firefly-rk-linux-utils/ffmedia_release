@@ -19,11 +19,11 @@ private:
     char push_path[256];
 
 protected:
-    virtual EnQueueResult doEnQueue(MediaBuffer* input_buffer, MediaBuffer* output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
     virtual bool setup() override;
 
 public:
-    ModuleRtspServer(ImagePara& para, const char* path, int port);
+    ModuleRtspServer(const ImagePara& para, const char* path, int port);
     ~ModuleRtspServer();
     int init();
 };

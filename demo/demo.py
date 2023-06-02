@@ -42,7 +42,7 @@ def find_two_numbers(n, x, y):
 def cv2_extcall_back(obj, VideoBuffer):
     vb = m.VideoBuffer.from_base(VideoBuffer)
     if obj.sync is not None:
-        delay = obj.sync.updateVideo(vb.getUstimestamp(), vb.getDuration())
+        delay = obj.sync.updateVideo(vb.getPUstimestamp(), 0)
         if delay > 0:
             time.sleep(delay/1000000)
     data = vb.getActiveData()
@@ -241,10 +241,6 @@ def main():
     input_source.start()
     text = input("wait...")
     input_source.stop()
-
-    if cv_display is not None:
-        #Free the module before the producer free, preventing multiple free
-        cv_display.module = None
 
     if args.save_file is not None:
         file.close()

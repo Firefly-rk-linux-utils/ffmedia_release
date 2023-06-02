@@ -30,8 +30,8 @@ public:
     void setAlsaDevice(string dev) { a_dev = dev; }
 
 protected:
-    virtual EnQueueResult doEnQueue(MediaBuffer* input_buffer, MediaBuffer* output_buffer) override;
-    virtual ProcessResult doProcess(MediaBuffer* buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ProduceResult doProduce(shared_ptr<MediaBuffer> buffer) override;
 
 private:
     void close();

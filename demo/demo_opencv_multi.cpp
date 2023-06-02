@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#include "vi/module_rtspClient.hpp"
-#include "vp/module_mppdec.hpp"
-#include "vp/module_rga.hpp"
+#include "module/vi/module_rtspClient.hpp"
+#include "module/vp/module_mppdec.hpp"
+#include "module/vp/module_rga.hpp"
 
 #define ENABLE_OPENCV
 
@@ -20,18 +20,18 @@
 using namespace std;
 
 struct External_ctx {
-    ModuleMedia* module;
+    shared_ptr<ModuleMedia> module;
     uint16_t test;
 };
 
-void callback_external(void* _ctx, MediaBuffer* buffer)
+void callback_external(void* _ctx, shared_ptr<MediaBuffer> buffer)
 {
     External_ctx* ctx = static_cast<External_ctx*>(_ctx);
-    ModuleMedia* module = ctx->module;
+    shared_ptr<ModuleMedia> module = ctx->module;
 
     if (buffer == NULL || buffer->getMediaBufferType() != BUFFER_TYPE_VIDEO)
         return;
-    VideoBuffer* buf = static_cast<VideoBuffer*>(buffer);
+    shared_ptr<VideoBuffer> buf = static_pointer_cast<VideoBuffer>(buffer);
 
     void* ptr = buf->getActiveData();
     size_t size = buf->getActiveSize();
@@ -51,9 +51,9 @@ void callback_external(void* _ctx, MediaBuffer* buffer)
 int main(int argc, char** argv)
 {
     int ret;
-    ModuleRtspClient* rtsp_c = NULL;
-    ModuleMppDec* dec = NULL;
-    ModuleRga* rga = NULL;
+    shared_ptr<ModuleRtspClient> rtsp_c = NULL;
+    shared_ptr<ModuleMppDec> dec = NULL;
+    shared_ptr<ModuleRga> rga = NULL;
     ImagePara input_para;
     ImagePara output_para;
     External_ctx* ctx1 = NULL;
@@ -61,7 +61,7 @@ int main(int argc, char** argv)
 
     ff_log_init();
 
-    rtsp_c = new ModuleRtspClient("rtsp://admin:firefly123@168.168.2.96:554/av_stream");
+    rtsp_c = make_shared<ModuleRtspClient>("rtsp://admin:firefly123@168.168.2.96:554/av_stream");
     ret = rtsp_c->init();
     if (ret < 0) {
         ff_error("rtsp client init failed\n");
@@ -69,7 +69,7 @@ int main(int argc, char** argv)
     }
 
     input_para = rtsp_c->getOutputImagePara();
-    dec = new ModuleMppDec(input_para);
+    dec = make_shared<ModuleMppDec>(input_para);
     dec->setProductor(rtsp_c);
     ret = dec->init();
     if (ret < 0) {
@@ -84,7 +84,7 @@ int main(int argc, char** argv)
     output_para.hstride = output_para.width;
     output_para.vstride = output_para.height;
     output_para.v4l2Fmt = V4L2_PIX_FMT_RGB24;
-    rga = new ModuleRga(input_para, output_para, RGA_ROTATE_NONE);
+    rga = make_shared<ModuleRga>(input_para, output_para, RGA_ROTATE_NONE);
     rga->setProductor(dec);
     ret = rga->init();
     if (ret < 0) {
@@ -105,10 +105,6 @@ int main(int argc, char** argv)
     rtsp_c->stop();
 
 FAILED:
-    // Just delete the orign producer and all its consumers will be deleted automatically
-    if (rtsp_c)
-        delete rtsp_c;
-
     if (ctx1)
         delete ctx1;
     if (ctx2)

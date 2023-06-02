@@ -12,8 +12,8 @@ private:
 
 protected:
     virtual bool setup() override;
-    virtual ProcessResult doProcess(MediaBuffer* output_buffer) override;
-    virtual void bufferReleaseCallBack(MediaBuffer* buffer) override;
+    virtual ProduceResult doProduce(shared_ptr<MediaBuffer> output_buffer) override;
+    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer) override;
 
 public:
     ModuleCam(const char* dev);

@@ -25,19 +25,20 @@ find_package(OpenCV REQUIRED)
 ENDIF(DEMO_OPENCV)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
 add_executable(demo
-               demo.cpp
-               utils.cpp
+               demo/demo.cpp
+               demo/utils.cpp
                )
 
 add_executable(demo_simple
-               demo_simple.cpp
+               demo/demo_simple.cpp
                )
 
 add_executable(demo_multi_drmplane
-               demo_multi_drmplane.cpp
+               demo/demo_multi_drmplane.cpp
                )
 
 target_link_libraries(demo ff_media)
@@ -48,11 +49,11 @@ INCLUDE(GNUInstallDirs)
 
 IF(DEMO_OPENCV)
 add_executable(demo_opencv
-               demo_opencv.cpp
+               demo/demo_opencv.cpp
                )
 
 add_executable(demo_opencv_multi
-               demo_opencv_multi.cpp
+               demo/demo_opencv_multi.cpp
                )
 
 target_link_libraries(demo_opencv ff_media pthread opencv_core opencv_highgui opencv_imgcodecs)

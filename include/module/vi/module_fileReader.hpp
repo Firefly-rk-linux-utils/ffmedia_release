@@ -16,7 +16,7 @@ private:
     bool loopMode;
 
 protected:
-    virtual ProcessResult doProcess(MediaBuffer* output_buffer) override;
+    virtual ProduceResult doProduce(shared_ptr<MediaBuffer> output_buffer) override;
 
 public:
     ModuleFileReader(const char* path, bool loop_play);

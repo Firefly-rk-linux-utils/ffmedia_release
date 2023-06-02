@@ -3,48 +3,48 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#include "vi/module_rtspClient.hpp"
-#include "vp/module_mppdec.hpp"
-#include "vo/module_drmDisplay.hpp"
+#include "module/vi/module_rtspClient.hpp"
+#include "module/vp/module_mppdec.hpp"
+#include "module/vo/module_drmDisplay.hpp"
 
 int main(int argc, char** argv)
 {
     int ret;
-    ModuleRtspClient* rtsp_c = NULL;
-    ModuleMppDec* dec = NULL;
-    ModuleDrmDisplay* drm_display = NULL;
+    shared_ptr<ModuleRtspClient> rtsp_c = NULL;
+    shared_ptr<ModuleMppDec> dec = NULL;
+    shared_ptr<ModuleDrmDisplay> drm_display = NULL;
     ImagePara input_para;
     ImagePara output_para;
 
     ff_log_init();
 
     // 1. rtsp client module
-    rtsp_c = new ModuleRtspClient("rtsp://admin:firefly123@168.168.2.96:554/av_stream");
+    rtsp_c = make_shared<ModuleRtspClient>("rtsp://admin:firefly123@168.168.2.96:554/av_stream");
     ret = rtsp_c->init();
     if (ret < 0) {
         ff_error("rtsp client init failed\n");
-        goto FAILED;
+        return ret;
     }
 
     // 2. dec module
     input_para = rtsp_c->getOutputImagePara();
-    dec = new ModuleMppDec(input_para);
+    dec = make_shared<ModuleMppDec>(input_para);
     dec->setProductor(rtsp_c);
     ret = dec->init();
     if (ret < 0) {
         ff_error("Dec init failed\n");
-        goto FAILED;
+        return ret;
     }
 
     // 3. drm display module
     input_para = dec->getOutputImagePara();
-    drm_display = new ModuleDrmDisplay(input_para);
+    drm_display = make_shared<ModuleDrmDisplay>(input_para);
     drm_display->setPlanePara(V4L2_PIX_FMT_NV12, 1);
     drm_display->setProductor(dec);
     ret = drm_display->init();
     if (ret < 0) {
         ff_error("drm display init failed\n");
-        goto FAILED;
+        return ret;
     } else {
         uint32_t t_w, t_h;
         drm_display->getDisplayPlaneSize(&t_w, &t_h);
@@ -63,9 +63,4 @@ int main(int argc, char** argv)
     getchar();
 
     rtsp_c->stop();
-
-FAILED:
-    // Just delete the orign producer and all its consumers will be deleted automatically
-    if (rtsp_c)
-        delete rtsp_c;
 }
