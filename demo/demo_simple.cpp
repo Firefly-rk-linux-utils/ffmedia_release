@@ -16,8 +16,6 @@ int main(int argc, char** argv)
     ImagePara input_para;
     ImagePara output_para;
 
-    ff_log_init();
-
     // 1. rtsp client module
     rtsp_c = make_shared<ModuleRtspClient>("rtsp://admin:firefly123@168.168.2.96:554/av_stream");
     ret = rtsp_c->init();

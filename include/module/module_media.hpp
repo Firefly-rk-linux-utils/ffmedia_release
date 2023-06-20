@@ -27,6 +27,7 @@
 #include "base/ff_synchronize.hpp"
 #include "base/ff_type.hpp"
 #include "base/ff_log.h"
+#include "base_config.h"
 
 using namespace std;
 #ifdef PYBIND11_MODULE
@@ -49,14 +50,11 @@ enum ModuleStatus {
 
 class ModuleMedia : public std::enable_shared_from_this<ModuleMedia>
 {
-
 public:
     ModuleMedia();
     ModuleMedia(const char* name_);
     virtual ~ModuleMedia();
-    bool isHoleModule();
 
-    void setOutputDataCallback(void_object_p ctx, callback_handler callback);
     void start();
     void stop();
 
@@ -66,36 +64,38 @@ public:
     void addConsumer(shared_ptr<ModuleMedia> consumer);
     void removeConsumer(shared_ptr<ModuleMedia> consumer);
 
-    const char* getName() const { return name; }
-    int getIndex() const { return index; }
+    shared_ptr<ModuleMedia> getConsumer(uint16_t index) const { return consumers[index]; }
+    uint16_t getConsumersCount() const { return consumers_count; }
 
-    uint16_t getBufferCount() const { return buffer_count; }
     void setBufferCount(uint16_t bufferCount) { buffer_count = bufferCount; }
+    uint16_t getBufferCount() const { return buffer_count; }
     shared_ptr<MediaBuffer> getBufferFromIndex(uint16_t index);
 
-    ImagePara getInputImagePara() const { return input_para; }
     void setInputImagePara(const ImagePara& inputPara) { input_para = inputPara; }
+    ImagePara getInputImagePara() const { return input_para; }
 
-    ImagePara getOutputImagePara() const { return output_para; }
     void setOutputImagePara(const ImagePara& outputPara) { output_para = outputPara; }
+    ImagePara getOutputImagePara() const { return output_para; }
 
+    const char* getName() const { return name; }
+    int getIndex() const { return index; }
     ModuleStatus getModuleStatus() const { return module_status; }
+    int getMediaType() const { return media_type; }
 
+    void setSynchronize(shared_ptr<Synchronize> syn) { sync = syn; }
+
+    void setOutputDataCallback(void_object_p ctx, callback_handler callback);
     shared_ptr<ModuleMedia> addExternalConsumer(const char* name,
                                                 void_object_p external_consume_ctx,
                                                 callback_handler external_consume);
 
-    size_t getBufferSize() const { return buffer_size; }
     void setBufferSize(const size_t& bufferSize) { buffer_size = bufferSize; }
+    size_t getBufferSize() const { return buffer_size; }
 
-    uint16_t getConsumersCount() const { return consumers_count; }
-    shared_ptr<ModuleMedia> getConsumer(uint16_t index) const { return consumers[index]; }
-    int getMediaType() const { return media_type; }
+    bool isHoleModule();
 
     void dumpPipe();
     void dumpPipeSummary();
-
-    void setSynchronize(shared_ptr<Synchronize> syn) { sync = syn; }
 
 protected:
     enum ConsumeResult {

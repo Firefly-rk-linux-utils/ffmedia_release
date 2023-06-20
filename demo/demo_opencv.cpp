@@ -58,8 +58,6 @@ int main(int argc, char** argv)
     ImagePara output_para;
     External_ctx* ctx1 = NULL;
 
-    ff_log_init();
-
     rtsp_c = make_shared<ModuleRtspClient>("rtsp://admin:firefly123@168.168.2.96:554/av_stream");
     ret = rtsp_c->init();
     if (ret < 0) {

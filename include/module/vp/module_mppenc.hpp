@@ -18,6 +18,8 @@ private:
     EncodeRcMode mode;
     EncodeQuality quality;
     EncodeProfile profile;
+    int64_t cur_pts;
+    int64_t duration;
     shared_ptr<VideoBuffer> encoderExtraData(shared_ptr<VideoBuffer> buffer);
 
 protected:

@@ -113,12 +113,10 @@ void dump_videobuffer_to_file(shared_ptr<VideoBuffer> buffer, FILE* fp)
         case V4L2_PIX_FMT_GREY: {
             uint32_t i;
             unsigned char* base_y = base;
-            unsigned char* tmp = (unsigned char*)malloc(h_stride * height);
 
             for (i = 0; i < height; i++, base_y += h_stride)
                 fwrite(base_y, 1, width, fp);
 
-            free(tmp);
         } break;
         case V4L2_PIX_FMT_ARGB32:
         case V4L2_PIX_FMT_ABGR32:
@@ -126,24 +124,20 @@ void dump_videobuffer_to_file(shared_ptr<VideoBuffer> buffer, FILE* fp)
         case V4L2_PIX_FMT_BGR32: {
             uint32_t i;
             unsigned char* base_y = base;
-            unsigned char* tmp = (unsigned char*)malloc(width * height * 4);
 
-            for (i = 0; i < height; i++, base_y += h_stride)
+            for (i = 0; i < height; i++, base_y += h_stride * 4)
                 fwrite(base_y, 1, width * 4, fp);
 
-            free(tmp);
         } break;
         case V4L2_PIX_FMT_RGB565:
         case V4L2_PIX_FMT_RGB555:
         case V4L2_PIX_FMT_RGB444: {
             uint32_t i;
             unsigned char* base_y = base;
-            unsigned char* tmp = (unsigned char*)malloc(width * height * 2);
 
-            for (i = 0; i < height; i++, base_y += h_stride)
+            for (i = 0; i < height; i++, base_y += h_stride * 2)
                 fwrite(base_y, 1, width * 2, fp);
 
-            free(tmp);
         } break;
         default: {
             ff_error("not supported format %d\n", fmt);

@@ -17,7 +17,9 @@
 #include "module/vo/module_fileWriter.hpp"
 #include "module/vo/module_drmDisplay.hpp"
 #include "module/vo/module_rtspServer.hpp"
+#if AUDIO_SUPPORT
 #include "module/vp/module_aacdec.hpp"
+#endif
 
 struct timeval curr_time;
 struct timeval start_time;
@@ -31,7 +33,7 @@ shared_ptr<ModuleMedia> common_source_module;
 typedef struct _demo_config {
     int drm_display_plane_id = 0;
     int drm_display_plane_zpos = 0xFF;
-    char filename[256] = "";
+    char dump_filename[256] = "";
     char output_filename[256] = "";
     uint32_t output_maxframe = 0;
     char alsa_device[64] = "";
@@ -97,7 +99,7 @@ static void usage(char** argv)
         "-d, --drmdisplay             Drm display, set display plane, set 0 to auto find plane, default disabled\n"
         "-z, --zpos                   Drm display plane zpos, default auto select\n"
         "-e, --encodetype             Encode encode, set encode type, default disabled\n"
-        "-f, --file                   Enable save dec output data to file, set filename, default disabled\n"
+        "-f, --file                   Enable save source output data to file, set filename, default disabled\n"
         "-p, --port                   Enable rtsp stream, set push port, depend on encode enabled, default disabled\n"
         "--rtsp_transport             Set the rtsp transport type，default udp.\n"
         "                               e.g. --rtsp_transport tcp | --rtsp_transport multicast\n"
@@ -228,13 +230,35 @@ void callback_dumpFrametofile(void* ctx, shared_ptr<MediaBuffer> buffer)
     }
 }
 
+void add_index_to_filename(char* filename, int index)
+{
+    char suffix[5];
+    char extension[20];
+    sprintf(suffix, "%02d", index);
+
+    if ((filename == nullptr) || (strlen(filename) == 0))
+        return;
+    char* t = strstr(filename, ".");
+    if (t != NULL) {
+        int len = t - filename;
+        strncpy(extension, t, sizeof(extension) - 1);
+        sprintf(filename + len, "_%s%s", suffix, extension);
+    } else {
+        strcat(filename, "_");
+        strcat(filename, suffix);
+    }
+}
+
 int start_instance(DemoData* inst, int inst_index, int inst_count)
 {
     int ret;
-    char suffix[5];
-    sprintf(suffix, "%02d", inst_index);
     ImagePara productor_output_para;
     DemoConfig* inst_conf = &(inst->config);
+
+    if (inst_count > 1) {
+        add_index_to_filename(inst_conf->dump_filename, inst_index);
+        add_index_to_filename(inst_conf->output_filename, inst_index);
+    }
 
     ff_info("\n\n==========================================\n");
     if ((inst_conf->input_image_para.width > 0) && (inst_conf->input_image_para.height > 0)) {
@@ -354,6 +378,7 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
 
 SOURCE_CREATED:
 
+#if AUDIO_SUPPORT
     if (inst_conf->aplay_enable) {
         shared_ptr<ModuleAacDec> aac_dec = make_shared<ModuleAacDec>(inst->audio_extra_data,
                                                                      inst->audio_extra_size, -1);
@@ -368,6 +393,7 @@ SOURCE_CREATED:
             goto FAILED;
         }
     }
+#endif
 
     if (inst->source_module != nullptr) {
         const ImagePara& source_module_output_para = inst->source_module->getOutputImagePara();
@@ -511,7 +537,6 @@ SOURCE_CREATED:
 
     if (inst_conf->file_w_enabled) {
         const ImagePara& input_para = inst->last_module->getOutputImagePara();
-        strcat(inst_conf->output_filename, suffix);
         shared_ptr<ModuleFileWriter> file_writer = make_shared<ModuleFileWriter>(input_para, inst_conf->output_filename);
         file_writer->setVideoExtraData(inst->video_extra_data, inst->video_extra_size);
         // file_writer->setAudioExtraData(inst->audio_extra_data, inst->audio_extra_size);
@@ -543,18 +568,8 @@ SOURCE_CREATED:
     }
 
     if (inst_conf->savetofile_enabled) {
-#if 0
-        if (!inst->dec_enabled) {
-            ff_error("save dec output depends on dec module enabled\n");
-            goto FAILED;
-        }
-#endif
-
-        strcat(inst_conf->filename, suffix);
-        inst->file_data = fopen(inst_conf->filename, "w+");
-#if 1
+        inst->file_data = fopen(inst_conf->dump_filename, "w+");
         inst->source_module->setOutputDataCallback(inst, callback_dumpFrametofile);
-#endif
     }
 
     // clang-format off
@@ -579,12 +594,9 @@ SOURCE_CREATED:
 			 inst_conf->enc_enabled ? "enable" : "disable",
 			 inst_conf->rtsp_c_enabled ? "enable" : "disable",
 			 inst_conf->file_w_enabled ? inst_conf->output_filename : "disable",
- 			 inst_conf->savetofile_enabled ? inst_conf->filename : "disable",
+ 			 inst_conf->savetofile_enabled ? inst_conf->dump_filename : "disable",
 			 inst_conf->rtsppush_enabled ? to_string(inst_conf->rtsp_push_port).c_str() : "disable");
     // clang-format on
-
-    // inst->source_module->dumpPipe();
-    // inst->source_module->start();
 
     return 0;
 
@@ -629,7 +641,7 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                     config->enc_enabled = true;
                 break;
             case 'f':
-                strcpy(config->filename, optarg);
+                strcpy(config->dump_filename, optarg);
                 config->savetofile_enabled = true;
                 break;
             case 'p':
@@ -707,13 +719,6 @@ int main(int argc, char** argv)
     int instance_count = 1;
 
     DemoConfig ori_config;
-    /* default parameter */
-    ImagePara _input_para(0, 0, 0, 0, V4L2_PIX_FMT_MJPEG);
-    ImagePara _output_para(0, 0, 0, 0, V4L2_PIX_FMT_NV12);
-    // parameter.input_para = &_input_para;
-    // parameter.output_para = &_output_para;
-
-    ff_log_init();
 
     if (argc < 2) {
         usage(argv);

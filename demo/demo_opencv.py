@@ -35,67 +35,46 @@ class Cv2Display(threading.Thread):
         self.is_stop = False
         self.lock = threading.Lock()
         self.condition = threading.Condition(self.lock)
-        self.frame_list = []
-        self.frame_count = 0
-        self.frame_index = 0
+        self.frame = None
+        self.frame_complete = False
 
     def run(self):
         input_para = self.module.getOutputImagePara()
 
-        with self.lock:
-            if self.frame_index < self.frame_count:
-                self.condition.wait()
-
         cv2.namedWindow(self.name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(self.name, input_para.width, input_para.height)
         cv2.startWindowThread()
+        delay = 1
+        while not self.is_stop and cv2.getWindowProperty(self.name, cv2.WND_PROP_VISIBLE) > 0:
+            with self.lock:
+                while not self.frame_complete:
+                    self.condition.wait()
 
-        if self.frame_count == 1:
-            while not self.is_stop and cv2.getWindowProperty(self.name, cv2.WND_PROP_VISIBLE) > 0:
-                with self.lock:
-                    while self.frame_index == 0:
-                        self.condition.wait()
+                data = self.frame.getActiveData()
 
-                    frame = self.frame_list[0]
-                    data = frame.getActiveData()
-                    try:
-                        img = data.reshape((input_para.vstride, input_para.hstride, 3))
-                    except ValueError:
-                        print("Invalid image resolution!")
-                        resolution = find_two_numbers(data.size//3, input_para.hstride, input_para.vstride)
-                        print("Try the recommended resolution: -o {}x{}".format(resolution[0], resolution[1]))
-                        break
+                try:
+                    img = data.reshape((input_para.vstride, input_para.hstride, 3))
+                except ValueError:
+                    print("Invalid image resolution!")
+                    resolution = find_two_numbers(data.size//3, input_para.hstride, input_para.vstride)
+                    print("Try the recommended resolution: -o {}x{}".format(resolution[0], resolution[1]))
+                    break
 
-                    cv2.imshow(self.name, img)
-                    cv2.waitKey(1)
-                    if self.sync is not None:
-                        delay = self.sync.updateVideo(frame.getPUstimestamp(), 0)
-                        if delay > 0:
-                            cv2.waitKey(delay//1000)
-                    self.frame_index = 0
-                    self.condition.notify()
-        else:
-            for frame in self.frame_list:
-                if self.is_stop:
-                    break;
-                data = frame.getActiveData()
-                img = data.reshape((-1, input_para.hstride, 3))
-                cv2.imshow(self.name, img)
-                cv2.waitKey(1)
                 if self.sync is not None:
-                    delay = self.sync.updateVideo(frame.getPUstimestamp(), 0)
-                    if delay > 0:
-                        cv2.waitKey(delay//1000)
+                    delay = self.sync.updateVideo(self.frame.getPUstimestamp(), 0)//1000
+                    if delay == 0:
+                        delay = 1
+
+                cv2.imshow(self.name, img)
+                self.frame_complete = False
+                self.condition.notify()
+
+            cv2.waitKey(delay)
 
         cv2.destroyAllWindows()
 
     def stop(self):
         self.is_stop = True
-
-    def __del__(self):
-        while self.frame_list:
-            item = self.frame_list.pop()
-            item.__del__()
 
 def align(x, a):
     return (x + a - 1) & ~(a - 1)
@@ -107,25 +86,15 @@ def call_back(obj, VideoBuffer):
 #    print('VideoBuffer data size: ', a.size)
 
 def cv2_call_back(obj, VideoBuffer):
-
-    if obj.frame_count == 1:
-        with obj.lock:
-            while obj.frame_index == 1:
-                if not obj.condition.wait(timeout=1):
-                    return
-            vb = obj.module.exportUseMediaBuffer(VideoBuffer, obj.frame_list[0], 0)
-            if vb is not None:
-                obj.frame_list[0] = vb
-                obj.frame_index = 1
-            obj.condition.notify()
-    elif obj.frame_index < obj.frame_count:
-        vb = obj.module.exportUseMediaBuffer(VideoBuffer, obj.frame_list[obj.frame_index], 0)
+    with obj.lock:
+        while obj.frame_complete:
+            if not obj.condition.wait(timeout=1):
+                return
+        vb = obj.module.exportUseMediaBuffer(VideoBuffer, obj.frame, 0)
         if vb is not None:
-            obj.frame_list[obj.frame_index] = vb
-            obj.frame_index += 1
-    else:
-        with obj.lock:
-            obj.condition.notify()
+            obj.frame = vb
+            obj.frame_complete = True
+        obj.condition.notify()
 
 
 def get_parameters():
@@ -139,7 +108,7 @@ def get_parameters():
     parser.add_argument("-a", "--aplay", dest='aplay', type=str, help="Enable play audio, default disabled. e.g. -a plughw:3,0")
     parser.add_argument("-r", "--rotate", dest='rotate',type=int, default=0, help="Image rotation degree, default 0" )
     parser.add_argument("-d", "--drmdisplay", dest='drmdisplay', type=int, default=-1, help="Drm display, set display plane, set 0 to auto find plane")
-    parser.add_argument("-c", "--cvdisplay", dest='cvdisplay', type=int, default=0, help="opencv display, default 0. If the value is 1, it is normally displayed. If the value is greater than 1, it indicates the number of frames displayed")
+    parser.add_argument("-c", "--cvdisplay", dest='cvdisplay', type=int, default=0, help="opencv display, default disabled")
     return parser.parse_args()
 
 def main():
@@ -252,7 +221,7 @@ def main():
             x = (t_w - w) // 2
             y = (t_h - h) // 2
             drm_display.setWindowSize(x, y, w, h)
-    elif args.cvdisplay > 0:
+    elif args.cvdisplay != 0:
         input_para = last_module.getOutputImagePara()
         if input_para.v4l2Fmt != m.v4l2GetFmtByName("RGB24"):
             print("Output image format is not 'RGB24', Use the '-b RGB24' option to specify image format.")
@@ -260,9 +229,7 @@ def main():
 
         cv_display = Cv2Display("Cv2Display", last_module, sync)
         last_module.setOutputDataCallback(cv_display, cv2_call_back)
-        for i in range(args.cvdisplay):
-            cv_display.frame_list.append(last_module.newModuleMediaBuffer(m.BUFFER_TYPE.DRM_BUFFER_CACHEABLE))
-        cv_display.frame_count = args.cvdisplay
+        cv_display.frame = last_module.newModuleMediaBuffer(m.BUFFER_TYPE.DRM_BUFFER_CACHEABLE)
         cv_display.start()
 
     if args.save_file is not None:
@@ -270,14 +237,11 @@ def main():
         input_source.setOutputDataCallback(file, call_back)
 
     input_source.start()
+    text = input("wait...")
+
     if cv_display is not None:
-        try:
-            cv_display.join()
-        except KeyboardInterrupt:
-            cv_display.stop()
-            cv_display.join()
-    else:
-        text = input("wait...")
+        cv_display.stop()
+        cv_display.join()
     input_source.stop()
 
     if args.save_file is not None:
