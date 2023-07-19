@@ -11,7 +11,7 @@ class ModuleMppEnc : public ModuleMedia
 {
 private:
     EncodeType encode_type;
-    MppEncoder* enc;
+    shared_ptr<MppEncoder> enc;
     int fps;
     int gop;
     int bps;
@@ -29,10 +29,11 @@ protected:
     virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer) override;
 
 public:
-    ModuleMppEnc(EncodeType type, const ImagePara& input_para);
-    ModuleMppEnc(EncodeType type, const ImagePara& input_para, int fps, int gop, int bps, EncodeRcMode mode, EncodeQuality quality,
-                 EncodeProfile profile);
+    ModuleMppEnc(EncodeType type, const ImagePara& input_para, int fps = 30, int gop = 60, int bps = 2048,
+                 EncodeRcMode mode = ENCODE_RC_MODE_CBR, EncodeQuality quality = ENCODE_QUALITY_BEST,
+                 EncodeProfile profile = ENCODE_PROFILE_HIGH);
     ~ModuleMppEnc();
+    void setDuration(int64_t _duration);
     int init();
 };
 #endif

@@ -12,7 +12,7 @@ struct RtspServer;
 class ModuleRtspServer : public ModuleMedia
 {
 private:
-    static RtspServer* rtsp_server;
+    static shared_ptr<RtspServer> rtsp_server;
     static std::mutex live_mtx;
     rtsp_session_handle rtsp_session;
     int push_port;

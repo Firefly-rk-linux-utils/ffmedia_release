@@ -51,10 +51,10 @@ enum ModuleStatus {
 class ModuleMedia : public std::enable_shared_from_this<ModuleMedia>
 {
 public:
-    ModuleMedia();
-    ModuleMedia(const char* name_);
+    ModuleMedia(const char* name_ = NULL);
     virtual ~ModuleMedia();
 
+    virtual int init() { return 0; };
     void start();
     void stop();
 
@@ -80,7 +80,7 @@ public:
     const char* getName() const { return name; }
     int getIndex() const { return index; }
     ModuleStatus getModuleStatus() const { return module_status; }
-    int getMediaType() const { return media_type; }
+    MEDIA_BUFFER_TYPE getMediaType() const { return media_type; }
 
     void setSynchronize(shared_ptr<Synchronize> syn) { sync = syn; }
 
@@ -90,9 +90,7 @@ public:
                                                 callback_handler external_consume);
 
     void setBufferSize(const size_t& bufferSize) { buffer_size = bufferSize; }
-    size_t getBufferSize() const { return buffer_size; }
-
-    bool isHoleModule();
+    size_t getBufferSize() const;
 
     void dumpPipe();
     void dumpPipeSummary();
@@ -208,9 +206,6 @@ protected:
     ImagePara input_para = {0, 0, 0, 0, 0};
     ImagePara output_para = {0, 0, 0, 0, 0};
 
-    /*Don't need to do anything for enqueue buffer after Setup, Like a black hole*/
-    bool HoleModule;
-
     void_object callback_ctx;
     callback_handler output_data_callback;
 
@@ -220,7 +215,7 @@ protected:
     shared_timed_mutex productor_mtx;
     condition_variable produce, consume;
 
-    int media_type;
+    MEDIA_BUFFER_TYPE media_type;
     shared_ptr<Synchronize> sync;
 };
 

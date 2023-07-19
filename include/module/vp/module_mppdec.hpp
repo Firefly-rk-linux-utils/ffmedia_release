@@ -9,7 +9,7 @@ class MppDecoder;
 class ModuleMppDec : public ModuleMedia
 {
 private:
-    MppDecoder* dec;
+    shared_ptr<MppDecoder> dec;
     DecodeType decode_type;
 
 protected:

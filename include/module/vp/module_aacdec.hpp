@@ -18,7 +18,7 @@ class ModuleAacDec : public ModuleMedia
     SampleFormat fmt;
 
     bool first_frame;
-    AlsaPlayBack* aplay;
+    shared_ptr<AlsaPlayBack> aplay;
     string a_dev;
 
 public:

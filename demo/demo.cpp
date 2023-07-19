@@ -10,6 +10,7 @@
 #include "utils.hpp"
 #include "module/vi/module_cam.hpp"
 #include "module/vi/module_rtspClient.hpp"
+#include "module/vi/module_rtmpClient.hpp"
 #include "module/vi/module_fileReader.hpp"
 #include "module/vp/module_rga.hpp"
 #include "module/vp/module_mppdec.hpp"
@@ -17,6 +18,8 @@
 #include "module/vo/module_fileWriter.hpp"
 #include "module/vo/module_drmDisplay.hpp"
 #include "module/vo/module_rtspServer.hpp"
+#include "module/vo/module_rtmpServer.hpp"
+
 #if AUDIO_SUPPORT
 #include "module/vp/module_aacdec.hpp"
 #endif
@@ -42,9 +45,10 @@ typedef struct _demo_config {
     EncodeType encode_type = ENCODE_TYPE_H264;
     ImagePara input_image_para = {0, 0, 0, 0, V4L2_PIX_FMT_MJPEG};
     ImagePara output_image_para = {0, 0, 0, 0, V4L2_PIX_FMT_NV12};
-    int rtsp_push_port = -1;
+    int push_port = -1;
+    int push_type = 0;
     int sync_opt = 0;
-    int rtsp_transport = 0;
+    RTSP_STREAM_TYPE rtsp_transport = RTSP_STREAM_TYPE_UDP;
     int instance_count = 1;
 
     bool cam_enabled = false;
@@ -55,7 +59,8 @@ typedef struct _demo_config {
     bool enc_enabled = false;
     bool file_w_enabled = false;
     bool rtsp_c_enabled = false;
-    bool rtsppush_enabled = false;
+    bool rtmp_c_enabled = false;
+    bool push_enabled = false;
     bool savetofile_enabled = false;
     bool aplay_enable = false;
 } DemoConfig;
@@ -100,8 +105,9 @@ static void usage(char** argv)
         "-z, --zpos                   Drm display plane zpos, default auto select\n"
         "-e, --encodetype             Encode encode, set encode type, default disabled\n"
         "-f, --file                   Enable save source output data to file, set filename, default disabled\n"
-        "-p, --port                   Enable rtsp stream, set push port, depend on encode enabled, default disabled\n"
-        "--rtsp_transport             Set the rtsp transport type，default udp.\n"
+        "-p, --port                   Enable push stream, default rtsp stream, set push port, depend on encode enabled, default disabled\n"
+        "    --push_type              Set push stream type, default rtsp. e.g. --push_type rtmp\n"
+        "--rtsp_transport             Set the rtsp transport type, default udp.\n"
         "                               e.g. --rtsp_transport tcp | --rtsp_transport multicast\n"
         "-m, --enmux                  Enable save encode data to file, Enable package as mp4, mkv, or raw stream files depending on the file name suffix\n"
         "                               default disabled. e.g. -m out.mp4 | -m out.mkv | -m out.yuv\n"
@@ -140,6 +146,7 @@ static struct option long_options[] = {
     {"sync", optional_argument, NULL, 's' },
     {"rtsp_transport", required_argument, NULL, 'P'},
     {"filemaxframe", required_argument, NULL, 'M'},
+    {"push_type", required_argument, NULL, 't'},
     {NULL, 0, NULL, 0}
 };
 // clang-format on
@@ -274,6 +281,9 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
     if (strncmp(inst_conf->input_source, "rtsp", strlen("rtsp")) == 0) {
         ff_info("enable rtsp client\n");
         inst_conf->rtsp_c_enabled = true;
+    } else if (strncmp(inst_conf->input_source, "rtmp", strlen("rtmp")) == 0) {
+        ff_info("enable rtmp client\n");
+        inst_conf->rtmp_c_enabled = true;
     } else {
         struct stat st;
         if (stat(inst_conf->input_source, &st) == -1) {
@@ -329,9 +339,7 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             goto FAILED;
         }
         inst->last_module = cam;
-    }
-
-    if (inst_conf->file_r_enabled) {
+    } else if (inst_conf->file_r_enabled) {
         shared_ptr<ModuleFileReader> file_reader = make_shared<ModuleFileReader>(inst_conf->input_source, false);
         if ((inst_conf->input_image_para.width > 0) || (inst_conf->input_image_para.height > 0)) {
             file_reader->setOutputImagePara(inst_conf->input_image_para);
@@ -349,9 +357,7 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         inst->audio_extra_size = file_reader->audioExtraDataSize();
 
         inst->last_module = file_reader;
-    }
-
-    if (inst_conf->rtsp_c_enabled) {
+    } else if (inst_conf->rtsp_c_enabled) {
         shared_ptr<ModuleRtspClient> rtsp_c = make_shared<ModuleRtspClient>(inst_conf->input_source, inst_conf->rtsp_transport);
         rtsp_c->setProductor(NULL);
         rtsp_c->setBufferCount(20);
@@ -366,6 +372,19 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         inst->audio_extra_size = rtsp_c->audioExtraDataSize();
 
         inst->last_module = rtsp_c;
+    } else if (inst_conf->rtmp_c_enabled) {
+        shared_ptr<ModuleRtmpClient> rtmp_c = make_shared<ModuleRtmpClient>(inst_conf->input_source);
+        rtmp_c->setProductor(NULL);
+        ret = rtmp_c->init();
+        if (ret < 0) {
+            ff_error("rtsp client init failed\n");
+            goto FAILED;
+        }
+        inst->video_extra_data = rtmp_c->videoExtraData();
+        inst->video_extra_size = rtmp_c->videoExtraDataSize();
+        inst->audio_extra_data = rtmp_c->audioExtraData();
+        inst->audio_extra_size = rtmp_c->audioExtraDataSize();
+        inst->last_module = rtmp_c;
     }
 
     if (inst_conf->sync_opt)
@@ -527,6 +546,7 @@ SOURCE_CREATED:
         shared_ptr<ModuleMppEnc> enc = make_shared<ModuleMppEnc>(inst_conf->encode_type, input_para);
         enc->setProductor(inst->last_module);
         enc->setBufferCount(8);
+        enc->setDuration(0);  // Use the input source timestamp
         ret = enc->init();
         if (ret < 0) {
             ff_error("Enc init failed\n");
@@ -550,21 +570,34 @@ SOURCE_CREATED:
         }
     }
 
-    if (inst_conf->rtsppush_enabled) {
-        char rtsp_push_path[256] = "";
-        sprintf(rtsp_push_path, "/live/%d", inst_index);
+    if (inst_conf->push_enabled) {
+        char push_path[256] = "";
+        sprintf(push_path, "/live/%d", inst_index);
         const ImagePara& input_para = inst->last_module->getOutputImagePara();
-        shared_ptr<ModuleRtspServer> rtsp_s = make_shared<ModuleRtspServer>(input_para, rtsp_push_path,
-                                                                            inst_conf->rtsp_push_port);
-        rtsp_s->setProductor(inst->last_module);
-        rtsp_s->setBufferCount(0);
-        rtsp_s->setSynchronize(inst->sync);
-        ret = rtsp_s->init();
-        if (ret) {
-            ff_error("rtsp server init failed\n");
-            goto FAILED;
+        if (inst_conf->push_type) {
+            shared_ptr<ModuleRtmpServer> rtmp_s = make_shared<ModuleRtmpServer>(input_para, push_path,
+                                                                                inst_conf->push_port);
+            rtmp_s->setProductor(inst->last_module);
+            rtmp_s->setBufferCount(0);
+            rtmp_s->setSynchronize(inst->sync);
+            ret = rtmp_s->init();
+            if (ret) {
+                ff_error("rtmp server init failed\n");
+                goto FAILED;
+            }
+        } else {
+            shared_ptr<ModuleRtspServer> rtsp_s = make_shared<ModuleRtspServer>(input_para, push_path,
+                                                                                inst_conf->push_port);
+            rtsp_s->setProductor(inst->last_module);
+            rtsp_s->setBufferCount(0);
+            rtsp_s->setSynchronize(inst->sync);
+            ret = rtsp_s->init();
+            if (ret) {
+                ff_error("rtsp server init failed\n");
+                goto FAILED;
+            }
         }
-        ff_info("\n Start Rtsp Stream: rtsp://LocalIpAddr:%d%s\n\n", inst_conf->rtsp_push_port, rtsp_push_path);
+        ff_info("\n Start push stream: %s://LocalIpAddr:%d%s\n\n", inst_conf->push_type ? "rtmp" : "rtsp", inst_conf->push_port, push_path);
     }
 
     if (inst_conf->savetofile_enabled) {
@@ -584,7 +617,7 @@ SOURCE_CREATED:
 			 "RtspClient:     %s\n"
              "File writer:    %s\n"
 			 "File:           %s\n"
-			 "Rtsp push:      %s\n",
+			 "%s push:      %s\n",
 			 inst_conf->input_source,
 			 inst_conf->input_image_para.width, inst_conf->input_image_para.height, v4l2GetFmtName(inst_conf->input_image_para.v4l2Fmt),
 			 inst_conf->output_image_para.width, inst_conf->output_image_para.height, v4l2GetFmtName(inst_conf->output_image_para.v4l2Fmt),
@@ -595,7 +628,8 @@ SOURCE_CREATED:
 			 inst_conf->rtsp_c_enabled ? "enable" : "disable",
 			 inst_conf->file_w_enabled ? inst_conf->output_filename : "disable",
  			 inst_conf->savetofile_enabled ? inst_conf->dump_filename : "disable",
-			 inst_conf->rtsppush_enabled ? to_string(inst_conf->rtsp_push_port).c_str() : "disable");
+             inst_conf->push_type ? "Rtmp" : "Rtsp",
+			 inst_conf->push_enabled ? to_string(inst_conf->push_port).c_str() : "disable");
     // clang-format on
 
     return 0;
@@ -645,18 +679,24 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                 config->savetofile_enabled = true;
                 break;
             case 'p':
-                config->rtsp_push_port = atoi(optarg);
-                config->rtsppush_enabled = true;
+                config->push_port = atoi(optarg);
+                config->push_enabled = true;
+                break;
+            case 't':
+                if (strcmp(optarg, "rtmp") == 0)
+                    config->push_type = 1;
+                else
+                    config->push_type = 0;
                 break;
             case 'P':
                 if (strcmp(optarg, "udp") == 0)
-                    config->rtsp_transport = 0;
+                    config->rtsp_transport = RTSP_STREAM_TYPE_UDP;
                 else if (strcmp(optarg, "tcp") == 0)
-                    config->rtsp_transport = 1;
+                    config->rtsp_transport = RTSP_STREAM_TYPE_TCP;
                 else if (strcmp(optarg, "multicast") == 0)
-                    config->rtsp_transport = 2;
+                    config->rtsp_transport = RTSP_STREAM_TYPE_MULTICAST;
                 else
-                    config->rtsp_transport = 0;
+                    config->rtsp_transport = RTSP_STREAM_TYPE_UDP;
                 break;
             case 'm':
                 strcpy(config->output_filename, optarg);

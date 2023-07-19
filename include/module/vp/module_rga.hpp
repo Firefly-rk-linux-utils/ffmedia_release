@@ -11,7 +11,7 @@ class ModuleRga : public ModuleMedia
     friend class ModuleDrmDisplay;
 
 private:
-    FFRga* rga;
+    shared_ptr<FFRga> rga;
     RgaRotate rotate;
 
 protected:

@@ -70,8 +70,9 @@ def get_parameters():
     parser.add_argument("-e", "--encodetype", dest='encodetype', type=int, default=-1, help="Encode encode, set encode type, default disabled")
     parser.add_argument("-m", "--enmux", dest='enmux', type=str, help="Enable save encode data to file, Enable package as mp4, mkv, or raw stream files depending on the file name suffix. default disabled")
     parser.add_argument("-M", "--filemaxframe", dest='filemaxframe', type=int, default= 0, help="Set the maximum number of frames that can be saved. The default number is unlimited")
-    parser.add_argument("-p", "--port", dest='port', type=int, default=0, help="Enable rtsp stream, set push port, depend on encode enabled, default disabled\n")
-    parser.add_argument("--rtsp_transport", dest='rtsp_transport', type=int, default=0, help="Set the rtsp transport type，default 0(udp)")
+    parser.add_argument("-p", "--port", dest='port', type=int, default=0, help="Enable push stream, default rtsp stream, set push port, depend on encode enabled, default disabled\n")
+    parser.add_argument("--push_type", dest='push_type', type=int, default=0, help="Set push stream type, default rtsp. e.g. --push_type 1\n")
+    parser.add_argument("--rtsp_transport", dest='rtsp_transport', type=int, default=0, help="Set the rtsp transport type, default 0(udp)")
     parser.add_argument("-s", "--sync", dest="sync", type=int, default=-1, help="Enable synchronization module, default disabled. Enable the default 0(audio)")
     parser.add_argument("-a", "--aplay", dest='aplay', type=str, help="Enable play audio, default disabled. e.g. -a plughw:3,0")
     parser.add_argument("-r", "--rotate", dest='rotate',type=int, default=0, help="Image rotation degree, default 0" )
@@ -87,7 +88,10 @@ def main():
         return 1
     elif args.input_source.startswith("rtsp://"):
         print("input source is a rtsp url")
-        input_source = m.ModuleRtspClient(args.input_source, args.rtsp_transport)
+        input_source = m.ModuleRtspClient(args.input_source, m.RTSP_STREAM_TYPE(args.rtsp_transport))
+    elif args.input_source.startswith("rtmp://"):
+        print("input source is a rtmp url")
+        input_source = m.ModuleRtmpClient(args.input_source)
     else:
         is_stat = os.stat(args.input_source)
         if stat.S_ISCHR(is_stat.st_mode):
@@ -204,6 +208,7 @@ def main():
         enc = m.ModuleMppEnc(m.EncodeType(args.encodetype), input_para)
         enc.setProductor(last_module)
         enc.setBufferCount(8)
+        enc.setDuration(0) #Use the input source timestamp
         ret = enc.init()
         if ret < 0:
             print("ModuleMppEnc init failed")
@@ -212,13 +217,17 @@ def main():
 
         if args.port != 0:
             input_para = last_module.getOutputImagePara()
-            rtsp_out = m.ModuleRtspServer(input_para, "/live/0", args.port)
-            rtsp_out.setProductor(last_module)
-            rtsp_out.setBufferCount(0)
-            rtsp_out.setSynchronize(sync)
-            ret = rtsp_out.init()
+            push_s = None
+            if args.push_type == 0:
+                push_s = m.ModuleRtspServer(input_para, "/live/0", args.port)
+            else:
+                push_s = m.ModuleRtmpServer(input_para, "/live/0", args.port)
+            push_s.setProductor(last_module)
+            push_s.setBufferCount(0)
+            push_s.setSynchronize(sync)
+            ret = push_s.init()
             if ret < 0:
-                print("rtsp_out init failed")
+                print("push server init failed")
                 return 1
 
     if args.enmux is not None:

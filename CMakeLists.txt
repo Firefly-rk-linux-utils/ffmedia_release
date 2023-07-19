@@ -28,6 +28,14 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
+set(demo_vi_sources
+                module_demo_vi.cpp)
+set(demo_vi_libs
+                ff_media)
+
+add_library(ff_media_demo SHARED ${demo_vi_sources})
+target_link_libraries(ff_media_demo ${demo_vi_libs})
+
 add_executable(demo
                demo/demo.cpp
                demo/utils.cpp
@@ -41,9 +49,9 @@ add_executable(demo_multi_drmplane
                demo/demo_multi_drmplane.cpp
                )
 
-target_link_libraries(demo ff_media)
-target_link_libraries(demo_simple ff_media)
-target_link_libraries(demo_multi_drmplane ff_media)
+target_link_libraries(demo ff_media_demo)
+target_link_libraries(demo_simple ff_media_demo)
+target_link_libraries(demo_multi_drmplane ff_media_demo)
 
 INCLUDE(GNUInstallDirs)
 
@@ -56,8 +64,8 @@ add_executable(demo_opencv_multi
                demo/demo_opencv_multi.cpp
                )
 
-target_link_libraries(demo_opencv ff_media pthread opencv_core opencv_highgui opencv_imgcodecs)
-target_link_libraries(demo_opencv_multi ff_media pthread opencv_core opencv_highgui opencv_imgcodecs)
+target_link_libraries(demo_opencv ff_media_demo pthread opencv_core opencv_highgui opencv_imgcodecs)
+target_link_libraries(demo_opencv_multi ff_media_demo pthread opencv_core opencv_highgui opencv_imgcodecs)
 
 install(TARGETS demo_opencv demo_opencv_multi
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

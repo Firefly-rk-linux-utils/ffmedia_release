@@ -6,7 +6,8 @@ ffmedia一共包含以下单元
 - 输入源单元 VI：
   - Camera:  支持UVC， Mipi CSI
   - RTSP Client: 支持tcp、udp和多播协议
-  - File Reader：支持mkv、mp4文件读入及裸流等文件读入
+  - RTMP Client: 支持播放和发布流
+  - File Reader：支持mkv、mp4、flv文件读入及裸流等文件读入
 - 处理单元 VP:
   - MppDec: 视频解码，支持H264,H265,MJpeg
   - MppEnc: 视频编码，支持H264,H265
@@ -16,7 +17,8 @@ ffmedia一共包含以下单元
 - 输出单元 VO
   - DRM Display: 基于libdrm的显示模块
   - RTSP Server:
-  - File Writer: 支持mkv、mp4及裸流等文件保存
+  - RTMP Server: 支持推流
+  - File Writer: 支持mkv、mp4、flv及裸流等文件保存
 - pybind11 pymodule.cpp
   - pymodule: 创建vi、vo、vp等的c++代码的Python绑定，以提供python调用vi、vo、vp等c++模块的python接口
 

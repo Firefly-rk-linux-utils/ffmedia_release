@@ -21,13 +21,13 @@ protected:
     bool eos;
     void* private_data;
     shared_ptr<MediaBuffer> extra_data;
-    int medai_type;
+    MEDIA_BUFFER_TYPE media_type;
     std::atomic_bool status;
     std::atomic_uint16_t ref_count;
     mutex mtx;
 
 public:
-    MediaBuffer();
+    MediaBuffer(size_t _size = 0);
     virtual ~MediaBuffer();
     virtual void allocBuffer(size_t _size);
     virtual void fillToEmpty();
@@ -74,8 +74,8 @@ public:
     uint16_t decreaseRefCount();
     uint16_t getRefCount();
     void setRefCount(uint16_t refCount);
-    int getMediaBufferType() { return medai_type; }
-    void setMediaBufferType(int _medai_type) { medai_type = _medai_type; }
+    MEDIA_BUFFER_TYPE getMediaBufferType() { return media_type; }
+    void setMediaBufferType(MEDIA_BUFFER_TYPE _media_type) { media_type = _media_type; }
 };
 
 #endif

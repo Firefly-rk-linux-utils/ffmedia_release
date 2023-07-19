@@ -8,7 +8,7 @@ class ModuleCam : public ModuleMedia
 {
 private:
     char dev[32];
-    v4l2Cam* cam;
+    shared_ptr<v4l2Cam> cam;
 
 protected:
     virtual bool setup() override;

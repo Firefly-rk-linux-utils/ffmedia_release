@@ -7,7 +7,8 @@ class RTSPClient;
 class ModuleRtspClient : public ModuleMedia
 {
 public:
-    ModuleRtspClient(const char* url, int _stream_type = 0);
+    ModuleRtspClient(const char* url, RTSP_STREAM_TYPE _stream_type = RTSP_STREAM_TYPE_UDP,
+                     bool enable_video = true, bool enable_audio = false);
     ~ModuleRtspClient();
     int init();
     const uint8_t* videoExtraData();
@@ -18,22 +19,24 @@ public:
     int audioSampleRate();
     uint32_t videoFPS();
     void setTimeOutSec(unsigned sec, unsigned nsec) { time_msec = sec * 1000 + nsec / 1000; }
+    void setMaxTimeOutCount(int count) { maxTimeOutCount = count; }
 
 protected:
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer> output_buffer) override;
+    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
     int fromRtpGetVideoParameter();
+    static void closeHandlerFunc(void* arg, int err, int result);
 
 private:
-    RTSPClient* rtsp_client;
+    shared_ptr<RTSPClient> rtsp_client;
     int64_t time_msec;
-    unsigned stream_type;
+    RTSP_STREAM_TYPE stream_type;
     string url;
-    const int SESSION_STATUS_OPENED = 0;
-    const int SESSION_STATUS_CLOSED = 1;
-    int session_status;
-    bool fromRtpGetParameterFlag;
+    int abnormalStatusFlag;
+    int timeOutCount;
+    int maxTimeOutCount;
 
     bool open();
 };

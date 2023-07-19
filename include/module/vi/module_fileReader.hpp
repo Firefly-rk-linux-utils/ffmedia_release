@@ -8,7 +8,6 @@ class ModuleFileReader : public ModuleMedia
 {
 public:
 private:
-    FILE* fp;
     char* filepath;
     size_t fileSize;
     generalFileRead* reader;

@@ -12,7 +12,7 @@ private:
     uint32_t max_frame_count;
     uint32_t cur_frame_count;
     bool video_extra_flag;
-    generalFileWrite* writer;
+    shared_ptr<generalFileWrite> writer;
 
 public:
     ModuleFileWriter(const ImagePara& para, string path);

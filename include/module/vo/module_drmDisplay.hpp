@@ -10,12 +10,11 @@ struct DrmDisplayPlane;
 class ModuleDrmDisplay : public ModuleMedia
 {
 private:
-    ModuleRga* rga;
-    ModuleMedia* module;
+    shared_ptr<ModuleRga> rga;
 
 private:
-    static DrmDisplayDevice* display_device;
-    DrmDisplayPlane* plane_device;
+    static shared_ptr<DrmDisplayDevice> display_device;
+    shared_ptr<DrmDisplayPlane> plane_device;
     static std::mutex device_mtx;
     uint32_t window_x;
     uint32_t window_y;
@@ -33,7 +32,7 @@ private:
     int drmFindPlane();
     int drmCreateFb(shared_ptr<VideoBuffer> buffer);
     bool checkPlaneType(uint64_t plane_drm_type);
-    bool isSamePlane(DrmDisplayPlane* a, DrmDisplayPlane* b);
+    bool isSamePlane(shared_ptr<DrmDisplayPlane> a, shared_ptr<DrmDisplayPlane> b);
 
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
