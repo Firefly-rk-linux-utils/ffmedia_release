@@ -30,7 +30,7 @@ public:
     MediaBuffer(size_t _size = 0);
     virtual ~MediaBuffer();
     virtual void allocBuffer(size_t _size);
-    virtual void fillToEmpty();
+    virtual void fillWithBlack();
 
 public:
     static const bool STATUS_CLEAN = true;

@@ -509,7 +509,7 @@ SOURCE_CREATED:
         }
 
         uint32_t t_h, t_v;
-        drm_display->getDisplayPlaneSize(&t_h, &t_v);
+        drm_display->getPlaneSize(&t_h, &t_v);
         int hc, vc;
         int s = sqrt(inst_count);
         if ((s * s) < inst_count) {
@@ -538,7 +538,7 @@ SOURCE_CREATED:
 
         ff_info("x y w h %d %d %d %d\n", x, y, w, h);
 
-        drm_display->setWindowSize(x, y, w, h);
+        drm_display->setWindowRect(x, y, w, h);
     }
 
     if (inst_conf->enc_enabled) {

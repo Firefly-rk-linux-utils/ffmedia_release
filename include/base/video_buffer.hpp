@@ -32,7 +32,8 @@ public:
     void resetBuffer();
     void allocBuffer(ImagePara para);
     void allocBuffer(size_t _size);
-    void fillToEmpty();
+    void fillWithBlack();
+    void fillWithBlack(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
     int releaseMppBuffer();
     void initWithExternalBuffer(void* data_, size_t size_, int fd_);
     int importToMppBufferGroup(MppBufferGroup group);

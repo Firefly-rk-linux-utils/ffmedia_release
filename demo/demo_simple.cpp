@@ -45,14 +45,14 @@ int main(int argc, char** argv)
         return ret;
     } else {
         uint32_t t_w, t_h;
-        drm_display->getDisplayPlaneSize(&t_w, &t_h);
+        drm_display->getPlaneSize(&t_w, &t_h);
         uint32_t w = std::min(t_w / 2, input_para.width);
         uint32_t h = std::min(t_h / 2, input_para.height);
         uint32_t x = (t_w - w) / 2;
         uint32_t y = (t_h - h) / 2;
 
         ff_info("x y w h %d %d %d %d\n", x, y, w, h);
-        drm_display->setWindowSize(x, y, w, h);
+        drm_display->setWindowRect(x, y, w, h);
     }
 
     // 4. start origin producer

@@ -44,44 +44,44 @@ int main(int argc, char** argv)
     input_para = dec->getOutputImagePara();
     drm_display0 = make_shared<ModuleDrmDisplay>(input_para);
     drm_display0->setPlanePara(V4L2_PIX_FMT_NV12, 1);
-    drm_display0->setPlaneSize(50, 50, 1200, 400);
+    drm_display0->setPlaneRect(50, 50, 1200, 400);
     drm_display0->setProductor(dec);
     ret = drm_display0->init();
     if (ret < 0) {
         ff_error("drm display init failed\n");
         return ret;
     }
-    drm_display0->setWindowSize(0, 0, 540, 360);
+    drm_display0->setWindowRect(0, 0, 540, 360);
 
     // ZPOS 1, 2/2 window
     drm_display1 = make_shared<ModuleDrmDisplay>(input_para);
     drm_display1->setPlanePara(V4L2_PIX_FMT_NV12, 1);
     // same zpos as drm_display0, so the plane size can't be set again
-    // drm_display1->setPlaneSize(50, 50, 1200, 400);
+    // drm_display1->setPlaneRect(50, 50, 1200, 400);
     drm_display1->setProductor(dec);
     ret = drm_display1->init();
     if (ret < 0) {
         ff_error("drm display init failed\n");
         return ret;
     }
-    drm_display1->setWindowSize(600, 20, 540, 360);
+    drm_display1->setWindowRect(600, 20, 540, 360);
 
     // ZPOS 2, 1 window
     drm_display2 = make_shared<ModuleDrmDisplay>(input_para);
     drm_display2->setPlanePara(V4L2_PIX_FMT_NV12, 2);
-    drm_display2->setPlaneSize(70, 380, 700, 500);
+    drm_display2->setPlaneRect(70, 380, 700, 500);
     drm_display2->setProductor(dec);
     ret = drm_display2->init();
     if (ret < 0) {
         ff_error("drm display init failed\n");
         return ret;
     }
-    drm_display2->setWindowSize(10, 20, 600, 400);
+    drm_display2->setWindowRect(10, 20, 600, 400);
 
     // ZPOS 3, 1 window, use default size(same as plane size)
     drm_display3 = make_shared<ModuleDrmDisplay>(input_para);
     drm_display3->setPlanePara(V4L2_PIX_FMT_NV12, 3);
-    drm_display3->setPlaneSize(550, 450, 540, 380);
+    drm_display3->setPlaneRect(550, 450, 540, 380);
     drm_display3->setProductor(dec);
     ret = drm_display3->init();
     if (ret < 0) {

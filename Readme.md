@@ -6,12 +6,12 @@ ffmedia一共包含以下单元
 - 输入源单元 VI：
   - Camera:  支持UVC， Mipi CSI
   - RTSP Client: 支持tcp、udp和多播协议
-  - RTMP Client: 支持播放和发布流
+  - RTMP Client: 支持拉流和推流
   - File Reader：支持mkv、mp4、flv文件读入及裸流等文件读入
 - 处理单元 VP:
   - MppDec: 视频解码，支持H264,H265,MJpeg
   - MppEnc: 视频编码，支持H264,H265
-  - RGA：图像缩放，裁剪，格式转换
+  - RGA：图像合成，缩放，裁剪，格式转换
   - AacDec: aac音频解码和播放
   - AacEnc: aac音频编码
 - 输出单元 VO

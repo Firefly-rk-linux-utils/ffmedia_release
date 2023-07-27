@@ -21,6 +21,8 @@ private:
     uint32_t window_w;
     uint32_t window_h;
     int index_in_plane;
+    bool window_setuped;
+    bool full_plane;  // It's a window that fills the plane
 
 public:
     ModuleDrmDisplay(const ImagePara& input_para);
@@ -29,8 +31,11 @@ public:
 private:
     bool setupPlaneDevice();
     bool setupDisplayDevice();
+    bool setupWindow();
     int drmFindPlane();
     int drmCreateFb(shared_ptr<VideoBuffer> buffer);
+    bool rectLegalize(uint32_t& x, uint32_t& y, uint32_t& w, uint32_t& h,
+                      uint32_t parent_w, uint32_t parent_h);
     bool checkPlaneType(uint64_t plane_drm_type);
     bool isSamePlane(shared_ptr<DrmDisplayPlane> a, shared_ptr<DrmDisplayPlane> b);
 
@@ -47,14 +52,27 @@ public:
     };
 
     int init();
-    int move(uint32_t x, uint32_t y);
     void setPlanePara(uint32_t fmt);
     void setPlanePara(uint32_t fmt, uint32_t plane_zpos);
     void setPlanePara(uint32_t fmt, uint32_t plane_id, PLANE_TYPE plane_type, uint32_t plane_zpos);
     void setPlanePara(uint32_t fmt, uint32_t plane_id, PLANE_TYPE plane_type, uint32_t plane_zpos, uint32_t plane_linear);
-    void setPlaneSize(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
-    void setWindowSize(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
-    void getDisplayPlaneSize(uint32_t* h, uint32_t* v);
+    bool move(uint32_t x, uint32_t y);
+    bool resize(uint32_t w, uint32_t h);
+    bool setPlaneRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+    bool setWindowRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+    void getPlaneSize(uint32_t* w, uint32_t* h);
+    void getWindowSize(uint32_t* w, uint32_t* h);
+    void getScreenResolution(uint32_t* w, uint32_t* h);
+
+    void setFullScreenPlane();   // set a plane fills the screen
+    void setFullScreenWindow();  // set a window fills the plane, not really "screen"
+
+    // replaced by getPlaneSize
+    [[deprecated]] void getDisplayPlaneSize(uint32_t* w, uint32_t* h);
+    // replaced by setPlaneRect
+    [[deprecated]] bool setPlaneSize(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+    // replaced by setWindowRect
+    [[deprecated]] bool setWindowSize(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
 };
 
 #endif
