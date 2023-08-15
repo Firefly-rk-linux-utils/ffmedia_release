@@ -10,38 +10,34 @@
 
 #include <opencv2/opencv.hpp>
 
-struct External_ctx {
-    shared_ptr<ModuleMedia> module;
-    void *buf;
-    uint32_t width;
-    uint32_t height;
-    size_t buf_size;
+struct rga_blend_ctx {
+    shared_ptr<ModuleRga> rga;
+    shared_ptr<VideoBuffer> vb;
 };
 
 void callback_blend(void* _ctx, shared_ptr<MediaBuffer> buffer)
 {
-    External_ctx* ctx = static_cast<External_ctx*>(_ctx);
-    shared_ptr<ModuleRga> rga = static_pointer_cast<ModuleRga>(ctx->module);
+    rga_blend_ctx* ctx = static_cast<rga_blend_ctx*>(_ctx);
+    uint32_t width = ctx->vb->getImagePara().width;
+    uint32_t height = ctx->vb->getImagePara().height;
+    int buf_fd = ctx->vb->getBufFd();
+    void* buf = ctx->vb->getData();
 
-    if (ctx->buf == NULL) {
-        ctx->width = rga->getOutputImagePara().hstride;
-        ctx->height = rga->getOutputImagePara().vstride;
-        ctx->buf_size = ctx->width * ctx->height * 4;
-        ctx->buf = new char[ctx->buf_size];
-        memset(ctx->buf, 0, ctx->buf_size);
-        //cv::Scalar() BRGA => V4L2_PIX_FMT_ARGB32
-        rga->setPatPara(V4L2_PIX_FMT_ARGB32, 0, 0, rga->getOutputImagePara().width, rga->getOutputImagePara().height, ctx->width, ctx->height);
-    }
-
-    cv::Mat image(cv::Size(ctx->width, ctx->height), CV_8UC4, ctx->buf);
+    cv::Mat image(cv::Size(width, height), CV_8UC4, buf);
     std::string timeText = "Current timestamp: " + std::to_string(buffer->getPUstimestamp() / 1000) + " ms";
     int baseline = 0;
     cv::Size textSize = cv::getTextSize(timeText, cv::FONT_HERSHEY_SIMPLEX, 1.0, 1, &baseline);
-    cv::Point textPosition((ctx->width - textSize.width)/2, (ctx->height - textSize.height) / 2);
+    cv::Point textPosition((width - textSize.width) / 2, (height - textSize.height) / 2);
     cv::rectangle(image, textPosition, cv::Point(textPosition.x + textSize.width, textPosition.y - textSize.height), cv::Scalar(0, 0, 0, 0), cv::FILLED);
-    cv::putText(image, timeText, textPosition, cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 0, 0, 255), 2);
-    
-    rga->setPatBuffer(ctx->buf, ModuleRga::BLEND_DST_OVER);
+    cv::putText(image, timeText, textPosition, cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 0, 255), 2);
+
+    if (buf_fd > 0) {
+        // flush data to dma
+        ctx->vb->flushDrmBuf();
+        ctx->rga->setPatBuffer(buf_fd, ModuleRga::BLEND_DST_OVER);
+    } else {
+        ctx->rga->setPatBuffer(buf, ModuleRga::BLEND_DST_OVER);
+    }
 }
 
 
@@ -53,9 +49,9 @@ int main(int argc, char** argv)
     shared_ptr<ModuleRga> rga = NULL;
     shared_ptr<ModuleDrmDisplay> drm_display = NULL;
     ImagePara input_para;
-    External_ctx ctx1;
-    ctx1.module = NULL;
-    ctx1.buf = NULL;
+    rga_blend_ctx blend_ctx;
+    blend_ctx.rga = NULL;
+    blend_ctx.vb = NULL;
 
     // 1. rtsp client module
     rtsp_c = make_shared<ModuleRtspClient>("rtsp://admin:firefly123@168.168.2.99:554/av_stream", RTSP_STREAM_TYPE_TCP);
@@ -75,19 +71,39 @@ int main(int argc, char** argv)
         return ret;
     }
 
+    // 3. rga module
     input_para = dec->getOutputImagePara();
     rga = make_shared<ModuleRga>(input_para, input_para, RGA_ROTATE_NONE);
     rga->setProductor(dec);
-    ctx1.module = rga;
-    rga->setBlendCallback(&ctx1, callback_blend);
     ret = rga->init();
     if (ret < 0) {
         ff_error("rga init failed\n");
         return ret;
     }
 
-    // 4. drm display module
+
+    // 4. rga blend ctx
     input_para = rga->getOutputImagePara();
+    // Use rga output ImagePara construct the blend BGRA ImagePara
+    ImagePara BGRA_para(input_para.width, input_para.height, input_para.hstride, input_para.vstride, V4L2_PIX_FMT_ARGB32);
+    blend_ctx.rga = rga;
+    blend_ctx.vb = make_shared<VideoBuffer>(VideoBuffer::DRM_BUFFER_CACHEABLE);
+    blend_ctx.vb->allocBuffer(BGRA_para);
+    memset(blend_ctx.vb->getData(), 0, blend_ctx.vb->getSize());
+    // set the blend image para
+    rga->setPatPara(BGRA_para.v4l2Fmt, 0, 0, BGRA_para.width, BGRA_para.height, BGRA_para.hstride, BGRA_para.vstride);
+    if (blend_ctx.vb->getBufFd() > 0)
+        rga->setPatBuffer(blend_ctx.vb->getBufFd(), ModuleRga::BLEND_DST_OVER);
+    else
+        rga->setPatBuffer(blend_ctx.vb->getData(), ModuleRga::BLEND_DST_OVER);
+    /*
+        If not dynamically processed blend image.
+        no need to set up blend callback processing.
+    */
+    rga->setBlendCallback(&blend_ctx, callback_blend);
+
+
+    // 5. drm display module
     drm_display = make_shared<ModuleDrmDisplay>(input_para);
     drm_display->setPlanePara(V4L2_PIX_FMT_NV12, 1);
     drm_display->setProductor(rga);
@@ -113,6 +129,4 @@ int main(int argc, char** argv)
     getchar();
 
     rtsp_c->stop();
-    if (ctx1.buf)
-        delete []static_cast<char*>(ctx1.buf);
 }

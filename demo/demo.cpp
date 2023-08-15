@@ -20,6 +20,10 @@
 #include "module/vo/module_rtspServer.hpp"
 #include "module/vo/module_rtmpServer.hpp"
 
+#if OPENGL_SUPPORT
+#include "module/vo/module_rendererVideo.hpp"
+#endif
+
 #if AUDIO_SUPPORT
 #include "module/vp/module_aacdec.hpp"
 #endif
@@ -56,6 +60,7 @@ typedef struct _demo_config {
     bool dec_enabled = false;
     bool rga_enabled = false;
     bool drmdisplay_enabled = false;
+    bool x11display_enabled = false;
     bool enc_enabled = false;
     bool file_w_enabled = false;
     bool rtsp_c_enabled = false;
@@ -78,7 +83,7 @@ typedef struct _demo_data {
     unsigned audio_extra_size = 0;
 } DemoData;
 
-int mygetch(void)
+static int mygetch(void)
 {
     struct termios oldt, newt;
     int ch;
@@ -102,6 +107,9 @@ static void usage(char** argv)
         "-b, --outputfmt              Output image format, default NV12\n"
         "-c, --count                  Instance count, default 1\n"
         "-d, --drmdisplay             Drm display, set display plane, set 0 to auto find plane, default disabled\n"
+#if OPENGL_SUPPORT
+        "-x, --x11display             X11 window displays, render the video using opengl. default disabled\n"
+#endif
         "-z, --zpos                   Drm display plane zpos, default auto select\n"
         "-e, --encodetype             Encode encode, set encode type, default disabled\n"
         "-f, --file                   Enable save source output data to file, set filename, default disabled\n"
@@ -126,7 +134,7 @@ static void usage(char** argv)
         argv[0]);
 }
 
-static const char* short_options = "i:o:a:b:c:d:z:e:f:p:m:r:s::A:M:";
+static const char* short_options = "i:o:a:b:c:d:z:e:f:p:m:r:s::A:M:x";
 
 // clang-format off
 static struct option long_options[] = {
@@ -147,6 +155,9 @@ static struct option long_options[] = {
     {"rtsp_transport", required_argument, NULL, 'P'},
     {"filemaxframe", required_argument, NULL, 'M'},
     {"push_type", required_argument, NULL, 't'},
+#if OPENGL_SUPPORT
+    {"x11", no_argument, NULL, 'x'},
+#endif
     {NULL, 0, NULL, 0}
 };
 // clang-format on
@@ -497,7 +508,7 @@ SOURCE_CREATED:
         const ImagePara& input_para = inst->last_module->getOutputImagePara();
         shared_ptr<ModuleDrmDisplay> drm_display = make_shared<ModuleDrmDisplay>(input_para);
         drm_display->setPlanePara(V4L2_PIX_FMT_NV12, inst_conf->drm_display_plane_id,
-                                  ModuleDrmDisplay::PLANE_TYPE_OVERLAY_OR_PRIMARY, inst_conf->drm_display_plane_zpos);
+                                  PLANE_TYPE_OVERLAY_OR_PRIMARY, inst_conf->drm_display_plane_zpos);
         // inst->drm_display->setPlaneSize(0, 0, 1280, 800);
         drm_display->setBufferCount(1);
         drm_display->setProductor(inst->last_module);
@@ -540,6 +551,20 @@ SOURCE_CREATED:
 
         drm_display->setWindowRect(x, y, w, h);
     }
+#if OPENGL_SUPPORT
+    else if (inst_conf->x11display_enabled) {
+        const ImagePara& input_para = inst->last_module->getOutputImagePara();
+        shared_ptr<ModuleRendererVideo> x11_display = make_shared<ModuleRendererVideo>(input_para, inst_conf->input_source);
+        x11_display->setProductor(inst->last_module);
+        x11_display->setSynchronize(inst->sync);
+        ret = x11_display->init();
+        if (ret < 0) {
+            ff_error("x11 display init failed\n");
+            goto FAILED;
+        }
+        inst->last_module = x11_display;
+    }
+#endif
 
     if (inst_conf->enc_enabled) {
         const ImagePara& input_para = inst->last_module->getOutputImagePara();
@@ -665,6 +690,9 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
             case 'd':
                 config->drm_display_plane_id = atoi(optarg);
                 config->drmdisplay_enabled = true;
+                break;
+            case 'x':
+                config->x11display_enabled = true;
                 break;
             case 'z':
                 config->drm_display_plane_zpos = atoi(optarg);

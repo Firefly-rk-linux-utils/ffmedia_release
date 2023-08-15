@@ -10,6 +10,7 @@ class FFRga;
 class ModuleRga : public ModuleMedia
 {
     friend class ModuleDrmDisplay;
+    friend class ModuleRendererVideo;
 
 private:
     shared_ptr<FFRga> rga;

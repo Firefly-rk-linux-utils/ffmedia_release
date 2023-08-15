@@ -16,6 +16,7 @@ ffmedia一共包含以下单元
   - AacEnc: aac音频编码
 - 输出单元 VO
   - DRM Display: 基于libdrm的显示模块
+  - Renderer Video: 使用gles渲染视频，基于libx11窗口显示
   - RTSP Server:
   - RTMP Server: 支持推流
   - File Writer: 支持mkv、mp4、flv及裸流等文件保存
@@ -30,19 +31,33 @@ ffmedia一共包含以下单元
 一个Productor可以有多个Consumer，一个Consumer只有一个Productor. 输入源单元没有Productor.
 
 ## 安装编译环境
+
 ```
 apt update
 apt install -y gcc g++ make cmake
-apt install -y libasound2-dev libopencv-dev libdrm-dev libfdk-aac-dev
+apt install libdrm-dev1
 ```
-如果需要编译python接口库，并系统默认python是3.8，则安装3.8的软件包
+
+### 如果需要支持音频相关模块，安装下列软件包
+
+```
+apt install libasound2-dev libfdk-aac-dev
+```
+### 如果需要支持opengl相关模块，安装下列软件包
+
+```
+apt install libgles-dev libx11-dev
+```
+### 如果需要支持opencv相关demo，安装下列软件包
+
+```
+apt install libopencv-dev
+
+```
+### 如果需要支持python接口库，并系统默认python是3.8，则安装3.8的软件包
+
 ```
 apt install -y python3.8-dev python3.8-venv
-```
-如果不需要
-```
-sed -i 's/.*ff_pymedia*/\#&/' CMakeLists.txt
-sed -i 's/add_subdirectory(pybind11)/\#&/' CMakeLists.txt
 ```
 
 ## 多路编解码问题

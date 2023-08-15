@@ -51,6 +51,8 @@ class Cv2Display(threading.Thread):
                     self.condition.wait()
 
                 data = self.frame.getActiveData()
+                #flush dma buf to cpu
+                self.frame.invalidateDrmBuf();
 
                 try:
                     img = data.reshape((input_para.vstride, input_para.hstride, 3))

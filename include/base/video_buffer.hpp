@@ -55,6 +55,9 @@ public:
 
     BUFFER_TYPE getBufferType() const { return buffer_type; }
     void setBufferType(const BUFFER_TYPE& bufferType) { buffer_type = bufferType; }
+
+    void flushDrmBuf();
+    void invalidateDrmBuf();
 };
 
 #endif

@@ -45,10 +45,15 @@ add_executable(demo_multi_drmplane
                demo/demo_multi_drmplane.cpp
                )
 
+add_executable(demo_multi_window
+               demo/demo_multi_window.cpp
+               )
+
 target_link_libraries(demo ff_media)
 target_link_libraries(demo_simple ff_media)
 target_link_libraries(demo_memory_read ff_media)
 target_link_libraries(demo_multi_drmplane ff_media)
+target_link_libraries(demo_multi_window ff_media)
 
 INCLUDE(GNUInstallDirs)
 
@@ -73,7 +78,7 @@ install(TARGETS demo_opencv demo_opencv_multi demo_rgablend
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 ENDIF(DEMO_OPENCV)
 
-install(TARGETS demo demo_simple demo_memory_read demo_multi_drmplane
+install(TARGETS demo demo_simple demo_memory_read demo_multi_drmplane demo_multi_window
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 install(FILES lib/libff_media.so

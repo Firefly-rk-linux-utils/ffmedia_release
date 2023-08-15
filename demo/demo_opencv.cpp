@@ -37,6 +37,8 @@ void callback_external(void* _ctx, shared_ptr<MediaBuffer> buffer)
     size_t size = buf->getActiveSize();
     uint32_t width = buf->getImagePara().hstride;
     uint32_t height = buf->getImagePara().vstride;
+    // flush dma buf to cpu
+    buf->invalidateDrmBuf();
 
     UNUSED(size);
     //=================================================

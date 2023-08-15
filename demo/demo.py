@@ -46,6 +46,9 @@ def cv2_extcall_back(obj, VideoBuffer):
         if delay > 0:
             time.sleep(delay/1000000)
     data = vb.getActiveData()
+    #flush dma buf to cpu
+    vb.invalidateDrmBuf();
+
     try:
         img = data.reshape((vb.getImagePara().vstride, vb.getImagePara().hstride, 3))
     except ValueError:
@@ -78,6 +81,8 @@ def get_parameters():
     parser.add_argument("-r", "--rotate", dest='rotate',type=int, default=0, help="Image rotation degree, default 0" )
     parser.add_argument("-d", "--drmdisplay", dest='drmdisplay', type=int, default=-1, help="Drm display, set display plane, set 0 to auto find plane")
     parser.add_argument("-c", "--cvdisplay", dest='cvdisplay', type=int, default=0, help="OpenCv display, set window number, default 0")
+    parser.add_argument("-x", "--x11display", dest='x11display', type=int, default=0, help="X11 window displays, render the video using gles. default disabled")
+
     return parser.parse_args()
 
 def main():
@@ -193,15 +198,26 @@ def main():
             x = (t_w - w) // 2
             y = (t_h - h) // 2
             drm_display.setWindowSize(x, y, w, h)
-    elif args.cvdisplay > 0:
-        if not cv2_enable:
-            print("Run 'pip3 install opencv-python' to install opencv")
-            return 1
-        if output_para.v4l2Fmt != m.v4l2GetFmtByName("RGB24"):
-            print("Output image format is not 'RGB24', Use the '-b RGB24' option to specify image format.")
-            return 1
-        cv_display = Cv2Display("Cv2Display", None, sync, args.cvdisplay)
-        cv_display.module = last_module.addExternalConsumer("Cv2Display", cv_display, cv2_extcall_back)
+    else:
+        if args.x11display != 0:
+            input_para = last_module.getOutputImagePara()
+            x11_display = m.ModuleRendererVideo(input_para, args.input_source)
+            x11_display.setProductor(last_module)
+            x11_display.setSynchronize(sync)
+            ret = x11_display.init()
+            if ret < 0:
+                print("ModuleRendererVideo init failed")
+                return 1
+
+        if args.cvdisplay > 0:
+            if not cv2_enable:
+                print("Run 'pip3 install opencv-python' to install opencv")
+                return 1
+            if output_para.v4l2Fmt != m.v4l2GetFmtByName("RGB24"):
+                print("Output image format is not 'RGB24', Use the '-b RGB24' option to specify image format.")
+                return 1
+            cv_display = Cv2Display("Cv2Display", None, sync, args.cvdisplay)
+            cv_display.module = last_module.addExternalConsumer("Cv2Display", cv_display, cv2_extcall_back)
 
     if args.encodetype != -1:
         input_para = last_module.getOutputImagePara()

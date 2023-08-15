@@ -7,6 +7,14 @@ class RTSPClient;
 class ModuleRtspClient : public ModuleMedia
 {
 public:
+    enum SESSION_STATUS {
+        SESSION_STATUS_CLOSED,
+        SESSION_STATUS_OPENED,
+        SESSION_STATUS_PLAYING,
+        SESSION_STATUS_PAUSE,
+    };
+
+public:
     ModuleRtspClient(const char* url, RTSP_STREAM_TYPE _stream_type = RTSP_STREAM_TYPE_UDP,
                      bool enable_video = true, bool enable_audio = false);
     ~ModuleRtspClient();
@@ -20,6 +28,7 @@ public:
     uint32_t videoFPS();
     void setTimeOutSec(unsigned sec, unsigned nsec) { time_msec = sec * 1000 + nsec / 1000; }
     void setMaxTimeOutCount(int count) { maxTimeOutCount = count; }
+    SESSION_STATUS getSessionStatus();
 
 protected:
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer> output_buffer) override;
