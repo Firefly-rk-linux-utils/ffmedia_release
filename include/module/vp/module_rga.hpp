@@ -11,6 +11,7 @@ class ModuleRga : public ModuleMedia
 {
     friend class ModuleDrmDisplay;
     friend class ModuleRendererVideo;
+    friend class ModuleInference;
 
 private:
     shared_ptr<FFRga> rga;

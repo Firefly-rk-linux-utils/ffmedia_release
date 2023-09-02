@@ -83,7 +83,7 @@ int main(int argc, char** argv)
     output_para.height = input_para.height / 2;
     output_para.hstride = output_para.width;
     output_para.vstride = output_para.height;
-    output_para.v4l2Fmt = V4L2_PIX_FMT_RGB24;
+    output_para.v4l2Fmt = V4L2_PIX_FMT_BGR24;
     rga = make_shared<ModuleRga>(input_para, output_para, RGA_ROTATE_NONE);
     rga->setProductor(dec);
     ret = rga->init();

@@ -19,6 +19,7 @@ private:
     Clock audio;
     Clock video;
     Clock absolute;
+    float ptsRatio;
     SynchronizeType type;
 
     //    int estimate_video_duration;
@@ -28,6 +29,7 @@ public:
     explicit Synchronize(SynchronizeType _type);
     int64_t getCurrentTime();
     void reset();
+    void setPtsRatio(float ratio);
     Clock& getMasterClock();
     int64_t getMasterTime();
     void setClockTime(SynchronizeType _type, int64_t pts);

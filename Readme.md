@@ -8,6 +8,7 @@ ffmedia一共包含以下单元
   - RTSP Client: 支持tcp、udp和多播协议
   - RTMP Client: 支持拉流和推流
   - File Reader：支持mkv、mp4、flv文件读入及裸流等文件读入
+  - Memory Reader:支持内存数据读入
 - 处理单元 VP:
   - MppDec: 视频解码，支持H264,H265,MJpeg
   - MppEnc: 视频编码，支持H264,H265
@@ -30,35 +31,11 @@ ffmedia一共包含以下单元
 整个框架采用Productor/Consumer模型，将各个单元都抽象为ModuleMedia类。
 一个Productor可以有多个Consumer，一个Consumer只有一个Productor. 输入源单元没有Productor.
 
-## 安装编译环境
+## demo 示例
+demo安装环境、编译及使用介绍说明：demo/Readme.md
 
-```
-apt update
-apt install -y gcc g++ make cmake
-apt install libdrm-dev1
-```
-
-### 如果需要支持音频相关模块，安装下列软件包
-
-```
-apt install libasound2-dev libfdk-aac-dev
-```
-### 如果需要支持opengl相关模块，安装下列软件包
-
-```
-apt install libgles-dev libx11-dev
-```
-### 如果需要支持opencv相关demo，安装下列软件包
-
-```
-apt install libopencv-dev
-
-```
-### 如果需要支持python接口库，并系统默认python是3.8，则安装3.8的软件包
-
-```
-apt install -y python3.8-dev python3.8-venv
-```
+## ffmedia api 文档
+ffmedia的api详细文档：documentation/ffmedia_api.pdf
 
 ## 多路编解码问题
 

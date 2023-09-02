@@ -85,7 +85,7 @@ int main(int argc, char** argv)
     // 4. rga blend ctx
     input_para = rga->getOutputImagePara();
     // Use rga output ImagePara construct the blend BGRA ImagePara
-    ImagePara BGRA_para(input_para.width, input_para.height, input_para.hstride, input_para.vstride, V4L2_PIX_FMT_ARGB32);
+    ImagePara BGRA_para(input_para.width, input_para.height, input_para.hstride, input_para.vstride, V4L2_PIX_FMT_BGRA32);
     blend_ctx.rga = rga;
     blend_ctx.vb = make_shared<VideoBuffer>(VideoBuffer::DRM_BUFFER_CACHEABLE);
     blend_ctx.vb->allocBuffer(BGRA_para);

@@ -76,7 +76,7 @@ def get_parameters():
     parser.add_argument("-p", "--port", dest='port', type=int, default=0, help="Enable push stream, default rtsp stream, set push port, depend on encode enabled, default disabled\n")
     parser.add_argument("--push_type", dest='push_type', type=int, default=0, help="Set push stream type, default rtsp. e.g. --push_type 1\n")
     parser.add_argument("--rtsp_transport", dest='rtsp_transport', type=int, default=0, help="Set the rtsp transport type, default 0(udp)")
-    parser.add_argument("-s", "--sync", dest="sync", type=int, default=-1, help="Enable synchronization module, default disabled. Enable the default 0(audio)")
+    parser.add_argument("-s", "--sync", dest="sync", type=int, default=-1, help="Enable synchronization module, default disabled. e.g. -s 1")
     parser.add_argument("-a", "--aplay", dest='aplay', type=str, help="Enable play audio, default disabled. e.g. -a plughw:3,0")
     parser.add_argument("-r", "--rotate", dest='rotate',type=int, default=0, help="Image rotation degree, default 0" )
     parser.add_argument("-d", "--drmdisplay", dest='drmdisplay', type=int, default=-1, help="Drm display, set display plane, set 0 to auto find plane")
@@ -213,8 +213,8 @@ def main():
             if not cv2_enable:
                 print("Run 'pip3 install opencv-python' to install opencv")
                 return 1
-            if output_para.v4l2Fmt != m.v4l2GetFmtByName("RGB24"):
-                print("Output image format is not 'RGB24', Use the '-b RGB24' option to specify image format.")
+            if output_para.v4l2Fmt != m.v4l2GetFmtByName("BGR24"):
+                print("Output image format is not 'BGR24', Use the '-b BGR24' option to specify image format.")
                 return 1
             cv_display = Cv2Display("Cv2Display", None, sync, args.cvdisplay)
             cv_display.module = last_module.addExternalConsumer("Cv2Display", cv_display, cv2_extcall_back)

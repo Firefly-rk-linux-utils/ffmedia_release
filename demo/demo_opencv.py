@@ -105,8 +105,8 @@ def get_parameters():
     parser.add_argument("-f", "--save_file", dest='save_file', type=str, help="Enable save dec output data to file, set filename, default disabled")
     parser.add_argument("-o", "--output", dest='output', type=str, help="Output image size, default same as input")
     parser.add_argument("-b", "--outputfmt", dest='outputfmt', type=str, default="NV12", help="Output image format, default NV12")
-    parser.add_argument("-p", "--rtsp_transport", dest='rtsp_transport', type=int, default=0, help="Set the rtsp transport type，default 0(udp)")
-    parser.add_argument("-s", "--sync", dest="sync", type=int, default=-1, help="Enable synchronization module, default disabled. Enable the default 0(audio)")
+    parser.add_argument("-p", "--rtsp_transport", dest='rtsp_transport', type=int, default=0, help="Set the rtsp transport type, default 0(udp)")
+    parser.add_argument("-s", "--sync", dest="sync", type=int, default=-1, help="Enable synchronization module, default disabled. e.g. -s 1")
     parser.add_argument("-a", "--aplay", dest='aplay', type=str, help="Enable play audio, default disabled. e.g. -a plughw:3,0")
     parser.add_argument("-r", "--rotate", dest='rotate',type=int, default=0, help="Image rotation degree, default 0" )
     parser.add_argument("-d", "--drmdisplay", dest='drmdisplay', type=int, default=-1, help="Drm display, set display plane, set 0 to auto find plane")
@@ -121,7 +121,7 @@ def main():
         return 1
     elif args.input_source.startswith("rtsp://"):
         print("input source is a rtsp url")
-        input_source = m.ModuleRtspClient(args.input_source, args.rtsp_transport)
+        input_source = m.ModuleRtspClient(args.input_source, m.RTSP_STREAM_TYPE(args.rtsp_transport))
     else:
         is_stat = os.stat(args.input_source)
         if stat.S_ISCHR(is_stat.st_mode):
@@ -225,8 +225,8 @@ def main():
             drm_display.setWindowSize(x, y, w, h)
     elif args.cvdisplay != 0:
         input_para = last_module.getOutputImagePara()
-        if input_para.v4l2Fmt != m.v4l2GetFmtByName("RGB24"):
-            print("Output image format is not 'RGB24', Use the '-b RGB24' option to specify image format.")
+        if input_para.v4l2Fmt != m.v4l2GetFmtByName("BGR24"):
+            print("Output image format is not 'BGR24', Use the '-b BGR24' option to specify image format.")
             return
 
         cv_display = Cv2Display("Cv2Display", last_module, sync)

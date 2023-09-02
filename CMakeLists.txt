@@ -19,6 +19,8 @@ SET(CMAKE_C_FLAGS_RELEASE "$ENV{CFLAGS} -O3 -Wall -fPIC -s")
 SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -fPIC -s")
 
 OPTION(DEMO_OPENCV "OpencvDemo" OFF)
+OPTION(DEMO_RKNN "RknnDemo" OFF)
+
 
 IF(DEMO_OPENCV)
 find_package(OpenCV REQUIRED)
@@ -73,9 +75,19 @@ add_executable(demo_rgablend
 target_link_libraries(demo_opencv ff_media ${OpenCV_LIBS})
 target_link_libraries(demo_opencv_multi ff_media ${OpenCV_LIBS})
 target_link_libraries(demo_rgablend ff_media ${OpenCV_LIBS})
-
 install(TARGETS demo_opencv demo_opencv_multi demo_rgablend
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+    IF(DEMO_RKNN)
+        add_executable(demo_rknn
+                    rknn/src/demo_rknn.cpp
+                    rknn/src/postprocess.cc
+                    )
+        target_link_libraries(demo_rknn ff_media ${OpenCV_LIBS})
+        install(TARGETS demo_rknn
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    ENDIF(DEMO_RKNN)
+
 ENDIF(DEMO_OPENCV)
 
 install(TARGETS demo demo_simple demo_memory_read demo_multi_drmplane demo_multi_window

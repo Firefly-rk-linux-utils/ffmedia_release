@@ -47,7 +47,7 @@ typedef struct _demo_config {
     char input_source[256] = "";
     RgaRotate rotate = RGA_ROTATE_NONE;
     EncodeType encode_type = ENCODE_TYPE_H264;
-    ImagePara input_image_para = {0, 0, 0, 0, V4L2_PIX_FMT_MJPEG};
+    ImagePara input_image_para = {0, 0, 0, 0, 0};
     ImagePara output_image_para = {0, 0, 0, 0, V4L2_PIX_FMT_NV12};
     int push_port = -1;
     int push_type = 0;
@@ -108,7 +108,7 @@ static void usage(char** argv)
         "-c, --count                  Instance count, default 1\n"
         "-d, --drmdisplay             Drm display, set display plane, set 0 to auto find plane, default disabled\n"
 #if OPENGL_SUPPORT
-        "-x, --x11display             X11 window displays, render the video using opengl. default disabled\n"
+        "-x, --x11                    X11 window displays, render the video using opengl. default disabled\n"
 #endif
         "-z, --zpos                   Drm display plane zpos, default auto select\n"
         "-e, --encodetype             Encode encode, set encode type, default disabled\n"
@@ -339,11 +339,9 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
 
     if (inst_conf->cam_enabled) {
         shared_ptr<ModuleCam> cam = make_shared<ModuleCam>(inst_conf->input_source);
-        if ((inst_conf->input_image_para.width > 0) || (inst_conf->input_image_para.height > 0)) {
-            cam->setOutputImagePara(inst_conf->input_image_para);  // setOutputImage
-        }
+        cam->setOutputImagePara(inst_conf->input_image_para);  // setOutputImage
         cam->setProductor(NULL);
-        cam->setBufferCount(1);
+        cam->setBufferCount(8);
         ret = cam->init();
         if (ret < 0) {
             ff_error("camera init failed\n");
@@ -734,15 +732,15 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                 config->output_maxframe = strtoull(optarg, NULL, 10);
                 break;
             case 's':
-                if (optarg == NULL) {
-                    config->sync_opt = 1;
-                } else {
+                if (optarg == nullptr)
+                    config->sync_opt = 2;
+                else {
                     if (strcmp(optarg, "video") == 0)
-                        config->sync_opt = 2;
+                        config->sync_opt = 1;
                     else if (strcmp(optarg, "abs") == 0)
                         config->sync_opt = 3;
                     else
-                        config->sync_opt = 1;
+                        config->sync_opt = 2;
                 }
                 break;
             case 'A':
