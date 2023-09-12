@@ -7,14 +7,15 @@
 ```
 apt update
 apt install -y gcc g++ make cmake
-apt install libdrm-dev1
+apt install libdrm-dev
 ```
 2. 安装音频相关模块依赖库
 
 ```
 apt install libasound2-dev libfdk-aac-dev
 ```
-3. 安装opengl相关模块依赖库
+3. 安装opengl相关模块依赖库;
+在ubuntu18上没有libgles-dev软件包，可更改成libgles2-mesa-dev软件包
 
 ```
 apt install libgles-dev libx11-dev
