@@ -14,8 +14,7 @@ apt install libdrm-dev
 ```
 apt install libasound2-dev libfdk-aac-dev
 ```
-3. 安装opengl相关模块依赖库;
-在ubuntu18上没有libgles-dev软件包，可更改成libgles2-mesa-dev软件包
+3. 安装opengl相关模块依赖库。在ubuntu18上没有libgles-dev软件包，可更改成libgles2-mesa-dev软件包
 
 ```
 apt install libgles-dev libx11-dev

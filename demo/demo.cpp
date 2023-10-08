@@ -77,10 +77,6 @@ typedef struct _demo_data {
     shared_ptr<ModuleMedia> source_module = nullptr;
     FILE* file_data = nullptr;
 
-    const uint8_t* video_extra_data = nullptr;
-    unsigned video_extra_size = 0;
-    const uint8_t* audio_extra_data = nullptr;
-    unsigned audio_extra_size = 0;
 } DemoData;
 
 static int mygetch(void)
@@ -360,11 +356,6 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             ff_error("file reader init failed\n");
             goto FAILED;
         }
-        inst->video_extra_data = file_reader->videoExtraData();
-        inst->video_extra_size = file_reader->videoExtraDataSize();
-        inst->audio_extra_data = file_reader->audioExtraData();
-        inst->audio_extra_size = file_reader->audioExtraDataSize();
-
         inst->last_module = file_reader;
     } else if (inst_conf->rtsp_c_enabled) {
         shared_ptr<ModuleRtspClient> rtsp_c = make_shared<ModuleRtspClient>(inst_conf->input_source, inst_conf->rtsp_transport);
@@ -375,11 +366,6 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             ff_error("rtsp client init failed\n");
             goto FAILED;
         }
-        inst->video_extra_data = rtsp_c->videoExtraData();
-        inst->video_extra_size = rtsp_c->videoExtraDataSize();
-        inst->audio_extra_data = rtsp_c->audioExtraData();
-        inst->audio_extra_size = rtsp_c->audioExtraDataSize();
-
         inst->last_module = rtsp_c;
     } else if (inst_conf->rtmp_c_enabled) {
         shared_ptr<ModuleRtmpClient> rtmp_c = make_shared<ModuleRtmpClient>(inst_conf->input_source);
@@ -389,10 +375,6 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             ff_error("rtsp client init failed\n");
             goto FAILED;
         }
-        inst->video_extra_data = rtmp_c->videoExtraData();
-        inst->video_extra_size = rtmp_c->videoExtraDataSize();
-        inst->audio_extra_data = rtmp_c->audioExtraData();
-        inst->audio_extra_size = rtmp_c->audioExtraDataSize();
         inst->last_module = rtmp_c;
     }
 
@@ -408,8 +390,7 @@ SOURCE_CREATED:
 
 #if AUDIO_SUPPORT
     if (inst_conf->aplay_enable) {
-        shared_ptr<ModuleAacDec> aac_dec = make_shared<ModuleAacDec>(inst->audio_extra_data,
-                                                                     inst->audio_extra_size, -1);
+        shared_ptr<ModuleAacDec> aac_dec = make_shared<ModuleAacDec>();
         aac_dec->setProductor(inst->source_module);
         aac_dec->setBufferCount(1);
         aac_dec->setAlsaDevice(inst_conf->alsa_device);
@@ -581,8 +562,6 @@ SOURCE_CREATED:
     if (inst_conf->file_w_enabled) {
         const ImagePara& input_para = inst->last_module->getOutputImagePara();
         shared_ptr<ModuleFileWriter> file_writer = make_shared<ModuleFileWriter>(input_para, inst_conf->output_filename);
-        file_writer->setVideoExtraData(inst->video_extra_data, inst->video_extra_size);
-        // file_writer->setAudioExtraData(inst->audio_extra_data, inst->audio_extra_size);
         file_writer->setProductor(inst->last_module);
         if (inst_conf->output_maxframe)
             file_writer->setMaxFrameCount(inst_conf->output_maxframe);
@@ -840,7 +819,7 @@ EXIT:
 
     for (int i = 0; i < instance_count; i++) {
         if (insts + i != NULL) {
-            if (insts[i].file_data > 0)
+            if (insts[i].file_data != nullptr)
                 fclose(insts[i].file_data);
         }
     }

@@ -46,6 +46,7 @@ private:
     int abnormalStatusFlag;
     int timeOutCount;
     int maxTimeOutCount;
+    bool first_video_frame, first_audio_frame;
 
     bool open();
 };

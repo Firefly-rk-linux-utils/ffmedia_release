@@ -11,7 +11,7 @@ private:
     char* filepath;
     size_t fileSize;
     generalFileRead* reader;
-
+    bool first_video_frame, first_audio_frame;
     bool loopMode;
 
 protected:

@@ -20,20 +20,24 @@ class ModuleAacDec : public ModuleMedia
     bool first_frame;
     shared_ptr<AlsaPlayBack> aplay;
     string a_dev;
+    bool initialize;
 
 public:
+    ModuleAacDec();
     ModuleAacDec(const uint8_t* _extradata, unsigned _extradata_size,
                  int _sample_rate, int _nb_channels = -1);
     ~ModuleAacDec();
-    int init();
-
+    int init() { return 0; }
     void setAlsaDevice(string dev) { a_dev = dev; }
 
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer> buffer) override;
+    virtual bool setup() override;
+    virtual bool teardown() override;
 
 private:
+    int open();
     void close();
 };
 

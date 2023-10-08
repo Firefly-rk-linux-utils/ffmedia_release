@@ -122,10 +122,8 @@ def main():
         input_source.setSynchronize(sync)
 
     if args.aplay is not None:
-        extra_data = last_module.audioExtraData()
-        aplay = m.ModuleAacDec(extra_data.tobytes(),last_module.audioExtraDataSize(), -1, -1)
+        aplay = m.ModuleAacDec()
         aplay.setProductor(last_module)
-        aplay.setBufferCount(1)
         aplay.setAlsaDevice(args.aplay)
         aplay.setSynchronize(sync)
         ret = aplay.init()

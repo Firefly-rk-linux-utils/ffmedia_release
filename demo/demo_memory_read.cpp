@@ -92,7 +92,7 @@ int main(int argc, char** argv)
         // 3. drm display module
         input_para = dec->getOutputImagePara();
         drm_display = make_shared<ModuleDrmDisplay>(input_para);
-        drm_display->setPlanePara(V4L2_PIX_FMT_NV12, 1);
+        drm_display->setPlanePara(V4L2_PIX_FMT_NV12);
         drm_display->setProductor(dec);
         ret = drm_display->init();
         if (ret < 0) {
