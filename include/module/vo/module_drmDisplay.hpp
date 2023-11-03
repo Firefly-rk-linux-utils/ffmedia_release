@@ -109,10 +109,11 @@ class ModuleDrmDisplay : public ModuleMedia
     friend class DrmDisplayPlane;
 
 public:
+    ModuleDrmDisplay(shared_ptr<DrmDisplayPlane> plane = nullptr);
     ModuleDrmDisplay(const ImagePara& input_para, shared_ptr<DrmDisplayPlane> plane = nullptr);
     ~ModuleDrmDisplay();
 
-    int init();
+    int init() override;
     void setPlanePara(uint32_t fmt);
     void setPlanePara(uint32_t fmt, uint32_t plane_zpos);
     void setPlanePara(uint32_t fmt, uint32_t plane_id, PLANE_TYPE plane_type, uint32_t plane_zpos);

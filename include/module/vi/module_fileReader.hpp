@@ -8,7 +8,7 @@ class ModuleFileReader : public ModuleMedia
 {
 public:
 private:
-    char* filepath;
+    string filepath;
     size_t fileSize;
     generalFileRead* reader;
     bool first_video_frame, first_audio_frame;
@@ -16,11 +16,13 @@ private:
 
 protected:
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer> output_buffer) override;
+    virtual bool setup() override;
 
 public:
-    ModuleFileReader(const char* path, bool loop_play);
+    ModuleFileReader(string path, bool loop_play = false);
     ~ModuleFileReader();
-    int init();
+    int changeSource(string path, bool loop_play = false);
+    int init() override;
     const uint8_t* audioExtraData();
     unsigned audioExtraDataSize();
     const uint8_t* videoExtraData();

@@ -25,6 +25,7 @@ def find_two_numbers(n, x, y):
     a = 1
     b = n
     min_diff = 8192
+    result = (0, 0)
     while a <= b:
         if n % a == 0:
             b = n // a
@@ -39,8 +40,8 @@ def find_two_numbers(n, x, y):
         a += 1
     return result
 
-def cv2_extcall_back(obj, VideoBuffer):
-    vb = m.VideoBuffer.from_base(VideoBuffer)
+def cv2_extcall_back(obj, MediaBuffer):
+    vb = m.VideoBuffer.from_base(MediaBuffer)
     if obj.sync is not None:
         delay = obj.sync.updateVideo(vb.getPUstimestamp(), 0)
         if delay > 0:
@@ -60,8 +61,8 @@ def cv2_extcall_back(obj, VideoBuffer):
         cv2.imshow(obj.name + str(i), img)
     cv2.waitKey(1)
 
-def call_back(obj, VideoBuffer):
-    a = VideoBuffer.getActiveData()
+def call_back(obj, MediaBuffer):
+    a = MediaBuffer.getActiveData()
     obj.write(a)
 
 def get_parameters():
@@ -82,6 +83,7 @@ def get_parameters():
     parser.add_argument("-d", "--drmdisplay", dest='drmdisplay', type=int, default=-1, help="Drm display, set display plane, set 0 to auto find plane")
     parser.add_argument("-c", "--cvdisplay", dest='cvdisplay', type=int, default=0, help="OpenCv display, set window number, default 0")
     parser.add_argument("-x", "--x11display", dest='x11display', type=int, default=0, help="X11 window displays, render the video using gles. default disabled")
+    parser.add_argument("-l", "--loop", dest='loop', action='store_true', help="Loop reads the media file.")
 
     return parser.parse_args()
 
@@ -104,7 +106,7 @@ def main():
             input_source = m.ModuleCam(args.input_source)
         elif stat.S_ISREG(is_stat.st_mode):
             print("input source is a regular file.")
-            input_source = m.ModuleFileReader(args.input_source, 1);
+            input_source = m.ModuleFileReader(args.input_source, args.loop);
         else:
             print("{} is not support.".format(args.input_source))
             return 1
@@ -135,7 +137,7 @@ def main():
     if input_para.v4l2Fmt == m.v4l2GetFmtByName("H264") or \
         input_para.v4l2Fmt == m.v4l2GetFmtByName("MJPEG")or \
         input_para.v4l2Fmt == m.v4l2GetFmtByName("H265"):
-        dec = m.ModuleMppDec(input_para)
+        dec = m.ModuleMppDec()
         dec.setProductor(last_module)
         ret = dec.init()
         if ret < 0:
@@ -168,7 +170,7 @@ def main():
             output_para.hstride = output_para.vstride
             output_para.vstride = t
 
-        rga = m.ModuleRga(input_para, output_para, rotate)
+        rga = m.ModuleRga(output_para, rotate)
         rga.setProductor(last_module)
         rga.setBufferCount(2)
         ret = rga.init()
@@ -180,8 +182,8 @@ def main():
     cv_display = None
     if args.drmdisplay != -1:
         input_para = last_module.getOutputImagePara()
-        drm_display = m.ModuleDrmDisplay(input_para)
-        drm_display.setPlanePara(m.v4l2GetFmtByName("NV12"), args.drmdisplay, m.PLANE_TYPE.PLANE_TYPE_OVERLAY_OR_PRIMARY, 1)
+        drm_display = m.ModuleDrmDisplay()
+        drm_display.setPlanePara(m.v4l2GetFmtByName("NV12"), args.drmdisplay, m.PLANE_TYPE.PLANE_TYPE_OVERLAY_OR_PRIMARY, 0xff)
         drm_display.setProductor(last_module)
         drm_display.setSynchronize(sync)
         ret = drm_display.init()
@@ -198,8 +200,7 @@ def main():
             drm_display.setWindowSize(x, y, w, h)
     else:
         if args.x11display != 0:
-            input_para = last_module.getOutputImagePara()
-            x11_display = m.ModuleRendererVideo(input_para, args.input_source)
+            x11_display = m.ModuleRendererVideo(args.input_source)
             x11_display.setProductor(last_module)
             x11_display.setSynchronize(sync)
             ret = x11_display.init()
@@ -218,8 +219,7 @@ def main():
             cv_display.module = last_module.addExternalConsumer("Cv2Display", cv_display, cv2_extcall_back)
 
     if args.encodetype != -1:
-        input_para = last_module.getOutputImagePara()
-        enc = m.ModuleMppEnc(m.EncodeType(args.encodetype), input_para)
+        enc = m.ModuleMppEnc(m.EncodeType(args.encodetype))
         enc.setProductor(last_module)
         enc.setBufferCount(8)
         enc.setDuration(0) #Use the input source timestamp
@@ -230,12 +230,11 @@ def main():
         last_module = enc
 
         if args.port != 0:
-            input_para = last_module.getOutputImagePara()
             push_s = None
             if args.push_type == 0:
-                push_s = m.ModuleRtspServer(input_para, "/live/0", args.port)
+                push_s = m.ModuleRtspServer("/live/0", args.port)
             else:
-                push_s = m.ModuleRtmpServer(input_para, "/live/0", args.port)
+                push_s = m.ModuleRtmpServer("/live/0", args.port)
             push_s.setProductor(last_module)
             push_s.setBufferCount(0)
             push_s.setSynchronize(sync)
@@ -245,11 +244,9 @@ def main():
                 return 1
 
     if args.enmux is not None:
-        input_para = last_module.getOutputImagePara()
-        enm = m.ModuleFileWriter(input_para, args.enmux)
+        enm = m.ModuleFileWriter(args.enmux)
         enm.setProductor(last_module)
         enm.setBufferCount(1)
-
         if args.filemaxframe > 0:
             enm.setMaxFrameCount(args.filemaxframe)
         enm.init()

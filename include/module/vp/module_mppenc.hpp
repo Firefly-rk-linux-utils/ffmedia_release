@@ -27,13 +27,21 @@ protected:
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer> buffer) override;
     virtual int initBuffer() override;
     virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer) override;
+    void chooseOutputParaFmt();
+    void reset() override;
 
 public:
+    ModuleMppEnc(EncodeType type, int fps = 30, int gop = 60, int bps = 2048,
+                 EncodeRcMode mode = ENCODE_RC_MODE_CBR, EncodeQuality quality = ENCODE_QUALITY_BEST,
+                 EncodeProfile profile = ENCODE_PROFILE_HIGH);
     ModuleMppEnc(EncodeType type, const ImagePara& input_para, int fps = 30, int gop = 60, int bps = 2048,
                  EncodeRcMode mode = ENCODE_RC_MODE_CBR, EncodeQuality quality = ENCODE_QUALITY_BEST,
                  EncodeProfile profile = ENCODE_PROFILE_HIGH);
     ~ModuleMppEnc();
     void setDuration(int64_t _duration);
-    int init();
+    int changeEncodeParameter(EncodeType type, int fps = 30, int gop = 60, int bps = 2048,
+                              EncodeRcMode mode = ENCODE_RC_MODE_CBR, EncodeQuality quality = ENCODE_QUALITY_BEST,
+                              EncodeProfile profile = ENCODE_PROFILE_HIGH);
+    int init() override;
 };
 #endif

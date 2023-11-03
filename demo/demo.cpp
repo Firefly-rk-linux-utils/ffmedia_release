@@ -57,6 +57,7 @@ typedef struct _demo_config {
 
     bool cam_enabled = false;
     bool file_r_enabled = false;
+    bool loop = false;
     bool dec_enabled = false;
     bool rga_enabled = false;
     bool drmdisplay_enabled = false;
@@ -119,6 +120,7 @@ static void usage(char** argv)
         "-s, --sync                   Enable synchronization module, default disabled. Enable the default audio.\n"
         "                               e.g. -s | --sync=video | --sync=abs\n"
         "-A, --aplay                  Enable play audio, default disabled. e.g. --aplay plughw:3,0\n"
+        "-l, --loop                   Loop reads the media file.\n"
         "-r, --rotate                 Image rotation degree, default 0\n"
         "                               0:   none\n"
         "                               1:   vertical mirror\n"
@@ -130,7 +132,7 @@ static void usage(char** argv)
         argv[0]);
 }
 
-static const char* short_options = "i:o:a:b:c:d:z:e:f:p:m:r:s::A:M:x";
+static const char* short_options = "i:o:a:b:c:d:z:e:f:p:m:r:s::A:M:xl";
 
 // clang-format off
 static struct option long_options[] = {
@@ -154,6 +156,7 @@ static struct option long_options[] = {
 #if OPENGL_SUPPORT
     {"x11", no_argument, NULL, 'x'},
 #endif
+    {"loop", no_argument, NULL, 'l'},
     {NULL, 0, NULL, 0}
 };
 // clang-format on
@@ -345,7 +348,7 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         }
         inst->last_module = cam;
     } else if (inst_conf->file_r_enabled) {
-        shared_ptr<ModuleFileReader> file_reader = make_shared<ModuleFileReader>(inst_conf->input_source, false);
+        shared_ptr<ModuleFileReader> file_reader = make_shared<ModuleFileReader>(inst_conf->input_source, inst_conf->loop);
         if ((inst_conf->input_image_para.width > 0) || (inst_conf->input_image_para.height > 0)) {
             file_reader->setOutputImagePara(inst_conf->input_image_para);
         }
@@ -435,8 +438,7 @@ SOURCE_CREATED:
 
     // inst->dec_enabled = false;
     if (inst_conf->dec_enabled) {
-        const ImagePara& input_para = inst->last_module->getOutputImagePara();
-        shared_ptr<ModuleMppDec> dec = make_shared<ModuleMppDec>(input_para);
+        shared_ptr<ModuleMppDec> dec = make_shared<ModuleMppDec>();
         dec->setProductor(inst->last_module);
         dec->setBufferCount(10);
         ret = dec->init();
@@ -471,8 +473,7 @@ SOURCE_CREATED:
     }
 
     if (inst_conf->rga_enabled) {
-        const ImagePara& input_para = inst->last_module->getOutputImagePara();
-        shared_ptr<ModuleRga> rga = make_shared<ModuleRga>(input_para, inst_conf->output_image_para, inst_conf->rotate);
+        shared_ptr<ModuleRga> rga = make_shared<ModuleRga>(inst_conf->output_image_para, inst_conf->rotate);
         rga->setProductor(inst->last_module);
         rga->setBufferCount(2);
         ret = rga->init();
@@ -532,8 +533,7 @@ SOURCE_CREATED:
     }
 #if OPENGL_SUPPORT
     else if (inst_conf->x11display_enabled) {
-        const ImagePara& input_para = inst->last_module->getOutputImagePara();
-        shared_ptr<ModuleRendererVideo> x11_display = make_shared<ModuleRendererVideo>(input_para, inst_conf->input_source);
+        shared_ptr<ModuleRendererVideo> x11_display = make_shared<ModuleRendererVideo>(inst_conf->input_source);
         x11_display->setProductor(inst->last_module);
         x11_display->setSynchronize(inst->sync);
         ret = x11_display->init();
@@ -541,13 +541,11 @@ SOURCE_CREATED:
             ff_error("x11 display init failed\n");
             goto FAILED;
         }
-        inst->last_module = x11_display;
     }
 #endif
 
     if (inst_conf->enc_enabled) {
-        const ImagePara& input_para = inst->last_module->getOutputImagePara();
-        shared_ptr<ModuleMppEnc> enc = make_shared<ModuleMppEnc>(inst_conf->encode_type, input_para);
+        shared_ptr<ModuleMppEnc> enc = make_shared<ModuleMppEnc>(inst_conf->encode_type);
         enc->setProductor(inst->last_module);
         enc->setBufferCount(8);
         enc->setDuration(0);  // Use the input source timestamp
@@ -560,8 +558,7 @@ SOURCE_CREATED:
     }
 
     if (inst_conf->file_w_enabled) {
-        const ImagePara& input_para = inst->last_module->getOutputImagePara();
-        shared_ptr<ModuleFileWriter> file_writer = make_shared<ModuleFileWriter>(input_para, inst_conf->output_filename);
+        shared_ptr<ModuleFileWriter> file_writer = make_shared<ModuleFileWriter>(inst_conf->output_filename);
         file_writer->setProductor(inst->last_module);
         if (inst_conf->output_maxframe)
             file_writer->setMaxFrameCount(inst_conf->output_maxframe);
@@ -575,9 +572,8 @@ SOURCE_CREATED:
     if (inst_conf->push_enabled) {
         char push_path[256] = "";
         sprintf(push_path, "/live/%d", inst_index);
-        const ImagePara& input_para = inst->last_module->getOutputImagePara();
         if (inst_conf->push_type) {
-            shared_ptr<ModuleRtmpServer> rtmp_s = make_shared<ModuleRtmpServer>(input_para, push_path,
+            shared_ptr<ModuleRtmpServer> rtmp_s = make_shared<ModuleRtmpServer>(push_path,
                                                                                 inst_conf->push_port);
             rtmp_s->setProductor(inst->last_module);
             rtmp_s->setBufferCount(0);
@@ -588,7 +584,7 @@ SOURCE_CREATED:
                 goto FAILED;
             }
         } else {
-            shared_ptr<ModuleRtspServer> rtsp_s = make_shared<ModuleRtspServer>(input_para, push_path,
+            shared_ptr<ModuleRtspServer> rtsp_s = make_shared<ModuleRtspServer>(push_path,
                                                                                 inst_conf->push_port);
             rtsp_s->setProductor(inst->last_module);
             rtsp_s->setBufferCount(0);
@@ -670,6 +666,9 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                 break;
             case 'x':
                 config->x11display_enabled = true;
+                break;
+            case 'l':
+                config->loop = true;
                 break;
             case 'z':
                 config->drm_display_plane_zpos = atoi(optarg);

@@ -18,12 +18,14 @@ protected:
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer> buffer) override;
     virtual int initBuffer() override;
     virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer) override;
+    void reset() override;
 
 public:
+    ModuleMppDec();
     ModuleMppDec(const ImagePara& input_para);
     ModuleMppDec(const ImagePara& input_para, DecodeType type);
     ~ModuleMppDec();
-    int init();
+    int init() override;
 };
 
 #endif

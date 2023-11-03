@@ -7,7 +7,7 @@
 ```
 apt update
 apt install -y gcc g++ make cmake
-apt install libdrm-dev
+apt install libdrm-dev libjpeg9-dev
 ```
 2. 安装音频相关模块依赖库
 
@@ -23,11 +23,6 @@ apt install libgles-dev libx11-dev
 
 ```
 apt install libopencv-dev
-```
-5. 如需要支持python接口库，安装下列软件包
-
-```
-apt install -y python3.8-dev python3.8-venv
 ```
 
 ## c++ demo

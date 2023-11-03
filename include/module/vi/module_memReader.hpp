@@ -12,11 +12,13 @@ public:
         PROCESS_STATUS_PREPARE,
         PROCESS_STATUS_DONE
     };
+
 public:
     ModuleMemReader(const ImagePara& para);
     ~ModuleMemReader();
-    int init();
-    int setInputBuffer(void *buf, size_t bytes);
+    int changeInputPara(const ImagePara& para);
+    int init() override;
+    int setInputBuffer(void* buf, size_t bytes);
     int waitProcess(int timeout_ms);
     void setProcessStatus(DATA_PROCESS_STATUS status);
     DATA_PROCESS_STATUS getProcessStatus();
@@ -26,6 +28,7 @@ protected:
     virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
+
 private:
     shared_ptr<VideoBuffer> buffer;
     DATA_PROCESS_STATUS op_status;

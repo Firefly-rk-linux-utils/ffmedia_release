@@ -22,7 +22,6 @@ private:
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
 
-
 public:
     enum RGA_SCHEDULER_CORE {
         SCHEDULER_DEFAULT = 0,
@@ -42,12 +41,16 @@ public:
 
 public:
     ModuleRga();
+    ModuleRga(const ImagePara& output_para, RgaRotate rotate);
     ModuleRga(const ImagePara& input_para, const ImagePara& output_para, RgaRotate rotate);
     ~ModuleRga();
+    int changeOutputPara(const ImagePara& para);
     int init();
     void setSrcPara(uint32_t fmt, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t hstride, uint32_t vstride);
     void setDstPara(uint32_t fmt, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t hstride, uint32_t vstride);
     void setPatPara(uint32_t fmt, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t hstride, uint32_t vstride);
+    void setSrcBuffer(void* buf);
+    void setSrcBuffer(int fd);
     void setPatBuffer(void* buf, RGA_BLEND_MODE mode);
     void setPatBuffer(int fd, RGA_BLEND_MODE mode);
     void setBlendCallback(void_object_p ctx, callback_handler callback);

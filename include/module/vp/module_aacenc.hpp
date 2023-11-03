@@ -30,7 +30,7 @@ public:
      */
     ModuleAacEnc(SampleFormat _fmt, int _sample_rate, int _nb_channels);
     ~ModuleAacEnc();
-    int init();
+    int init() override;
 
     // aot == 2;  "LC"
     // aot == 5;  "HE-AAC"

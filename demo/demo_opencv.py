@@ -81,18 +81,18 @@ class Cv2Display(threading.Thread):
 def align(x, a):
     return (x + a - 1) & ~(a - 1)
 
-def call_back(obj, VideoBuffer):
-    a = VideoBuffer.getActiveData()
+def call_back(obj, MediaBuffer):
+    a = MediaBuffer.getActiveData()
     obj.write(a)
 #    print('VideoBuffer data type: ', a.dtype)
 #    print('VideoBuffer data size: ', a.size)
 
-def cv2_call_back(obj, VideoBuffer):
+def cv2_call_back(obj, MediaBuffer):
     with obj.lock:
         while obj.frame_complete:
             if not obj.condition.wait(timeout=1):
                 return
-        vb = obj.module.exportUseMediaBuffer(VideoBuffer, obj.frame, 0)
+        vb = obj.module.exportUseMediaBuffer(MediaBuffer, obj.frame, 0)
         if vb is not None:
             obj.frame = vb
             obj.frame_complete = True
@@ -206,7 +206,7 @@ def main():
     if args.drmdisplay != -1:
         input_para = last_module.getOutputImagePara()
         drm_display = m.ModuleDrmDisplay(input_para)
-        drm_display.setPlanePara(m.v4l2GetFmtByName("NV12"), args.drmdisplay, m.PLANE_TYPE.PLANE_TYPE_OVERLAY_OR_PRIMARY, 1)
+        drm_display.setPlanePara(m.v4l2GetFmtByName("NV12"), args.drmdisplay, m.PLANE_TYPE.PLANE_TYPE_OVERLAY_OR_PRIMARY, 0xff)
         drm_display.setProductor(last_module)
         drm_display.setSynchronize(sync)
         ret = drm_display.init()

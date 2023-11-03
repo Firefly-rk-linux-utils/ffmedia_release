@@ -7,12 +7,13 @@ class rknnModelInference;
 class ModuleInference : public ModuleMedia
 {
 public:
+    ModuleInference();
     ModuleInference(const ImagePara& input_para);
     ~ModuleInference();
     void setInferenceInterval(uint32_t frame_count);
     int setModelData(void* model, size_t model_size);
-    void removeModel();
-    int init();
+    int removeModel();
+    int init() override;
     std::vector<rknn_tensor_mem*>* getOutputMemPtr();
     std::vector<rknn_tensor_attr*>* getOutputAttrPtr();
     std::vector<rknn_tensor_mem*>& getOutputMemRef();
@@ -22,6 +23,7 @@ public:
 
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    void reset() override;
 
 private:
     shared_ptr<ModuleRga> rga;

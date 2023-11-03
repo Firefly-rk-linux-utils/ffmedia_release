@@ -27,7 +27,6 @@ public:
     ModuleAacDec(const uint8_t* _extradata, unsigned _extradata_size,
                  int _sample_rate, int _nb_channels = -1);
     ~ModuleAacDec();
-    int init() { return 0; }
     void setAlsaDevice(string dev) { a_dev = dev; }
 
 protected:

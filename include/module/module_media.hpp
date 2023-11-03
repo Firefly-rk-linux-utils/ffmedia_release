@@ -151,6 +151,10 @@ protected:
         return true;
     }
 
+    int checkInputPara();
+    virtual void reset();
+
+
 private:
     void resetModule();
     int nextBufferPos(uint16_t pos);
@@ -217,6 +221,9 @@ protected:
 
     MEDIA_BUFFER_TYPE media_type;
     shared_ptr<Synchronize> sync;
+    bool initialize;
+    const uint32_t produce_timeout = 5000;
+    const uint32_t consume_timeout = 5000;
 };
 
 #endif

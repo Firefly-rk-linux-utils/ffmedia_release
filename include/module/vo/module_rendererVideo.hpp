@@ -35,14 +35,17 @@ private:
     string title;
 
 public:
+    ModuleRendererVideo(string titele);
     ModuleRendererVideo(const ImagePara& para, string titele);
     ~ModuleRendererVideo();
-    int init();
+    int init() override;
+    int changeOutputResolution(int width, int height);
 
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
+    void reset() override;
 
 private:
     EGLBoolean x11WinCreate(const char* title);

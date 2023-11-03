@@ -15,10 +15,11 @@ public:
     };
 
 public:
-    ModuleRtspClient(const char* url, RTSP_STREAM_TYPE _stream_type = RTSP_STREAM_TYPE_UDP,
+    ModuleRtspClient(string rtsp_url, RTSP_STREAM_TYPE _stream_type = RTSP_STREAM_TYPE_UDP,
                      bool enable_video = true, bool enable_audio = false);
     ~ModuleRtspClient();
-    int init();
+    int changeSource(string rtsp_url, RTSP_STREAM_TYPE _stream_type = RTSP_STREAM_TYPE_UDP);
+    int init() override;
     const uint8_t* videoExtraData();
     unsigned videoExtraDataSize();
     const uint8_t* audioExtraData();

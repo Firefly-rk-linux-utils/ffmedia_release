@@ -7,7 +7,7 @@ class v4l2Cam;
 class ModuleCam : public ModuleMedia
 {
 private:
-    char dev[32];
+    string dev;
     shared_ptr<v4l2Cam> cam;
 
 protected:
@@ -16,8 +16,9 @@ protected:
     virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer) override;
 
 public:
-    ModuleCam(const char* dev);
+    ModuleCam(string vdev);
     ~ModuleCam();
-    int init();
+    int changeSource(string vdev);
+    int init() override;
 };
 #endif

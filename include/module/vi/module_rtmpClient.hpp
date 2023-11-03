@@ -7,9 +7,10 @@ class rtmpClient;
 class ModuleRtmpClient : public ModuleMedia
 {
 public:
-    ModuleRtmpClient(string _url, ImagePara para = ImagePara(), int _publish = 1);
+    ModuleRtmpClient(string rtmp_url, ImagePara para = ImagePara(), int _publish = 1);
     ~ModuleRtmpClient();
-    int init();
+    int changeSource(string rtmp_url, int _publish = 1);
+    int init() override;
     const uint8_t* videoExtraData();
     unsigned videoExtraDataSize();
     const uint8_t* audioExtraData();

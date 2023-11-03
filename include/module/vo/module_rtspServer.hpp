@@ -23,9 +23,10 @@ protected:
     virtual bool setup() override;
 
 public:
+    ModuleRtspServer(const char* path, int port);
     ModuleRtspServer(const ImagePara& para, const char* path, int port);
     ~ModuleRtspServer();
-    int init();
+    int init() override;
 };
 
 #endif

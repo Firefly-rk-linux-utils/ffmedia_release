@@ -16,11 +16,13 @@ private:
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
     virtual bool setup() override;
+    virtual bool teardown() override;
 
 public:
+    ModuleRtmpServer(const char* path, int port);
     ModuleRtmpServer(const ImagePara& para, const char* path, int port);
     ~ModuleRtmpServer();
-    int init();
+    virtual int init();
     void setMaxClientCount(int count);
     int getMaxClientCount();
     int getCurClientCount();

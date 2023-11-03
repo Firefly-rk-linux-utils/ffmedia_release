@@ -32,7 +32,7 @@ ffmedia一共包含以下单元
 一个Productor可以有多个Consumer，一个Consumer只有一个Productor. 输入源单元没有Productor.
 
 ## demo 示例
-demo安装环境、编译及使用介绍说明：demo/Readme.md
+demo安装环境、编译及使用介绍说明：[demo/Readme.md](demo/Readme.md)
 
 ## ffmedia api 文档
 ffmedia的api详细文档：documentation/ffmedia_api.pdf
