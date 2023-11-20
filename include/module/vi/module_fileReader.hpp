@@ -10,7 +10,7 @@ public:
 private:
     string filepath;
     size_t fileSize;
-    generalFileRead* reader;
+    shared_ptr<generalFileRead> reader;
     bool first_video_frame, first_audio_frame;
     bool loopMode;
 

@@ -11,13 +11,12 @@ private:
     uint32_t file_number;
     uint32_t max_frame_count;
     uint32_t cur_frame_count;
-    bool video_extra_flag;
     bool use_time_suffix;
     shared_ptr<generalFileWrite> writer;
 
 public:
-    ModuleFileWriter(string path, bool frame_split = false, bool useTimeSuffix = false);
-    ModuleFileWriter(const ImagePara& para, string path, bool frame_split = false, bool useTimeSuffix = false);
+    ModuleFileWriter(string path, bool useTimeSuffix = false);
+    ModuleFileWriter(const ImagePara& para, string path, bool useTimeSuffix = false);
     ~ModuleFileWriter();
     int changeFileName(string file_name);
     int init() override;
