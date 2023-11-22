@@ -259,7 +259,9 @@ def main():
         input_source.setOutputDataCallback(file, call_back)
 
     input_source.start()
+    input_source.dumpPipe()
     text = input("wait...")
+    input_source.dumpPipeSummary()
     input_source.stop()
 
     if args.save_file is not None:
