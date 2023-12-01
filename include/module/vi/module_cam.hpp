@@ -19,6 +19,8 @@ public:
     ModuleCam(string vdev);
     ~ModuleCam();
     int changeSource(string vdev);
+    int camIoctlOperation(unsigned long cmd, void* arg);
+    int getCamFd();
     int init() override;
 };
 #endif

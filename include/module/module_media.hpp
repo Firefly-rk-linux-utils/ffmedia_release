@@ -130,6 +130,7 @@ protected:
 
     virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer);
     std::cv_status waitForProduce();
+    void waitAllForConsume();
     std::cv_status waitForConsume();
 
     void notifyProduce();
