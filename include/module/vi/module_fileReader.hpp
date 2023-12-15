@@ -29,8 +29,6 @@ public:
     unsigned videoExtraDataSize();
     int setFileReaderSeek(int64_t ms_time);
     int64_t getFileReaderMaxSeek();
-    int setFileReaderSeekIdrIndex(size_t index);
-    size_t getFileReaderIdrCount();
 };
 
 #endif

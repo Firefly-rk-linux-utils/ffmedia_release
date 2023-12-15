@@ -57,6 +57,7 @@ public:
         ABSOLUTE_LAYOUT
     };
 
+    int setConnector(uint32_t conn_id);
     bool setup();
     bool setRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
     void getSize(uint32_t* w, uint32_t* h);
@@ -85,6 +86,7 @@ private:
     int drm_fd;
     uint32_t fb_id;
     uint32_t plane_id;
+    uint32_t conn_id;
     PLANE_TYPE type;
     uint32_t linear;
     uint32_t zpos;
@@ -117,7 +119,7 @@ public:
     void setPlanePara(uint32_t fmt);
     void setPlanePara(uint32_t fmt, uint32_t plane_zpos);
     void setPlanePara(uint32_t fmt, uint32_t plane_id, PLANE_TYPE plane_type, uint32_t plane_zpos);
-    void setPlanePara(uint32_t fmt, uint32_t plane_id, PLANE_TYPE plane_type, uint32_t plane_zpos, uint32_t plane_linear);
+    void setPlanePara(uint32_t fmt, uint32_t plane_id, PLANE_TYPE plane_type, uint32_t plane_zpos, uint32_t plane_linear, uint32_t conn_id = 0);
     bool move(uint32_t x, uint32_t y);
     bool resize(uint32_t w, uint32_t h);
     bool setPlaneRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h);

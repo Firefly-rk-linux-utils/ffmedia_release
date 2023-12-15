@@ -39,10 +39,10 @@ shared_ptr<ModuleMedia> common_source_module;
 
 typedef struct _demo_config {
     int drm_display_plane_id = 0;
+    int drm_display_conn_id = 0;
     int drm_display_plane_zpos = 0xFF;
     char dump_filename[256] = "";
     char output_filename[256] = "";
-    uint32_t output_maxframe = 0;
     char alsa_device[64] = "";
     char input_source[256] = "";
     RgaRotate rotate = RGA_ROTATE_NONE;
@@ -104,6 +104,7 @@ static void usage(char** argv)
         "-b, --outputfmt              Output image format, default NV12\n"
         "-c, --count                  Instance count, default 1\n"
         "-d, --drmdisplay             Drm display, set display plane, set 0 to auto find plane, default disabled\n"
+        "    --connector              Set drm display connector, default 0 to auto find connector\n"
 #if OPENGL_SUPPORT
         "-x, --x11                    X11 window displays, render the video using opengl. default disabled\n"
 #endif
@@ -116,7 +117,6 @@ static void usage(char** argv)
         "                               e.g. --rtsp_transport tcp | --rtsp_transport multicast\n"
         "-m, --enmux                  Enable save encode data to file, Enable package as mp4, mkv, or raw stream files depending on the file name suffix\n"
         "                               default disabled. e.g. -m out.mp4 | -m out.mkv | -m out.yuv\n"
-        "-M, --filemaxframe           Set the maximum number of frames that can be saved. The default number is unlimited\n"
         "-s, --sync                   Enable synchronization module, default disabled. Enable the default audio.\n"
         "                               e.g. -s | --sync=video | --sync=abs\n"
         "-A, --aplay                  Enable play audio, default disabled. e.g. --aplay plughw:3,0\n"
@@ -132,7 +132,7 @@ static void usage(char** argv)
         argv[0]);
 }
 
-static const char* short_options = "i:o:a:b:c:d:z:e:f:p:m:r:s::A:M:xl";
+static const char* short_options = "i:o:a:b:c:d:z:e:f:p:m:r:s::A:xl";
 
 // clang-format off
 static struct option long_options[] = {
@@ -142,6 +142,7 @@ static struct option long_options[] = {
     {"outputfmt", required_argument, NULL, 'b'},
     {"count", required_argument, NULL, 'c'},
     {"drmdisplay", required_argument, NULL, 'd'},
+    {"connector", required_argument, NULL, 'C'},
     {"zpos", required_argument, NULL, 'z'},
     {"encodetype", required_argument, NULL, 'e'},
     {"file", required_argument, NULL, 'f'},
@@ -151,7 +152,6 @@ static struct option long_options[] = {
     {"aplay", required_argument, NULL, 'A'},
     {"sync", optional_argument, NULL, 's' },
     {"rtsp_transport", required_argument, NULL, 'P'},
-    {"filemaxframe", required_argument, NULL, 'M'},
     {"push_type", required_argument, NULL, 't'},
 #if OPENGL_SUPPORT
     {"x11", no_argument, NULL, 'x'},
@@ -361,7 +361,7 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         }
         inst->last_module = file_reader;
     } else if (inst_conf->rtsp_c_enabled) {
-        shared_ptr<ModuleRtspClient> rtsp_c = make_shared<ModuleRtspClient>(inst_conf->input_source, inst_conf->rtsp_transport);
+        shared_ptr<ModuleRtspClient> rtsp_c = make_shared<ModuleRtspClient>(inst_conf->input_source, inst_conf->rtsp_transport, true, inst_conf->aplay_enable);
         rtsp_c->setProductor(NULL);
         rtsp_c->setBufferCount(20);
         ret = rtsp_c->init();
@@ -488,7 +488,8 @@ SOURCE_CREATED:
         const ImagePara& input_para = inst->last_module->getOutputImagePara();
         shared_ptr<ModuleDrmDisplay> drm_display = make_shared<ModuleDrmDisplay>(input_para);
         drm_display->setPlanePara(V4L2_PIX_FMT_NV12, inst_conf->drm_display_plane_id,
-                                  PLANE_TYPE_OVERLAY_OR_PRIMARY, inst_conf->drm_display_plane_zpos);
+                                  PLANE_TYPE_OVERLAY_OR_PRIMARY, inst_conf->drm_display_plane_zpos,
+                                  1, inst_conf->drm_display_conn_id);
         // inst->drm_display->setPlaneSize(0, 0, 1280, 800);
         drm_display->setBufferCount(1);
         drm_display->setProductor(inst->last_module);
@@ -560,8 +561,6 @@ SOURCE_CREATED:
     if (inst_conf->file_w_enabled) {
         shared_ptr<ModuleFileWriter> file_writer = make_shared<ModuleFileWriter>(inst_conf->output_filename);
         file_writer->setProductor(inst->last_module);
-        if (inst_conf->output_maxframe)
-            file_writer->setMaxFrameCount(inst_conf->output_maxframe);
         ret = file_writer->init();
         if (ret < 0) {
             ff_error("ModuleFileWriter init failed\n");
@@ -664,6 +663,9 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                 config->drm_display_plane_id = atoi(optarg);
                 config->drmdisplay_enabled = true;
                 break;
+            case 'C':
+                config->drm_display_conn_id = atoi(optarg);
+                break;
             case 'x':
                 config->x11display_enabled = true;
                 break;
@@ -705,9 +707,6 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
             case 'm':
                 strcpy(config->output_filename, optarg);
                 config->file_w_enabled = true;
-                break;
-            case 'M':
-                config->output_maxframe = strtoull(optarg, NULL, 10);
                 break;
             case 's':
                 if (optarg == nullptr)

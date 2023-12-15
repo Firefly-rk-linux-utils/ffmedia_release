@@ -73,7 +73,6 @@ def get_parameters():
     parser.add_argument("-b", "--outputfmt", dest='outputfmt', type=str, default="NV12", help="Output image format, default NV12")
     parser.add_argument("-e", "--encodetype", dest='encodetype', type=int, default=-1, help="Encode encode, set encode type, default disabled")
     parser.add_argument("-m", "--enmux", dest='enmux', type=str, help="Enable save encode data to file, Enable package as mp4, mkv, or raw stream files depending on the file name suffix. default disabled")
-    parser.add_argument("-M", "--filemaxframe", dest='filemaxframe', type=int, default= 0, help="Set the maximum number of frames that can be saved. The default number is unlimited")
     parser.add_argument("-p", "--port", dest='port', type=int, default=0, help="Enable push stream, default rtsp stream, set push port, depend on encode enabled, default disabled\n")
     parser.add_argument("--push_type", dest='push_type', type=int, default=0, help="Set push stream type, default rtsp. e.g. --push_type 1\n")
     parser.add_argument("--rtsp_transport", dest='rtsp_transport', type=int, default=0, help="Set the rtsp transport type, default 0(udp)")
@@ -81,6 +80,8 @@ def get_parameters():
     parser.add_argument("-a", "--aplay", dest='aplay', type=str, help="Enable play audio, default disabled. e.g. -a plughw:3,0")
     parser.add_argument("-r", "--rotate", dest='rotate',type=int, default=0, help="Image rotation degree, default 0" )
     parser.add_argument("-d", "--drmdisplay", dest='drmdisplay', type=int, default=-1, help="Drm display, set display plane, set 0 to auto find plane")
+    parser.add_argument("--connector", dest='connector', type=int, default=0, help="Set drm display connector, default 0 to auto find connector")
+    parser.add_argument("-z","--zpos", dest='zpos', type=int, default=0xff, help="Drm display plane zpos, default auto select")
     parser.add_argument("-c", "--cvdisplay", dest='cvdisplay', type=int, default=0, help="OpenCv display, set window number, default 0")
     parser.add_argument("-x", "--x11display", dest='x11display', type=int, default=0, help="X11 window displays, render the video using gles. default disabled")
     parser.add_argument("-l", "--loop", dest='loop', action='store_true', help="Loop reads the media file.")
@@ -183,7 +184,8 @@ def main():
     if args.drmdisplay != -1:
         input_para = last_module.getOutputImagePara()
         drm_display = m.ModuleDrmDisplay()
-        drm_display.setPlanePara(m.v4l2GetFmtByName("NV12"), args.drmdisplay, m.PLANE_TYPE.PLANE_TYPE_OVERLAY_OR_PRIMARY, 0xff)
+        drm_display.setPlanePara(m.v4l2GetFmtByName("NV12"), args.drmdisplay,
+                                 m.PLANE_TYPE.PLANE_TYPE_OVERLAY_OR_PRIMARY, args.zpos, 1, args.connector)
         drm_display.setProductor(last_module)
         drm_display.setSynchronize(sync)
         ret = drm_display.init()
@@ -246,9 +248,6 @@ def main():
     if args.enmux is not None:
         enm = m.ModuleFileWriter(args.enmux)
         enm.setProductor(last_module)
-        enm.setBufferCount(1)
-        if args.filemaxframe > 0:
-            enm.setMaxFrameCount(args.filemaxframe)
         enm.init()
         if ret < 0:
             print("ModuleFileWriter init failed")

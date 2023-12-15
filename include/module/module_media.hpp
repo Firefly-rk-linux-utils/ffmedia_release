@@ -64,7 +64,7 @@ public:
     void addConsumer(shared_ptr<ModuleMedia> consumer);
     void removeConsumer(shared_ptr<ModuleMedia> consumer);
 
-    shared_ptr<ModuleMedia> getConsumer(uint16_t index) const { return consumers[index]; }
+    shared_ptr<ModuleMedia>& getConsumer(uint16_t index);
     uint16_t getConsumersCount() const { return consumers_count; }
 
     void setBufferCount(uint16_t bufferCount) { buffer_count = bufferCount; }

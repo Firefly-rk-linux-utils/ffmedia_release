@@ -9,6 +9,8 @@ class ModuleCam : public ModuleMedia
 private:
     string dev;
     shared_ptr<v4l2Cam> cam;
+    uint32_t time_sec;
+    uint32_t time_usec;
 
 protected:
     virtual bool setup() override;
@@ -21,6 +23,7 @@ public:
     int changeSource(string vdev);
     int camIoctlOperation(unsigned long cmd, void* arg);
     int getCamFd();
+    void setTimeOutSec(unsigned sec, unsigned usec);
     int init() override;
 };
 #endif

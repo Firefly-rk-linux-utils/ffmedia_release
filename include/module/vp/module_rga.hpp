@@ -9,18 +9,11 @@ class FFRga;
 
 class ModuleRga : public ModuleMedia
 {
-    friend class ModuleDrmDisplay;
-    friend class ModuleRendererVideo;
-    friend class ModuleInference;
-
 private:
     shared_ptr<FFRga> rga;
     RgaRotate rotate;
     callback_handler blend_callback;
     void_object blend_callback_ctx;
-
-protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
 
 public:
     enum RGA_SCHEDULER_CORE {
@@ -61,6 +54,9 @@ public:
     int dstFillColor(int color);
 
     static void alignStride(uint32_t fmt, uint32_t& wstride, uint32_t& hstride);
+
+public:
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
 };
 
 #endif  //__MODULE_RGA_HPP__

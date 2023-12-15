@@ -21,8 +21,10 @@ public:
 
     void setBufferCount(uint16_t buffer_count) { (void)buffer_count; }
 
-protected:
+public:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+
+protected:
     void reset() override;
 
 private:
