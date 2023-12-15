@@ -54,6 +54,19 @@ $ make -j8
 $ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../rknn/lib/RK3588/
 
 ```
+
+**ffmedia默认编译了rknn,如果是rk3399等不支持rknn机型，也是需要指定rknn库的，使其编译时可以找到函数定义**
+
+```
+#可以指定任意一个rknn库位置
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../rknn/lib/RK3588/
+
+#或者直接将任意一个rknn库拷贝进系统中
+cp ../rknn/lib/RK3588/librknnrt.so /usr/lib/
+
+```
+
+
 ### demo.cpp
 该demo展现了大部分模块的基本使用示例。
 简单使用示例说明:

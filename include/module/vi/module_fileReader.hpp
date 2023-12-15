@@ -10,8 +10,8 @@ public:
 private:
     string filepath;
     size_t fileSize;
-    generalFileRead* reader;
-    bool first_video_frame, first_audio_frame;
+    shared_ptr<generalFileRead> reader;
+    bool first_audio_frame;
     bool loopMode;
 
 protected:
@@ -29,8 +29,6 @@ public:
     unsigned videoExtraDataSize();
     int setFileReaderSeek(int64_t ms_time);
     int64_t getFileReaderMaxSeek();
-    int setFileReaderSeekIdrIndex(size_t index);
-    size_t getFileReaderIdrCount();
 };
 
 #endif

@@ -29,7 +29,7 @@ private:
     string url;
     int publish;
     shared_ptr<MediaBuffer> probe_buffer;
-    bool first_video_frame, first_audio_frame;
+    bool first_audio_frame;
 };
 
 
