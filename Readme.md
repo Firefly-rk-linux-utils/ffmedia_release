@@ -7,20 +7,20 @@ ffmedia一共包含以下单元
   - Camera:  支持UVC， Mipi CSI
   - RTSP Client: 支持tcp、udp和多播协议
   - RTMP Client: 支持拉流和推流
-  - File Reader：支持mkv、mp4、flv文件读入及裸流等文件读入
+  - File Reader：支持mkv、mp4、flv、ts、ps文件及裸流等文件读入
   - Memory Reader:支持内存数据读入
 - 处理单元 VP:
   - MppDec: 视频解码，支持H264,H265,MJpeg
-  - MppEnc: 视频编码，支持H264,H265
+  - MppEnc: 视频编码，支持H264,H265,MJpeg
   - RGA：图像合成，缩放，裁剪，格式转换
   - AacDec: aac音频解码和播放
   - AacEnc: aac音频编码
 - 输出单元 VO
   - DRM Display: 基于libdrm的显示模块
   - Renderer Video: 使用gles渲染视频，基于libx11窗口显示
-  - RTSP Server:
+  - RTSP Server: 支持推流
   - RTMP Server: 支持推流
-  - File Writer: 支持mkv、mp4、flv及裸流等文件保存
+  - File Writer: 支持mkv、mp4、flv、ts、ps文件封装及裸流等文件保存
 - pybind11 pymodule.cpp
   - pymodule: 创建vi、vo、vp等的c++代码的Python绑定，以提供python调用vi、vo、vp等c++模块的python接口
 

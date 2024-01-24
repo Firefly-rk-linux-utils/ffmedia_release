@@ -23,7 +23,6 @@ public:
 
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
-    void reset() override;
     int restart(string file_name);
     void makeWriter();
 };

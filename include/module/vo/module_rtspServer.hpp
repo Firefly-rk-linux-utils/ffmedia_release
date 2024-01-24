@@ -13,7 +13,7 @@ class ModuleRtspServer : public ModuleMedia
 {
 private:
     static shared_ptr<RtspServer> rtsp_server;
-    static std::mutex live_mtx;
+    static std::mutex rtsp_mtx;
     rtsp_session_handle rtsp_session;
     int push_port;
     char push_path[256];

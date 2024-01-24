@@ -45,6 +45,7 @@ typedef struct _demo_config {
     char output_filename[256] = "";
     char alsa_device[64] = "";
     char input_source[256] = "";
+    char rtmp_url[256] = "";
     RgaRotate rotate = RGA_ROTATE_NONE;
     EncodeType encode_type = ENCODE_TYPE_H264;
     ImagePara input_image_para = {0, 0, 0, 0, 0};
@@ -113,9 +114,10 @@ static void usage(char** argv)
         "-f, --file                   Enable save source output data to file, set filename, default disabled\n"
         "-p, --port                   Enable push stream, default rtsp stream, set push port, depend on encode enabled, default disabled\n"
         "    --push_type              Set push stream type, default rtsp. e.g. --push_type rtmp\n"
+        "    --rtmp_url               Set the rtmp client push address. e.g. --rtmp_url rtmp://xxx\n"
         "--rtsp_transport             Set the rtsp transport type, default udp.\n"
         "                               e.g. --rtsp_transport tcp | --rtsp_transport multicast\n"
-        "-m, --enmux                  Enable save encode data to file, Enable package as mp4, mkv, or raw stream files depending on the file name suffix\n"
+        "-m, --enmux                  Enable save encode data to file. Enable package as mp4, mkv, flv, ts, ps or raw stream files, muxer type depends on the filename suffix.\n"
         "                               default disabled. e.g. -m out.mp4 | -m out.mkv | -m out.yuv\n"
         "-s, --sync                   Enable synchronization module, default disabled. Enable the default audio.\n"
         "                               e.g. -s | --sync=video | --sync=abs\n"
@@ -153,6 +155,7 @@ static struct option long_options[] = {
     {"sync", optional_argument, NULL, 's' },
     {"rtsp_transport", required_argument, NULL, 'P'},
     {"push_type", required_argument, NULL, 't'},
+    {"rtmp_url", required_argument, NULL, 'R'},
 #if OPENGL_SUPPORT
     {"x11", no_argument, NULL, 'x'},
 #endif
@@ -333,9 +336,6 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         goto SOURCE_CREATED;
     }
 
-    if (inst_conf->sync_opt)
-        inst->sync = make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1));
-
     if (inst_conf->cam_enabled) {
         shared_ptr<ModuleCam> cam = make_shared<ModuleCam>(inst_conf->input_source);
         cam->setOutputImagePara(inst_conf->input_image_para);  // setOutputImage
@@ -381,15 +381,15 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         inst->last_module = rtmp_c;
     }
 
-    if (inst_conf->sync_opt)
-        inst->last_module->setSynchronize(inst->sync);
-
     inst->source_module = inst->last_module;
 #if USE_COMMON_SOURCE
     common_source_module = inst->last_module;
 #endif
 
 SOURCE_CREATED:
+
+    if (inst_conf->sync_opt)
+        inst->sync = make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1));
 
 #if AUDIO_SUPPORT
     if (inst_conf->aplay_enable) {
@@ -576,7 +576,9 @@ SOURCE_CREATED:
                                                                                 inst_conf->push_port);
             rtmp_s->setProductor(inst->last_module);
             rtmp_s->setBufferCount(0);
-            rtmp_s->setSynchronize(inst->sync);
+            if (inst_conf->sync_opt)
+                rtmp_s->setSynchronize(make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1)));
+
             ret = rtmp_s->init();
             if (ret) {
                 ff_error("rtmp server init failed\n");
@@ -587,7 +589,9 @@ SOURCE_CREATED:
                                                                                 inst_conf->push_port);
             rtsp_s->setProductor(inst->last_module);
             rtsp_s->setBufferCount(0);
-            rtsp_s->setSynchronize(inst->sync);
+            if (inst_conf->sync_opt)
+                rtsp_s->setSynchronize(make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1)));
+
             ret = rtsp_s->init();
             if (ret) {
                 ff_error("rtsp server init failed\n");
@@ -595,6 +599,20 @@ SOURCE_CREATED:
             }
         }
         ff_info("\n Start push stream: %s://LocalIpAddr:%d%s\n\n", inst_conf->push_type ? "rtmp" : "rtsp", inst_conf->push_port, push_path);
+    }
+
+    if (strlen(inst_conf->rtmp_url) > 0) {
+        shared_ptr<ModuleRtmpClient> rtmp_c_push = make_shared<ModuleRtmpClient>(inst_conf->rtmp_url, ImagePara(), 0);
+        rtmp_c_push->setProductor(inst->last_module);
+        if (inst_conf->sync_opt)
+            rtmp_c_push->setSynchronize(make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1)));
+
+        ret = rtmp_c_push->init();
+        if (ret) {
+            ff_error("Fail to init rtmp client push\n");
+            goto FAILED;
+        }
+        ff_info("Rtmp client start push stream: %s\n\n", inst_conf->rtmp_url);
     }
 
     if (inst_conf->savetofile_enabled) {
@@ -693,6 +711,9 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                     config->push_type = 1;
                 else
                     config->push_type = 0;
+                break;
+            case 'R':
+                strcpy(config->rtmp_url, optarg);
                 break;
             case 'P':
                 if (strcmp(optarg, "udp") == 0)

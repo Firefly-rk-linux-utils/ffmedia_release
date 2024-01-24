@@ -22,9 +22,11 @@ private:
     float ptsRatio;
     SynchronizeType type;
 
-    //    int estimate_video_duration;
-    //    int n;
+    int video_last_duration;
+    int audio_last_duration;
 
+    static const int MIN_SYNC_THRESHOLD = 10000;   // 10ms
+    static const int MAX_SYNC_THRESHOLD = 100000;  // 100ms
 public:
     explicit Synchronize(SynchronizeType _type);
     int64_t getCurrentTime();

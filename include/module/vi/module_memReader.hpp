@@ -18,10 +18,12 @@ public:
     ~ModuleMemReader();
     int changeInputPara(const ImagePara& para);
     int init() override;
-    int setInputBuffer(void* buf, size_t bytes);
+    int setInputBuffer(void* buf, size_t bytes, int buf_fd = -1);
     int waitProcess(int timeout_ms);
     void setProcessStatus(DATA_PROCESS_STATUS status);
     DATA_PROCESS_STATUS getProcessStatus();
+
+    void setBufferCount(uint16_t buffer_count) { (void)buffer_count; }
 
 protected:
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer> output_buffer) override;

@@ -38,7 +38,7 @@ public:
     ModuleRga(const ImagePara& input_para, const ImagePara& output_para, RgaRotate rotate);
     ~ModuleRga();
     int changeOutputPara(const ImagePara& para);
-    int init();
+    int init() override;
     void setSrcPara(uint32_t fmt, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t hstride, uint32_t vstride);
     void setDstPara(uint32_t fmt, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t hstride, uint32_t vstride);
     void setPatPara(uint32_t fmt, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t hstride, uint32_t vstride);

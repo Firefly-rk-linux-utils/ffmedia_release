@@ -23,6 +23,7 @@ protected:
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer> output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
+    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer) override;
 
 private:
     shared_ptr<rtmpClient> rtmp_client;
