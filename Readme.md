@@ -15,10 +15,11 @@ ffmedia一共包含以下单元
   - RGA：图像合成，缩放，裁剪，格式转换
   - AacDec: aac音频解码和播放
   - AacEnc: aac音频编码
+  - Inference: rknn模型推理
 - 输出单元 VO
   - DRM Display: 基于libdrm的显示模块
   - Renderer Video: 使用gles渲染视频，基于libx11窗口显示
-  - RTSP Server: 支持推流
+  - RTSP Server: 支持tcp和udp推流
   - RTMP Server: 支持推流
   - File Writer: 支持mkv、mp4、flv、ts、ps文件封装及裸流等文件保存
 - pybind11 pymodule.cpp

@@ -55,7 +55,8 @@ $ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../rknn/lib/RK3588/
 
 ```
 
-**ffmedia默认编译了rknn,如果是rk3399等不支持rknn机型，也是需要指定rknn库的，使其编译时可以找到函数定义**
+**ffmedia默认使用了rknn,如果是rk3399等不支持rknn机型，也是需要指定rknn库的，使其编译时可以找到函数定义**
+，但不能使用推理模块
 
 ```
 #可以指定任意一个rknn库位置

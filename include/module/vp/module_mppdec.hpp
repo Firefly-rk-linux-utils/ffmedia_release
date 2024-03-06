@@ -25,6 +25,7 @@ public:
     ModuleMppDec(const ImagePara& input_para);
     ModuleMppDec(const ImagePara& input_para, DecodeType type);
     ~ModuleMppDec();
+    void setNeedSplit(uint32_t need_split);
     int init() override;
 };
 
