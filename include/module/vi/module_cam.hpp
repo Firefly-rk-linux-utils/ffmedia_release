@@ -9,8 +9,7 @@ class ModuleCam : public ModuleMedia
 private:
     string dev;
     shared_ptr<v4l2Cam> cam;
-    uint32_t time_sec;
-    uint32_t time_usec;
+    int64_t time_msec;
 
 protected:
     virtual bool setup() override;

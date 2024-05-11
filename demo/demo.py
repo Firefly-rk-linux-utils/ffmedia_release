@@ -78,7 +78,9 @@ def get_parameters():
     parser.add_argument("--rtmp_url", dest='rtmp_url', type=str, help="Set the rtmp client push address. e.g. --rtmp_url rtmp://xxx\n")
     parser.add_argument("--rtsp_transport", dest='rtsp_transport', type=int, default=0, help="Set the rtsp transport type, default 0(udp)")
     parser.add_argument("-s", "--sync", dest="sync", type=int, default=-1, help="Enable synchronization module, default disabled. e.g. -s 1")
-    parser.add_argument("-a", "--aplay", dest='aplay', type=str, help="Enable play audio, default disabled. e.g. -a plughw:3,0")
+    parser.add_argument("--audio", dest='audio', type=bool, default=False, help="Enable audio, default disabled.")
+    parser.add_argument("--aplay", dest='aplay', type=str, help="Enable play audio, default disabled. e.g. -a plughw:3,0")
+    parser.add_argument("--arecord", dest='arecord', type=str, help="Enable record audio, default disabled. e.g. --arecord plughw:3,0")
     parser.add_argument("-r", "--rotate", dest='rotate',type=int, default=0, help="Image rotation degree, default 0" )
     parser.add_argument("-d", "--drmdisplay", dest='drmdisplay', type=int, default=-1, help="Drm display, set display plane, set 0 to auto find plane")
     parser.add_argument("--connector", dest='connector', type=int, default=0, help="Set drm display connector, default 0 to auto find connector")
@@ -91,16 +93,15 @@ def get_parameters():
 
 def main():
 
-    audio_enable = False
     args = get_parameters()
-    if args.aplay is not None:
-        audio_enable = True
+    last_audio_module = None
+    input_audio_source = None
 
     if args.input_source is None:
         return 1
     elif args.input_source.startswith("rtsp://"):
         print("input source is a rtsp url")
-        input_source = m.ModuleRtspClient(args.input_source, m.RTSP_STREAM_TYPE(args.rtsp_transport), True, audio_enable)
+        input_source = m.ModuleRtspClient(args.input_source, m.RTSP_STREAM_TYPE(args.rtsp_transport), True, args.audio)
     elif args.input_source.startswith("rtmp://"):
         print("input source is a rtmp url")
         input_source = m.ModuleRtmpClient(args.input_source)
@@ -127,15 +128,42 @@ def main():
     else:
         sync = m.Synchronize(m.SynchronizeType(args.sync))
 
-    if args.aplay is not None:
-        aplay = m.ModuleAacDec()
-        aplay.setProductor(last_module)
-        aplay.setAlsaDevice(args.aplay)
-        aplay.setSynchronize(sync)
-        ret = aplay.init()
-        if ret <0:
-            print("aac_dec init failed")
-            return 1
+    if args.audio:
+        if args.arecord is not None:
+            s_info = m.SampleInfo()
+            s_info.channels = 2
+            s_info.fmt = m.SAMPLE_FMT_S16
+            s_info.nb_samples = 1024
+            s_info.sample_rate = 48000
+            capture = m.ModuleAlsaCapture(args.arecord, s_info)
+            ret = capture.init()
+            if ret < 0:
+                print("Failed to init arecord")
+                return ret
+            input_audio_source = capture
+            last_audio_module = capture
+
+            aac_enc = m.ModuleAacEnc(s_info)
+            aac_enc.setProductor(last_audio_module)
+            ret = aac_enc.init()
+            if ret < 0:
+                print("Failed to init aac_enc")
+                return ret
+            last_audio_module = aac_enc
+
+
+        if args.aplay is not None:
+            aplay = m.ModuleAacDec()
+            if last_audio_module != None:
+                aplay.setProductor(last_audio_module)
+            else:
+                aplay.setProductor(last_module)
+            aplay.setAlsaDevice(args.aplay)
+            aplay.setSynchronize(sync)
+            ret = aplay.init()
+            if ret <0:
+                print("aac_dec init failed")
+                return 1
 
     input_para = last_module.getOutputImagePara()
     if input_para.v4l2Fmt == m.v4l2GetFmtByName("H264") or \
@@ -250,6 +278,18 @@ def main():
                 print("push server init failed")
                 return 1
 
+            if args.audio == True and args.push_type == 0:
+                push_s_a = m.ModuleRtspServerExtend(push_s, "/live/0", args.port)
+                if last_audio_module != None:
+                    push_s_a.setProductor(last_audio_module)
+                else:
+                    push_s_a.setProductor(input_source)
+                push_s_a.setAudioParameter(m.MEDIA_CODEC_AUDIO_AAC);
+                ret = push_s_a.init()
+                if ret < 0:
+                    print("Failed to init audio push server")
+                    return 1
+
         if args.rtmp_url is not None:
             push_c = m.ModuleRtmpClient(args.rtmp_url, m.ImagePara(), 0)
             push_c.setProductor(last_module)
@@ -263,10 +303,22 @@ def main():
     if args.enmux is not None:
         enm = m.ModuleFileWriter(args.enmux)
         enm.setProductor(last_module)
-        enm.init()
+        ret = enm.init()
         if ret < 0:
             print("ModuleFileWriter init failed")
             return 1
+
+        if args.audio:
+            enm_audio = m.ModuleFileWriterExtend(enm, args.enmux)
+            if last_audio_module != None:
+                enm_audio.setProductor(last_audio_module)
+            else:
+                enm_audio.setProductor(input_source)
+            enm_audio.setAudioParameter(0, 0, 0, m.MEDIA_CODEC_AUDIO_AAC);
+            ret = enm_audio.init()
+            if ret < 0:
+                print("Failed to init audio writer")
+                return 1
 
     if args.save_file is not None:
         file = open(args.save_file, "wb")
@@ -274,7 +326,13 @@ def main():
 
     input_source.start()
     input_source.dumpPipe()
+    if input_audio_source != None:
+        input_audio_source.start()
+        input_audio_source.dumpPipe()
     text = input("wait...")
+    if input_audio_source != None:
+        input_audio_source.dumpPipeSummary()
+        input_audio_source.stop()
     input_source.dumpPipeSummary()
     input_source.stop()
 

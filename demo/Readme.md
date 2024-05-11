@@ -129,6 +129,14 @@ cp ../rknn/lib/RK3588/librknnrt.so /usr/lib/
 ./demo_multi_drmplane
 ```
 
+### demo_multi_splice.cpp
+多路拼接显示和推流示例。拉多路rtsp流解码拼接在一个画面上显示同时将该画面编码推流。
+需自行在代码里的rtspUrl变量设置rtsp地址
+
+```
+./demo_multi_splice
+```
+
 ### demo_rknn.cpp
 该源码在../rknn/src/demo_rknn.cpp 。
 该示例展现了使用推理模块进行推理，计算推理结果使用opencv将目标框住并显示。

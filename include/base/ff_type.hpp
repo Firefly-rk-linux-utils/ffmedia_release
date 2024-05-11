@@ -125,6 +125,23 @@ enum SampleFormat {
     SAMPLE_FMT_NB
 };
 
+enum AI_LAYOUT_E {
+    AI_LAYOUT_NORMAL = 0,    /* Normal      */
+    AI_LAYOUT_MIC_REF,       /* MIC + REF, do clear ref*/
+    AI_LAYOUT_REF_MIC,       /* REF + MIC, do clear ref*/
+    AI_LAYOUT_2MIC_REF_NONE, /* MIC0 + MIC1 + REF0 + NONE, do clear ref*/
+    AI_LAYOUT_2MIC_NONE_REF, /* MIC0 + MIC1 + NONE + REF1, do clear ref*/
+    AI_LAYOUT_2MIC_2REF,     /* MIC0 + MIC1 + REF0 + REF1, do clear ref*/
+    AI_LAYOUT_BUTT
+};
+
+struct SampleInfo {
+    SampleFormat fmt;
+    int channels;
+    int sample_rate;
+    int nb_samples;
+};
+
 enum MEDIA_BUFFER_TYPE {
     BUFFER_TYPE_VIDEO,
     BUFFER_TYPE_AUDIO,

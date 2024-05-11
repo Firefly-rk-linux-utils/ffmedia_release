@@ -11,6 +11,7 @@ class ModuleMppDec : public ModuleMedia
 private:
     shared_ptr<MppDecoder> dec;
     DecodeType decode_type;
+    uint32_t need_split;
 
 protected:
     void setAlign(DecodeType decode_type);
@@ -25,7 +26,7 @@ public:
     ModuleMppDec(const ImagePara& input_para);
     ModuleMppDec(const ImagePara& input_para, DecodeType type);
     ~ModuleMppDec();
-    void setNeedSplit(uint32_t need_split);
+    void setNeedSplit(uint32_t split);
     int init() override;
 };
 

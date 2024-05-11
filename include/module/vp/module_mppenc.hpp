@@ -27,6 +27,7 @@ protected:
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer> buffer) override;
     virtual int initBuffer() override;
     virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer) override;
+    virtual bool setup() override;
     void chooseOutputParaFmt();
     void reset() override;
 

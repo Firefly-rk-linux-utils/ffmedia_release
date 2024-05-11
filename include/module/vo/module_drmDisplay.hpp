@@ -2,6 +2,7 @@
 #define __DRM_DISPLAY_HPP__
 
 #include <mutex>
+#include <unordered_set>
 #include "module/module_media.hpp"
 class ModuleRga;
 struct DrmDisplayDevice;
@@ -103,7 +104,7 @@ private:
     bool size_seted;
     bool full_plane;       // It's a plane that fills the screen
     bool mini_size_plane;  // It's a plane that size is 0
-    vector<ModuleDrmDisplay*> windows;
+    unordered_set<ModuleDrmDisplay*> windows;
 };
 
 class ModuleDrmDisplay : public ModuleMedia

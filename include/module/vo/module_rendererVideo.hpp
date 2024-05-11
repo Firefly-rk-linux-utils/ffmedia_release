@@ -24,7 +24,7 @@ private:
     EGLNativeDisplayType eglNativeDisplay;
     /// Window handle
     EGLNativeWindowType eglNativeWindow;
-    Atom x_wmDeleteMessage;
+    unsigned long x_wmDeleteMessage;
     /// EGL display
     EGLDisplay eglDisplay;
     /// EGL context

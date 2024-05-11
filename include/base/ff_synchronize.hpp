@@ -25,8 +25,14 @@ private:
     int video_last_duration;
     int audio_last_duration;
 
-    static const int MIN_SYNC_THRESHOLD = 10000;   // 10ms
-    static const int MAX_SYNC_THRESHOLD = 100000;  // 100ms
+    int min_refrsh_s;  // Video minimum delay interval，default 10 000us.
+    int max_refrsh_s;  // Video maximum delay interval，default 100 000us
+
+    /*
+        For playing network video streams, caching more than 2
+        frames before playing will have better smoothness.
+    */
+    int first_frame_duration;  // default 0us
 public:
     explicit Synchronize(SynchronizeType _type);
     int64_t getCurrentTime();
@@ -36,6 +42,8 @@ public:
     int64_t getMasterTime();
     void setClockTime(SynchronizeType _type, int64_t pts);
     int64_t getClockTime(const Clock& clock);
+    void setRefrshS(int maxUs, int minUs);
+    void setFirstFrameDuration(int durationUs);
     int updateVideo(int64_t pts, int64_t duration);
     int updateAudio(int samples, int samplerate, int64_t pts);
     int updateAudioByBytesSize(unsigned bytesSize, int samplerate, int channels,

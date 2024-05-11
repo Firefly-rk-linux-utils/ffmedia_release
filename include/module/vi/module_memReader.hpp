@@ -18,7 +18,7 @@ public:
     ~ModuleMemReader();
     int changeInputPara(const ImagePara& para);
     int init() override;
-    int setInputBuffer(void* buf, size_t bytes, int buf_fd = -1);
+    int setInputBuffer(void* buf, size_t bytes, int buf_fd = -1, int64_t pts = 0);
     int waitProcess(int timeout_ms);
     void setProcessStatus(DATA_PROCESS_STATUS status);
     DATA_PROCESS_STATUS getProcessStatus();

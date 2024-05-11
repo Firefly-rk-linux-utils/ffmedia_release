@@ -28,7 +28,7 @@ public:
     int audioSampleRate();
     uint32_t videoFPS();
     void setTimeOutSec(unsigned sec, unsigned nsec) { time_msec = sec * 1000 + nsec / 1000; }
-    void setMaxTimeOutCount(int count) { maxTimeOutCount = count; }
+    [[deprecated]] void setMaxTimeOutCount(int count) { (void)count; }
     SESSION_STATUS getSessionStatus();
 
 protected:
@@ -45,8 +45,6 @@ private:
     RTSP_STREAM_TYPE stream_type;
     string url;
     int abnormalStatusFlag;
-    int timeOutCount;
-    int maxTimeOutCount;
     bool first_audio_frame;
 
     bool open();

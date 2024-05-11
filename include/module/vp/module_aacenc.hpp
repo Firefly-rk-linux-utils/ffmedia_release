@@ -9,9 +9,7 @@ struct AACENCODER;
 class ModuleAacEnc : public ModuleMedia
 {
     AACENCODER* enc;
-    SampleFormat fmt;
-    int sample_rate;
-    int nb_channels;
+    SampleInfo sample_info;
     int aot;
     int bit_rate;
     int afterburner;
@@ -28,7 +26,7 @@ public:
      * _nb_channels:
      *	1 ~ 8
      */
-    ModuleAacEnc(SampleFormat _fmt, int _sample_rate, int _nb_channels);
+    ModuleAacEnc(const SampleInfo& sample_info);
     ~ModuleAacEnc();
     int init() override;
 

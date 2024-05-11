@@ -17,10 +17,10 @@ struct External_ctx {
     shared_ptr<ModuleMedia> module;
     std::vector<rknn_tensor_attr*> output_attrs;
     std::vector<rknn_tensor_mem*> output_mems;
-    uint32_t ModelWidth;
-    uint32_t ModelHeight;
-    float wRatio;
-    float hRatio;
+    uint32_t model_width;
+    uint32_t model_height;
+    float ratio_w;
+    float ratio_h;
 
     std::mutex mtx;
     std::condition_variable rga;
@@ -32,11 +32,6 @@ void callback_rga(void* _ctx, shared_ptr<MediaBuffer> buffer)
 {
     External_ctx* ctx = static_cast<External_ctx*>(_ctx);
     shared_ptr<VideoBuffer> buf = static_pointer_cast<VideoBuffer>(buffer);
-    void* ptr = buf->getActiveData();
-    uint32_t width = buf->getImagePara().hstride;
-    uint32_t height = buf->getImagePara().vstride;
-    buf->invalidateDrmBuf();
-    cv::Mat imgBgr(cv::Size(width, height), CV_8UC3, ptr);
     detect_result_group_t detect_result_group;
     {
         std::unique_lock<std::mutex> lk(ctx->mtx);
@@ -46,7 +41,8 @@ void callback_rga(void* _ctx, shared_ptr<MediaBuffer> buffer)
             if (pts > ctx->pts) {
                 // Notify the inference module to process the next frame of the image.
                 ctx->inf.notify_one();
-                ctx->rga.wait_for(lk, std::chrono::milliseconds(3000));
+                if (ctx->rga.wait_for(lk, std::chrono::milliseconds(3000)) == cv_status::timeout)
+                    return;
             } else {
                 return;
             }
@@ -59,13 +55,17 @@ void callback_rga(void* _ctx, shared_ptr<MediaBuffer> buffer)
             out_zps.push_back(ctx->output_attrs[i]->zp);
         }
         post_process((int8_t*)ctx->output_mems[0]->virt_addr, (int8_t*)ctx->output_mems[1]->virt_addr, (int8_t*)ctx->output_mems[2]->virt_addr,
-                     ctx->ModelHeight, ctx->ModelWidth,
-                     BOX_THRESH, NMS_THRESH, ctx->wRatio, ctx->hRatio, out_zps, out_scales, &detect_result_group);
+                     ctx->model_height, ctx->model_width,
+                     BOX_THRESH, NMS_THRESH, ctx->ratio_w, ctx->ratio_h, out_zps, out_scales, &detect_result_group);
 
         // Notify the inference module to process the next frame of the image.
         ctx->inf.notify_one();
     }
 
+    uint32_t width = buf->getImagePara().hstride;
+    uint32_t height = buf->getImagePara().vstride;
+    buf->invalidateDrmBuf();
+    cv::Mat imgBgr(cv::Size(width, height), CV_8UC3, buf->getActiveData());
     char text[256];
     for (int i = 0; i < detect_result_group.count; i++) {
         detect_result_t* det_result = &(detect_result_group.results[i]);
@@ -168,10 +168,11 @@ int main(int argc, char** argv)
         // The resolution of the output image of the inference module depends on the model.
         input_para = inf->getOutputImagePara();
         output_para = rga->getOutputImagePara();
-        ctx1->ModelWidth = input_para.width;
-        ctx1->ModelHeight = input_para.height;
-        ctx1->wRatio = (float)ctx1->ModelWidth / output_para.width;
-        ctx1->hRatio = (float)ctx1->ModelHeight / output_para.height;
+        ctx1->model_width = input_para.width;
+        ctx1->model_height = input_para.height;
+        auto inf_crop = inf->getOutputImageCrop();
+        ctx1->ratio_w = (float)inf_crop.w / output_para.width;
+        ctx1->ratio_h = (float)inf_crop.h / output_para.height;
         ctx1->pts = -1;
 
         rga->setOutputDataCallback(ctx1, callback_rga);
