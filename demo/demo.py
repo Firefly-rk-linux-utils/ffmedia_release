@@ -79,7 +79,7 @@ def get_parameters():
     parser.add_argument("--rtsp_transport", dest='rtsp_transport', type=int, default=0, help="Set the rtsp transport type, default 0(udp)")
     parser.add_argument("-s", "--sync", dest="sync", type=int, default=-1, help="Enable synchronization module, default disabled. e.g. -s 1")
     parser.add_argument("--audio", dest='audio', type=bool, default=False, help="Enable audio, default disabled.")
-    parser.add_argument("--aplay", dest='aplay', type=str, help="Enable play audio, default disabled. e.g. -a plughw:3,0")
+    parser.add_argument("--aplay", dest='aplay', type=str, help="Enable play audio, default disabled. e.g. --aplay plughw:3,0")
     parser.add_argument("--arecord", dest='arecord', type=str, help="Enable record audio, default disabled. e.g. --arecord plughw:3,0")
     parser.add_argument("-r", "--rotate", dest='rotate',type=int, default=0, help="Image rotation degree, default 0" )
     parser.add_argument("-d", "--drmdisplay", dest='drmdisplay', type=int, default=-1, help="Drm display, set display plane, set 0 to auto find plane")
@@ -128,42 +128,47 @@ def main():
     else:
         sync = m.Synchronize(m.SynchronizeType(args.sync))
 
-    if args.audio:
-        if args.arecord is not None:
-            s_info = m.SampleInfo()
-            s_info.channels = 2
-            s_info.fmt = m.SAMPLE_FMT_S16
-            s_info.nb_samples = 1024
-            s_info.sample_rate = 48000
-            capture = m.ModuleAlsaCapture(args.arecord, s_info)
-            ret = capture.init()
-            if ret < 0:
-                print("Failed to init arecord")
-                return ret
-            input_audio_source = capture
-            last_audio_module = capture
+    if args.arecord is not None:
+        s_info = m.SampleInfo()
+        s_info.channels = 2
+        s_info.fmt = m.SAMPLE_FMT_S16
+        s_info.nb_samples = 1024
+        s_info.sample_rate = 48000
+        capture = m.ModuleAlsaCapture(args.arecord, s_info)
+        ret = capture.init()
+        if ret < 0:
+            print("Failed to init arecord")
+            return ret
+        input_audio_source = capture
+        last_audio_module = capture
 
-            aac_enc = m.ModuleAacEnc(s_info)
-            aac_enc.setProductor(last_audio_module)
-            ret = aac_enc.init()
-            if ret < 0:
-                print("Failed to init aac_enc")
-                return ret
-            last_audio_module = aac_enc
+        aac_enc = m.ModuleAacEnc()
+        aac_enc.setProductor(last_audio_module)
+        ret = aac_enc.init()
+        if ret < 0:
+            print("Failed to init aac_enc")
+            return ret
+        last_audio_module = aac_enc
 
 
-        if args.aplay is not None:
-            aplay = m.ModuleAacDec()
-            if last_audio_module != None:
-                aplay.setProductor(last_audio_module)
-            else:
-                aplay.setProductor(last_module)
-            aplay.setAlsaDevice(args.aplay)
-            aplay.setSynchronize(sync)
-            ret = aplay.init()
-            if ret <0:
-                print("aac_dec init failed")
-                return 1
+    if args.aplay is not None:
+        aac_dec = m.ModuleAacDec()
+        if last_audio_module != None:
+            aac_dec.setProductor(last_audio_module)
+        else:
+            aac_dec.setProductor(last_module)
+        ret = aac_dec.init()
+        if ret < 0:
+            print("aac_dec init failed")
+            return 1
+
+        aplay = m.ModuleAlsaPlayBack(args.aplay)
+        aplay.setProductor(aac_dec)
+        aplay.setSynchronize(sync)
+        ret = aplay.init()
+        if ret < 0:
+            print("aplay init failed")
+            return 1
 
     input_para = last_module.getOutputImagePara()
     if input_para.v4l2Fmt == m.v4l2GetFmtByName("H264") or \
@@ -183,10 +188,8 @@ def main():
         match = re.match(r"(\d+)x(\d+)", args.output)
         if match:
             width, height = map(int, match.groups())
-            output_para.width = align(width, 8)
-            output_para.height = align(height, 8)
-            output_para.hstride = width
-            output_para.vstride = height
+            output_para.width = width
+            output_para.height = height
 
     if args.rotate !=0 or input_para.height != output_para.height or \
         input_para.height != output_para.height or \
@@ -198,9 +201,10 @@ def main():
             t = output_para.width
             output_para.width = output_para.height
             output_para.height = t
-            t = output_para.hstride
-            output_para.hstride = output_para.vstride
-            output_para.vstride = t
+
+        # hstride and vstride are aligned to 16 bytes
+        output_para.hstride = align(output_para.width, 16)
+        output_para.vstride = align(output_para.height, 16)
 
         rga = m.ModuleRga(output_para, rotate)
         rga.setProductor(last_module)

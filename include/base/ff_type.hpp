@@ -140,6 +140,8 @@ struct SampleInfo {
     int channels;
     int sample_rate;
     int nb_samples;
+    SampleInfo()
+        : fmt(SAMPLE_FMT_NONE), channels(0), sample_rate(0), nb_samples(0){};
 };
 
 enum MEDIA_BUFFER_TYPE {

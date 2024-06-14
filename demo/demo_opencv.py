@@ -174,10 +174,8 @@ def main():
         match = re.match(r"(\d+)x(\d+)", args.output)
         if match:
             width, height = map(int, match.groups())
-            output_para.width = align(width, 8)
-            output_para.height = align(height, 8)
-            output_para.hstride = width
-            output_para.vstride = height
+            output_para.width = width
+            output_para.height = height
 
     if args.rotate !=0 or input_para.height != output_para.height or \
         input_para.height != output_para.height or \
@@ -189,9 +187,10 @@ def main():
             t = output_para.width
             output_para.width = output_para.height
             output_para.height = t
-            t = output_para.hstride
-            output_para.hstride = output_para.vstride
-            output_para.vstride = t
+
+        # hstride and vstride are aligned to 16 bytes
+        output_para.hstride = align(output_para.width, 16)
+        output_para.vstride = align(output_para.height, 16)
 
         rga = m.ModuleRga(input_para, output_para, rotate)
         rga.setProductor(last_module)

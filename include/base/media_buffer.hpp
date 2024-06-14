@@ -6,6 +6,7 @@
 #include <mutex>
 #include <memory>
 #include "ff_type.hpp"
+#include "pixel_fmt.hpp"
 
 using namespace std;
 class MediaBuffer
@@ -25,6 +26,11 @@ protected:
     std::atomic_bool status;
     std::atomic_uint16_t ref_count;
     mutex mtx;
+
+    union {
+        SampleInfo a;
+        ImagePara v;
+    } mediaPara;
 
 public:
     MediaBuffer(size_t _size = 0);
@@ -76,6 +82,11 @@ public:
     void setRefCount(uint16_t refCount);
     MEDIA_BUFFER_TYPE getMediaBufferType() { return media_type; }
     void setMediaBufferType(MEDIA_BUFFER_TYPE _media_type) { media_type = _media_type; }
+
+    ImagePara getImagePara() const { return mediaPara.v; }
+    void setImagePara(const ImagePara& para) { mediaPara.v = para; }
+    SampleInfo getSamplePara() const { return mediaPara.a; }
+    void setSamplePara(const SampleInfo& para) { mediaPara.a = para; }
 };
 
 #endif

@@ -46,6 +46,14 @@ struct Rect {
 
 class DrmDisplayPlane : public std::enable_shared_from_this<DrmDisplayPlane>
 {
+    struct PlaneBuffer {
+        std::shared_timed_mutex mtx;
+        vector<shared_ptr<VideoBuffer>> buffers;
+        vector<int> buffers_fb;
+        int free_index;
+        int use_index;
+        int etc_index;
+    };
 
     friend class ModuleDrmDisplay;
 
@@ -78,21 +86,26 @@ private:
     int drmFindPlane();
     int drmCreateFb(shared_ptr<VideoBuffer> buffer);
 
+    int addWindow(ModuleDrmDisplay* window);
+    void removeWindow(ModuleDrmDisplay* window);
+
     bool checkPlaneType(uint64_t plane_drm_type);
     bool isSamePlane(shared_ptr<DrmDisplayPlane> a, shared_ptr<DrmDisplayPlane> b);
+
+    void processBuffer(shared_ptr<ModuleRga>& win_rga, shared_ptr<MediaBuffer> input_buffer);
 
 private:
     shared_ptr<DrmDisplayDevice> display_device;
     int screen_index;
     int drm_fd;
-    uint32_t fb_id;
     uint32_t plane_id;
     uint32_t conn_id;
     PLANE_TYPE type;
     uint32_t linear;
     uint32_t zpos;
     uint32_t v4l2Fmt;
-    shared_ptr<VideoBuffer> buffer;
+    shared_ptr<ModuleRga> rga;
+    PlaneBuffer pBuffer;
     FFMedia::Rect cur_rect;
     FFMedia::Rect last_rect;
     uint32_t w_parts;

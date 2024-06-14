@@ -28,6 +28,7 @@
 #include "module/vp/module_aacdec.hpp"
 #include "module/vp/module_aacenc.hpp"
 #include "module/vi/module_alsaCapture.hpp"
+#include "module/vo/module_alsaPlayBack.hpp"
 #endif
 
 struct timeval curr_time;
@@ -417,7 +418,7 @@ SOURCE_CREATED:
         inst->source_audio_module = capture;
         inst->last_audio_module = capture;
 
-        auto aac_enc = make_shared<ModuleAacEnc>(info);
+        auto aac_enc = make_shared<ModuleAacEnc>();
         aac_enc->setProductor(inst->last_audio_module);
         ret = aac_enc->init();
         if (ret < 0) {
@@ -430,12 +431,18 @@ SOURCE_CREATED:
     if (strlen(inst_conf->aplay)) {
         shared_ptr<ModuleAacDec> aac_dec = make_shared<ModuleAacDec>();
         aac_dec->setProductor(inst->last_audio_module ? inst->last_audio_module : inst->last_module);
-        aac_dec->setBufferCount(1);
-        aac_dec->setAlsaDevice(inst_conf->aplay);
-        aac_dec->setSynchronize(inst->sync);
         ret = aac_dec->init();
         if (ret < 0) {
             ff_error("aac_dec init failed\n");
+            goto FAILED;
+        }
+
+        auto aplay = make_shared<ModuleAlsaPlayBack>(inst_conf->aplay);
+        aplay->setProductor(aac_dec);
+        aplay->setSynchronize(inst->sync);
+        ret = aplay->init();
+        if (ret < 0) {
+            ff_error("Audio playback init failed\n");
             goto FAILED;
         }
     }
@@ -448,14 +455,11 @@ SOURCE_CREATED:
         if ((inst_conf->output_image_para.width == 0) || (inst_conf->output_image_para.height == 0)) {
             inst_conf->output_image_para.width = source_module_output_para.width;
             inst_conf->output_image_para.height = source_module_output_para.height;
-            inst_conf->output_image_para.hstride = source_module_output_para.hstride;
-            inst_conf->output_image_para.vstride = source_module_output_para.vstride;
-        } else {
-            inst_conf->output_image_para.width = ALIGN(inst_conf->output_image_para.width, 8);
-            inst_conf->output_image_para.height = ALIGN(inst_conf->output_image_para.height, 8);
-            inst_conf->output_image_para.hstride = inst_conf->output_image_para.width;
-            inst_conf->output_image_para.vstride = inst_conf->output_image_para.height;
         }
+
+        // hstride and vstride are aligned to 16 bytes
+        inst_conf->output_image_para.hstride = ALIGN(inst_conf->output_image_para.width, 16);
+        inst_conf->output_image_para.vstride = ALIGN(inst_conf->output_image_para.height, 16);
 
         //(input_para.v4l2Fmt == V4L2_PIX_FMT_VP8) ||
         //(input_para.v4l2Fmt == V4L2_PIX_FMT_VP9))
