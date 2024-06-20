@@ -22,7 +22,7 @@ public:
     ModuleRtmpServer(const char* path, int port);
     ModuleRtmpServer(const ImagePara& para, const char* path, int port);
     ~ModuleRtmpServer();
-    virtual int init();
+    virtual int init() override;
     void setMaxClientCount(int count);
     int getMaxClientCount();
     int getCurClientCount();

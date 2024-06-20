@@ -102,7 +102,7 @@ def cv2_call_back(obj, MediaBuffer):
 def get_parameters():
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input_source", dest='input_source', type=str, help="input source")
-    parser.add_argument("-f", "--save_file", dest='save_file', type=str, help="Enable save dec output data to file, set filename, default disabled")
+    parser.add_argument("-f", "--save_file", dest='save_file', type=str, help="Enable save source output data to file, set filename, default disabled")
     parser.add_argument("-o", "--output", dest='output', type=str, help="Output image size, default same as input")
     parser.add_argument("-b", "--outputfmt", dest='outputfmt', type=str, default="NV12", help="Output image format, default NV12")
     parser.add_argument("-p", "--rtsp_transport", dest='rtsp_transport', type=int, default=0, help="Set the rtsp transport type, default 0(udp)")
@@ -174,10 +174,8 @@ def main():
         match = re.match(r"(\d+)x(\d+)", args.output)
         if match:
             width, height = map(int, match.groups())
-            output_para.width = align(width, 8)
-            output_para.height = align(height, 8)
-            output_para.hstride = width
-            output_para.vstride = height
+            output_para.width = width
+            output_para.height = height
 
     if args.rotate !=0 or input_para.height != output_para.height or \
         input_para.height != output_para.height or \
@@ -189,9 +187,10 @@ def main():
             t = output_para.width
             output_para.width = output_para.height
             output_para.height = t
-            t = output_para.hstride
-            output_para.hstride = output_para.vstride
-            output_para.vstride = t
+
+        # hstride and vstride are aligned to 16 bytes
+        output_para.hstride = align(output_para.width, 16)
+        output_para.vstride = align(output_para.height, 16)
 
         rga = m.ModuleRga(input_para, output_para, rotate)
         rga.setProductor(last_module)

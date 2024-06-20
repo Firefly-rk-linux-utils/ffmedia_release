@@ -55,7 +55,8 @@ $ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../rknn/lib/RK3588/
 
 ```
 
-**ffmedia默认编译了rknn,如果是rk3399等不支持rknn机型，也是需要指定rknn库的，使其编译时可以找到函数定义**
+**ffmedia默认使用了rknn,如果是rk3399等不支持rknn机型，也是需要指定rknn库的，使其编译时可以找到函数定义**
+，但不能使用推理模块
 
 ```
 #可以指定任意一个rknn库位置
@@ -84,8 +85,8 @@ cp ../rknn/lib/RK3588/librknnrt.so /usr/lib/
 ## 输入是本地视频文件，把解码图像缩放为 720p， 使用drm显示，并编码成h264向1935端口进行rtsp推流。
 ./demo /home/firefly/test.mkv -o 1280x720 -d 0 -e h264 -p 1935
 
-## 输入是摄像头设备，编码成h265并封装成mp4文件保存。根据文件名后缀封装成mp4、mkv、flv媒体文件或h264、yuv、rgb等裸流文件。
-./demo /dev/video0 -e h265 -m out.mp4
+## 输入是摄像头设备，编码成h265，同时采集plughw:2,0音频设备音频，编码成aac，并封装成mp4文件保存。
+./demo /dev/video0 -e h265 --arecord plughw:2,0 -m out.mp4
 ```
 
 ### demo_simple.cpp demo_opencv.cpp demo_opencv_multi.cpp
@@ -128,6 +129,14 @@ cp ../rknn/lib/RK3588/librknnrt.so /usr/lib/
 ./demo_multi_drmplane
 ```
 
+### demo_multi_splice.cpp
+多路拼接显示和推流示例。拉多路rtsp流解码拼接在一个画面上显示同时将该画面编码推流。
+需自行在代码里的rtspUrl变量设置rtsp地址
+
+```
+./demo_multi_splice
+```
+
 ### demo_rknn.cpp
 该源码在../rknn/src/demo_rknn.cpp 。
 该示例展现了使用推理模块进行推理，计算推理结果使用opencv将目标框住并显示。
@@ -137,7 +146,7 @@ cd build 													#进入编译目录
 cmake ../ -DDEMO_OPENCV=ON -DDEMO_RKNN=ON 					#打开编译opencv及rknn demo
 make -j8 													#编译
 cp -r ../rknn/model ./ 										#将rknn下的model目录拷贝到当前目录
-taskset -c 3 ./demo_rknn rtsp://xxx ./model/RK3588/yolov5s-640-640.rknn #指定rtsp地址及模型文件路径运行
+./demo_rknn rtsp://xxx ./model/RK3588/yolov5s-640-640.rknn 	#指定rtsp地址及模型文件路径运行
 
 ```
 

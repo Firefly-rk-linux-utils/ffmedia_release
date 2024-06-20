@@ -6,6 +6,7 @@
 #include "module/vi/module_rtspClient.hpp"
 #include "module/vp/module_mppdec.hpp"
 #include "module/vp/module_inference.hpp"
+#include "module/vp/module_rga.hpp"
 #include "postprocess.h"
 
 #include <opencv2/core/core.hpp>
@@ -18,20 +19,15 @@ struct External_ctx {
     std::vector<rknn_tensor_mem*> output_mems;
 };
 
-void callback_external(void* _ctx, shared_ptr<MediaBuffer> buffer)
+void callback_inf(void* _ctx, shared_ptr<MediaBuffer> buffer)
 {
     External_ctx* ctx = static_cast<External_ctx*>(_ctx);
     shared_ptr<VideoBuffer> buf = static_pointer_cast<VideoBuffer>(buffer);
-    // flush dma buf to cpu
-    buf->invalidateDrmBuf();
     void* ptr = buf->getActiveData();
     uint32_t width = buf->getImagePara().hstride;
     uint32_t height = buf->getImagePara().vstride;
     cv::Mat imgRgb(cv::Size(width, height), CV_8UC3, ptr);
-    cv::Mat imgBgr;
-    cvtColor(imgRgb, imgBgr, cv::COLOR_RGB2BGR);
-    const float nms_threshold = NMS_THRESH;
-    const float box_conf_threshold = BOX_THRESH;
+
     detect_result_group_t detect_result_group;
     std::vector<float> out_scales;
     std::vector<int32_t> out_zps;
@@ -41,7 +37,7 @@ void callback_external(void* _ctx, shared_ptr<MediaBuffer> buffer)
     }
     post_process((int8_t*)ctx->output_mems[0]->virt_addr, (int8_t*)ctx->output_mems[1]->virt_addr, (int8_t*)ctx->output_mems[2]->virt_addr,
                  height, width,
-                 box_conf_threshold, nms_threshold, 1, 1, out_zps, out_scales, &detect_result_group);
+                 BOX_THRESH, NMS_THRESH, 1, 1, out_zps, out_scales, &detect_result_group);
 
     char text[256];
     for (int i = 0; i < detect_result_group.count; i++) {
@@ -51,13 +47,27 @@ void callback_external(void* _ctx, shared_ptr<MediaBuffer> buffer)
         int y1 = det_result->box.top;
         int x2 = det_result->box.right;
         int y2 = det_result->box.bottom;
-        rectangle(imgBgr, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(255, 0, 0, 255), 3);
-        putText(imgBgr, text, cv::Point(x1, y1 + 12), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+        rectangle(imgRgb, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(255, 0, 0, 255), 3);
+        putText(imgRgb, text, cv::Point(x1, y1 + 12), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
     }
 
-    cv::imshow(ctx->module->getName(), imgBgr);
+    if (detect_result_group.count > 0)
+        buf->flushDrmBuf();
+}
+
+void callback_rga(void* _ctx, shared_ptr<MediaBuffer> buffer)
+{
+    shared_ptr<VideoBuffer> buf = static_pointer_cast<VideoBuffer>(buffer);
+    void* ptr = buf->getActiveData();
+    uint32_t width = buf->getImagePara().hstride;
+    uint32_t height = buf->getImagePara().vstride;
+    // flush dma buf to cpu
+    buf->invalidateDrmBuf();
+    cv::Mat mat(cv::Size(width, height), CV_8UC3, ptr);
+    cv::imshow("callback_rga", mat);
     cv::waitKey(1);
 }
+
 
 // Usage： ./demo_rknn rtsp://xxx ./model/RK3588/yolov5s-640-640.rknn
 int main(int argc, char** argv)
@@ -66,6 +76,7 @@ int main(int argc, char** argv)
     shared_ptr<ModuleRtspClient> rtsp_c = NULL;
     shared_ptr<ModuleMppDec> dec = NULL;
     shared_ptr<ModuleInference> inf = NULL;
+    shared_ptr<ModuleRga> rga = NULL;
 
     ImagePara input_para;
     ImagePara output_para;
@@ -85,8 +96,7 @@ int main(int argc, char** argv)
             break;
         }
 
-        input_para = rtsp_c->getOutputImagePara();
-        dec = make_shared<ModuleMppDec>(input_para);
+        dec = make_shared<ModuleMppDec>();
         dec->setProductor(rtsp_c);
         ret = dec->init();
         if (ret < 0) {
@@ -94,8 +104,7 @@ int main(int argc, char** argv)
             break;
         }
 
-        input_para = dec->getOutputImagePara();
-        inf = make_shared<ModuleInference>(input_para);
+        inf = make_shared<ModuleInference>();
         inf->setProductor(dec);
         inf->setInferenceInterval(1);
         if (inf->setModelData(argv[2], 0) < 0) {
@@ -112,7 +121,23 @@ int main(int argc, char** argv)
         ctx1->module = inf;
         ctx1->output_attrs = inf->getOutputAttrRef();
         ctx1->output_mems = inf->getOutputMemRef();
-        inf->setOutputDataCallback(ctx1, callback_external);
+        inf->setOutputDataCallback(ctx1, callback_inf);
+
+        input_para = dec->getOutputImagePara();
+        output_para = input_para;
+        output_para.width = input_para.width;
+        output_para.height = input_para.height;
+        output_para.hstride = output_para.width;
+        output_para.vstride = output_para.height;
+        output_para.v4l2Fmt = V4L2_PIX_FMT_BGR24;
+        rga = make_shared<ModuleRga>(output_para, RGA_ROTATE_NONE);
+        rga->setProductor(inf);
+        rga->setOutputDataCallback(nullptr, callback_rga);
+        ret = rga->init();
+        if (ret < 0) {
+            ff_error("rga init failed\n");
+            break;
+        }
 
         rtsp_c->start();
         getchar();

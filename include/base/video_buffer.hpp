@@ -23,7 +23,6 @@ private:
     DrmBuffer* drm_buf;
     MppBuffer mpp_buf;
     BUFFER_TYPE buffer_type;
-    ImagePara image_para;
     int buf_fd;
 
 public:
@@ -49,9 +48,6 @@ public:
 
     int getBufFd() const { return buf_fd; }
     void setBufFd(int bufFd) { buf_fd = bufFd; }
-
-    ImagePara getImagePara() const { return image_para; }
-    void setImagePara(const ImagePara& para) { image_para = para; }
 
     BUFFER_TYPE getBufferType() const { return buffer_type; }
     void setBufferType(const BUFFER_TYPE& bufferType) { buffer_type = bufferType; }

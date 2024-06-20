@@ -12,27 +12,19 @@ class ModuleAacDec : public ModuleMedia
     AAC_DECODER_INSTANCE* dec;
     uint8_t* extradata;
     unsigned extradata_size;
-    int nb_channels;
-    int sample_rate;
-    int samples;
-    SampleFormat fmt;
-
-    bool first_frame;
-    shared_ptr<AlsaPlayBack> aplay;
-    string a_dev;
-    bool initialize;
+    SampleInfo sampleInfo;
 
 public:
     ModuleAacDec();
     ModuleAacDec(const uint8_t* _extradata, unsigned _extradata_size,
                  int _sample_rate, int _nb_channels = -1);
     ~ModuleAacDec();
-    void setAlsaDevice(string dev) { a_dev = dev; }
+
+    int changeSampleInfo(const SampleInfo& sample_info);
+    int init() override;
 
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer> buffer) override;
-    virtual bool setup() override;
     virtual bool teardown() override;
 
 private:

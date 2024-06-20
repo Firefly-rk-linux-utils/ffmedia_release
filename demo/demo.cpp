@@ -26,6 +26,9 @@
 
 #if AUDIO_SUPPORT
 #include "module/vp/module_aacdec.hpp"
+#include "module/vp/module_aacenc.hpp"
+#include "module/vi/module_alsaCapture.hpp"
+#include "module/vo/module_alsaPlayBack.hpp"
 #endif
 
 struct timeval curr_time;
@@ -43,8 +46,10 @@ typedef struct _demo_config {
     int drm_display_plane_zpos = 0xFF;
     char dump_filename[256] = "";
     char output_filename[256] = "";
-    char alsa_device[64] = "";
+    char aplay[64] = "";
+    char arecord[64] = "";
     char input_source[256] = "";
+    char rtmp_url[256] = "";
     RgaRotate rotate = RGA_ROTATE_NONE;
     EncodeType encode_type = ENCODE_TYPE_H264;
     ImagePara input_image_para = {0, 0, 0, 0, 0};
@@ -68,7 +73,7 @@ typedef struct _demo_config {
     bool rtmp_c_enabled = false;
     bool push_enabled = false;
     bool savetofile_enabled = false;
-    bool aplay_enable = false;
+    bool audio_enable = false;
 } DemoConfig;
 
 typedef struct _demo_data {
@@ -76,6 +81,8 @@ typedef struct _demo_data {
     shared_ptr<Synchronize> sync = nullptr;
     shared_ptr<ModuleMedia> last_module = nullptr;
     shared_ptr<ModuleMedia> source_module = nullptr;
+    shared_ptr<ModuleMedia> source_audio_module = nullptr;
+    shared_ptr<ModuleMedia> last_audio_module = nullptr;
     FILE* file_data = nullptr;
 
 } DemoData;
@@ -113,13 +120,16 @@ static void usage(char** argv)
         "-f, --file                   Enable save source output data to file, set filename, default disabled\n"
         "-p, --port                   Enable push stream, default rtsp stream, set push port, depend on encode enabled, default disabled\n"
         "    --push_type              Set push stream type, default rtsp. e.g. --push_type rtmp\n"
+        "    --rtmp_url               Set the rtmp client push address. e.g. --rtmp_url rtmp://xxx\n"
         "--rtsp_transport             Set the rtsp transport type, default udp.\n"
         "                               e.g. --rtsp_transport tcp | --rtsp_transport multicast\n"
-        "-m, --enmux                  Enable save encode data to file, Enable package as mp4, mkv, or raw stream files depending on the file name suffix\n"
+        "-m, --enmux                  Enable save encode data to file. Enable package as mp4, mkv, flv, ts, ps or raw stream files, muxer type depends on the filename suffix.\n"
         "                               default disabled. e.g. -m out.mp4 | -m out.mkv | -m out.yuv\n"
         "-s, --sync                   Enable synchronization module, default disabled. Enable the default audio.\n"
         "                               e.g. -s | --sync=video | --sync=abs\n"
-        "-A, --aplay                  Enable play audio, default disabled. e.g. --aplay plughw:3,0\n"
+        "--audio                      Enable audio, default disabled.\n"
+        "--aplay                      Enable play audio, default disabled. e.g. --aplay plughw:3,0\n"
+        "--arecord                    Enable record audio, default disabled. e.g. --arecord plughw:3,0\n"
         "-l, --loop                   Loop reads the media file.\n"
         "-r, --rotate                 Image rotation degree, default 0\n"
         "                               0:   none\n"
@@ -132,7 +142,7 @@ static void usage(char** argv)
         argv[0]);
 }
 
-static const char* short_options = "i:o:a:b:c:d:z:e:f:p:m:r:s::A:xl";
+static const char* short_options = "i:o:a:b:c:d:z:e:f:p:m:r:s::xl";
 
 // clang-format off
 static struct option long_options[] = {
@@ -149,10 +159,13 @@ static struct option long_options[] = {
     {"port",  required_argument, NULL, 'p'},
     {"enmux",  required_argument, NULL, 'm'},
     {"rotate", required_argument, NULL, 'r'},
+    {"audio", no_argument, NULL, 'A'},
     {"aplay", required_argument, NULL, 'A'},
+    {"arecord", required_argument, NULL, 'A'},
     {"sync", optional_argument, NULL, 's' },
     {"rtsp_transport", required_argument, NULL, 'P'},
     {"push_type", required_argument, NULL, 't'},
+    {"rtmp_url", required_argument, NULL, 'R'},
 #if OPENGL_SUPPORT
     {"x11", no_argument, NULL, 'x'},
 #endif
@@ -333,9 +346,6 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         goto SOURCE_CREATED;
     }
 
-    if (inst_conf->sync_opt)
-        inst->sync = make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1));
-
     if (inst_conf->cam_enabled) {
         shared_ptr<ModuleCam> cam = make_shared<ModuleCam>(inst_conf->input_source);
         cam->setOutputImagePara(inst_conf->input_image_para);  // setOutputImage
@@ -361,7 +371,8 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         }
         inst->last_module = file_reader;
     } else if (inst_conf->rtsp_c_enabled) {
-        shared_ptr<ModuleRtspClient> rtsp_c = make_shared<ModuleRtspClient>(inst_conf->input_source, inst_conf->rtsp_transport, true, inst_conf->aplay_enable);
+        shared_ptr<ModuleRtspClient> rtsp_c = make_shared<ModuleRtspClient>(inst_conf->input_source, inst_conf->rtsp_transport,
+                                                                            true, inst_conf->audio_enable);
         rtsp_c->setProductor(NULL);
         rtsp_c->setBufferCount(20);
         ret = rtsp_c->init();
@@ -381,9 +392,6 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         inst->last_module = rtmp_c;
     }
 
-    if (inst_conf->sync_opt)
-        inst->last_module->setSynchronize(inst->sync);
-
     inst->source_module = inst->last_module;
 #if USE_COMMON_SOURCE
     common_source_module = inst->last_module;
@@ -391,17 +399,50 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
 
 SOURCE_CREATED:
 
-#if AUDIO_SUPPORT
-    if (inst_conf->aplay_enable) {
-        shared_ptr<ModuleAacDec> aac_dec = make_shared<ModuleAacDec>();
-        aac_dec->setProductor(inst->source_module);
-        aac_dec->setBufferCount(1);
-        aac_dec->setAlsaDevice(inst_conf->alsa_device);
-        aac_dec->setSynchronize(inst->sync);
+    if (inst_conf->sync_opt)
+        inst->sync = make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1));
 
+#if AUDIO_SUPPORT
+    if (strlen(inst_conf->arecord)) {
+        SampleInfo info;
+        info.channels = 2;
+        info.fmt = SAMPLE_FMT_S16;
+        info.nb_samples = 1024;
+        info.sample_rate = 48000;
+        auto capture = make_shared<ModuleAlsaCapture>(inst_conf->arecord, info);
+        ret = capture->init();
+        if (ret < 0) {
+            ff_error("capture init failed\n");
+            goto FAILED;
+        }
+        inst->source_audio_module = capture;
+        inst->last_audio_module = capture;
+
+        auto aac_enc = make_shared<ModuleAacEnc>();
+        aac_enc->setProductor(inst->last_audio_module);
+        ret = aac_enc->init();
+        if (ret < 0) {
+            ff_error("aac_enc init failed\n");
+            goto FAILED;
+        }
+        inst->last_audio_module = aac_enc;
+    }
+
+    if (strlen(inst_conf->aplay)) {
+        shared_ptr<ModuleAacDec> aac_dec = make_shared<ModuleAacDec>();
+        aac_dec->setProductor(inst->last_audio_module ? inst->last_audio_module : inst->last_module);
         ret = aac_dec->init();
         if (ret < 0) {
             ff_error("aac_dec init failed\n");
+            goto FAILED;
+        }
+
+        auto aplay = make_shared<ModuleAlsaPlayBack>(inst_conf->aplay);
+        aplay->setProductor(aac_dec);
+        aplay->setSynchronize(inst->sync);
+        ret = aplay->init();
+        if (ret < 0) {
+            ff_error("Audio playback init failed\n");
             goto FAILED;
         }
     }
@@ -414,14 +455,11 @@ SOURCE_CREATED:
         if ((inst_conf->output_image_para.width == 0) || (inst_conf->output_image_para.height == 0)) {
             inst_conf->output_image_para.width = source_module_output_para.width;
             inst_conf->output_image_para.height = source_module_output_para.height;
-            inst_conf->output_image_para.hstride = source_module_output_para.hstride;
-            inst_conf->output_image_para.vstride = source_module_output_para.vstride;
-        } else {
-            inst_conf->output_image_para.width = ALIGN(inst_conf->output_image_para.width, 8);
-            inst_conf->output_image_para.height = ALIGN(inst_conf->output_image_para.height, 8);
-            inst_conf->output_image_para.hstride = inst_conf->output_image_para.width;
-            inst_conf->output_image_para.vstride = inst_conf->output_image_para.height;
         }
+
+        // hstride and vstride are aligned to 16 bytes
+        inst_conf->output_image_para.hstride = ALIGN(inst_conf->output_image_para.width, 16);
+        inst_conf->output_image_para.vstride = ALIGN(inst_conf->output_image_para.height, 16);
 
         //(input_para.v4l2Fmt == V4L2_PIX_FMT_VP8) ||
         //(input_para.v4l2Fmt == V4L2_PIX_FMT_VP9))
@@ -566,6 +604,17 @@ SOURCE_CREATED:
             ff_error("ModuleFileWriter init failed\n");
             goto FAILED;
         }
+
+        if (inst_conf->audio_enable) {
+            auto file_writer_a = make_shared<ModuleFileWriterExtend>(file_writer, string());
+            file_writer_a->setProductor(inst->last_audio_module ? inst->last_audio_module : inst->source_module);
+            file_writer_a->setAudioParameter(0, 0, 0, MEDIA_CODEC_AUDIO_AAC);
+            ret = file_writer_a->init();
+            if (ret < 0) {
+                ff_error("audio writer init failed\n");
+                goto FAILED;
+            }
+        }
     }
 
     if (inst_conf->push_enabled) {
@@ -576,7 +625,9 @@ SOURCE_CREATED:
                                                                                 inst_conf->push_port);
             rtmp_s->setProductor(inst->last_module);
             rtmp_s->setBufferCount(0);
-            rtmp_s->setSynchronize(inst->sync);
+            if (inst_conf->sync_opt)
+                rtmp_s->setSynchronize(make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1)));
+
             ret = rtmp_s->init();
             if (ret) {
                 ff_error("rtmp server init failed\n");
@@ -587,14 +638,39 @@ SOURCE_CREATED:
                                                                                 inst_conf->push_port);
             rtsp_s->setProductor(inst->last_module);
             rtsp_s->setBufferCount(0);
-            rtsp_s->setSynchronize(inst->sync);
+            if (inst_conf->sync_opt)
+                rtsp_s->setSynchronize(make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1)));
             ret = rtsp_s->init();
             if (ret) {
                 ff_error("rtsp server init failed\n");
                 goto FAILED;
             }
+            if (inst_conf->audio_enable) {
+                auto rtsp_s_a = make_shared<ModuleRtspServerExtend>(rtsp_s, push_path, inst_conf->push_port);
+                rtsp_s_a->setProductor(inst->last_audio_module ? inst->last_audio_module : inst->source_module);
+                rtsp_s_a->setAudioParameter(MEDIA_CODEC_AUDIO_AAC);
+                ret = rtsp_s_a->init();
+                if (ret) {
+                    ff_error("rtsp server audio init failed\n");
+                    goto FAILED;
+                }
+            }
         }
         ff_info("\n Start push stream: %s://LocalIpAddr:%d%s\n\n", inst_conf->push_type ? "rtmp" : "rtsp", inst_conf->push_port, push_path);
+    }
+
+    if (strlen(inst_conf->rtmp_url) > 0) {
+        shared_ptr<ModuleRtmpClient> rtmp_c_push = make_shared<ModuleRtmpClient>(inst_conf->rtmp_url, ImagePara(), 0);
+        rtmp_c_push->setProductor(inst->last_module);
+        if (inst_conf->sync_opt)
+            rtmp_c_push->setSynchronize(make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1)));
+
+        ret = rtmp_c_push->init();
+        if (ret) {
+            ff_error("Fail to init rtmp client push\n");
+            goto FAILED;
+        }
+        ff_info("Rtmp client start push stream: %s\n\n", inst_conf->rtmp_url);
     }
 
     if (inst_conf->savetofile_enabled) {
@@ -638,11 +714,11 @@ FAILED:
 static int parse_config(int argc, char** argv, DemoConfig* config)
 {
     int ret;
-    int i, c;
+    int i, c, option_index = 0;
     strcpy(config->input_source, argv[1]);
 
     /* Dealing with options  */
-    while ((c = getopt_long(argc, argv, short_options, long_options, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, short_options, long_options, &option_index)) != -1) {
         switch (c) {
             case 'i':
                 parse_size_parameters(optarg, &(config->input_image_para));
@@ -694,6 +770,9 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                 else
                     config->push_type = 0;
                 break;
+            case 'R':
+                strcpy(config->rtmp_url, optarg);
+                break;
             case 'P':
                 if (strcmp(optarg, "udp") == 0)
                     config->rtsp_transport = RTSP_STREAM_TYPE_UDP;
@@ -721,8 +800,14 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                 }
                 break;
             case 'A':
-                strcpy(config->alsa_device, optarg);
-                config->aplay_enable = true;
+                config->audio_enable = true;
+                if (strcmp(long_options[option_index].name, "aplay") == 0) {
+                    strncpy(config->aplay, optarg, sizeof(config->aplay) - 1);
+                    config->aplay[sizeof(config->aplay) - 1] = '\0';
+                } else if (strcmp(long_options[option_index].name, "arecord") == 0) {
+                    strncpy(config->arecord, optarg, sizeof(config->arecord) - 1);
+                    config->arecord[sizeof(config->arecord) - 1] = '\0';
+                }
                 break;
             case 'r':
                 i = atoi(optarg);
@@ -792,6 +877,10 @@ int main(int argc, char** argv)
         for (int i = 0; i < instance_count; i++) {
             insts[i].source_module->start();
             insts[i].source_module->dumpPipe();
+            if (insts[i].source_audio_module) {
+                insts[i].source_audio_module->start();
+                insts[i].source_audio_module->dumpPipe();
+            }
         }
     }
 
@@ -809,6 +898,12 @@ EXIT:
             if (insts + i != NULL) {
                 if (insts[i].source_module == NULL)
                     continue;
+
+                if (insts[i].source_audio_module) {
+                    insts[i].source_audio_module->dumpPipeSummary();
+                    insts[i].source_audio_module->stop();
+                }
+
                 insts[i].source_module->dumpPipeSummary();
                 insts[i].source_module->stop();
             }

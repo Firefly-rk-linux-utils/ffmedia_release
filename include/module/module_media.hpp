@@ -129,9 +129,9 @@ protected:
     void cleanInputBufferQueue();
 
     virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer);
-    std::cv_status waitForProduce();
+    std::cv_status waitForProduce(std::unique_lock<std::mutex>& lk);
     void waitAllForConsume();
-    std::cv_status waitForConsume();
+    std::cv_status waitForConsume(std::unique_lock<std::mutex>& lk);
 
     void notifyProduce();
     void notifyConsume();
@@ -162,6 +162,7 @@ private:
 
     void produceOneBuffer(shared_ptr<MediaBuffer> buffer);
     void consumeOneBuffer();
+    void consumeOneBufferNoLock();
 
     shared_ptr<MediaBuffer> inputBufferQueueTail();
     bool inputBufferQueueIsFull();

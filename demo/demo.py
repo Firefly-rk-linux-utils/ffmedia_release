@@ -68,16 +68,19 @@ def call_back(obj, MediaBuffer):
 def get_parameters():
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input_source", dest='input_source', type=str, help="input source")
-    parser.add_argument("-f", "--save_file", dest='save_file', type=str, help="Enable save dec output data to file, set filename, default disabled")
+    parser.add_argument("-f", "--save_file", dest='save_file', type=str, help="Enable save source output data to file, set filename, default disabled")
     parser.add_argument("-o", "--output", dest='output', type=str, help="Output image size, default same as input")
     parser.add_argument("-b", "--outputfmt", dest='outputfmt', type=str, default="NV12", help="Output image format, default NV12")
     parser.add_argument("-e", "--encodetype", dest='encodetype', type=int, default=-1, help="Encode encode, set encode type, default disabled")
-    parser.add_argument("-m", "--enmux", dest='enmux', type=str, help="Enable save encode data to file, Enable package as mp4, mkv, or raw stream files depending on the file name suffix. default disabled")
+    parser.add_argument("-m", "--enmux", dest='enmux', type=str, help="Enable save encode data to file. Enable package as mp4, mkv, flv, ts, ps or raw stream files, muxer type depends on the filename suffix. default disabled")
     parser.add_argument("-p", "--port", dest='port', type=int, default=0, help="Enable push stream, default rtsp stream, set push port, depend on encode enabled, default disabled\n")
     parser.add_argument("--push_type", dest='push_type', type=int, default=0, help="Set push stream type, default rtsp. e.g. --push_type 1\n")
+    parser.add_argument("--rtmp_url", dest='rtmp_url', type=str, help="Set the rtmp client push address. e.g. --rtmp_url rtmp://xxx\n")
     parser.add_argument("--rtsp_transport", dest='rtsp_transport', type=int, default=0, help="Set the rtsp transport type, default 0(udp)")
     parser.add_argument("-s", "--sync", dest="sync", type=int, default=-1, help="Enable synchronization module, default disabled. e.g. -s 1")
-    parser.add_argument("-a", "--aplay", dest='aplay', type=str, help="Enable play audio, default disabled. e.g. -a plughw:3,0")
+    parser.add_argument("--audio", dest='audio', type=bool, default=False, help="Enable audio, default disabled.")
+    parser.add_argument("--aplay", dest='aplay', type=str, help="Enable play audio, default disabled. e.g. --aplay plughw:3,0")
+    parser.add_argument("--arecord", dest='arecord', type=str, help="Enable record audio, default disabled. e.g. --arecord plughw:3,0")
     parser.add_argument("-r", "--rotate", dest='rotate',type=int, default=0, help="Image rotation degree, default 0" )
     parser.add_argument("-d", "--drmdisplay", dest='drmdisplay', type=int, default=-1, help="Drm display, set display plane, set 0 to auto find plane")
     parser.add_argument("--connector", dest='connector', type=int, default=0, help="Set drm display connector, default 0 to auto find connector")
@@ -91,12 +94,14 @@ def get_parameters():
 def main():
 
     args = get_parameters()
+    last_audio_module = None
+    input_audio_source = None
 
     if args.input_source is None:
         return 1
     elif args.input_source.startswith("rtsp://"):
         print("input source is a rtsp url")
-        input_source = m.ModuleRtspClient(args.input_source, m.RTSP_STREAM_TYPE(args.rtsp_transport))
+        input_source = m.ModuleRtspClient(args.input_source, m.RTSP_STREAM_TYPE(args.rtsp_transport), True, args.audio)
     elif args.input_source.startswith("rtmp://"):
         print("input source is a rtmp url")
         input_source = m.ModuleRtmpClient(args.input_source)
@@ -122,16 +127,47 @@ def main():
         sync = None
     else:
         sync = m.Synchronize(m.SynchronizeType(args.sync))
-        input_source.setSynchronize(sync)
+
+    if args.arecord is not None:
+        s_info = m.SampleInfo()
+        s_info.channels = 2
+        s_info.fmt = m.SAMPLE_FMT_S16
+        s_info.nb_samples = 1024
+        s_info.sample_rate = 48000
+        capture = m.ModuleAlsaCapture(args.arecord, s_info)
+        ret = capture.init()
+        if ret < 0:
+            print("Failed to init arecord")
+            return ret
+        input_audio_source = capture
+        last_audio_module = capture
+
+        aac_enc = m.ModuleAacEnc()
+        aac_enc.setProductor(last_audio_module)
+        ret = aac_enc.init()
+        if ret < 0:
+            print("Failed to init aac_enc")
+            return ret
+        last_audio_module = aac_enc
+
 
     if args.aplay is not None:
-        aplay = m.ModuleAacDec()
-        aplay.setProductor(last_module)
-        aplay.setAlsaDevice(args.aplay)
+        aac_dec = m.ModuleAacDec()
+        if last_audio_module != None:
+            aac_dec.setProductor(last_audio_module)
+        else:
+            aac_dec.setProductor(last_module)
+        ret = aac_dec.init()
+        if ret < 0:
+            print("aac_dec init failed")
+            return 1
+
+        aplay = m.ModuleAlsaPlayBack(args.aplay)
+        aplay.setProductor(aac_dec)
         aplay.setSynchronize(sync)
         ret = aplay.init()
-        if ret <0:
-            print("aac_dec init failed")
+        if ret < 0:
+            print("aplay init failed")
             return 1
 
     input_para = last_module.getOutputImagePara()
@@ -152,10 +188,8 @@ def main():
         match = re.match(r"(\d+)x(\d+)", args.output)
         if match:
             width, height = map(int, match.groups())
-            output_para.width = align(width, 8)
-            output_para.height = align(height, 8)
-            output_para.hstride = width
-            output_para.vstride = height
+            output_para.width = width
+            output_para.height = height
 
     if args.rotate !=0 or input_para.height != output_para.height or \
         input_para.height != output_para.height or \
@@ -167,9 +201,10 @@ def main():
             t = output_para.width
             output_para.width = output_para.height
             output_para.height = t
-            t = output_para.hstride
-            output_para.hstride = output_para.vstride
-            output_para.vstride = t
+
+        # hstride and vstride are aligned to 16 bytes
+        output_para.hstride = align(output_para.width, 16)
+        output_para.vstride = align(output_para.height, 16)
 
         rga = m.ModuleRga(output_para, rotate)
         rga.setProductor(last_module)
@@ -239,19 +274,55 @@ def main():
                 push_s = m.ModuleRtmpServer("/live/0", args.port)
             push_s.setProductor(last_module)
             push_s.setBufferCount(0)
-            push_s.setSynchronize(sync)
+            if args.sync != -1:
+                push_s.setSynchronize(m.Synchronize(m.SynchronizeType(args.sync)))
+
             ret = push_s.init()
             if ret < 0:
                 print("push server init failed")
                 return 1
 
+            if args.audio == True and args.push_type == 0:
+                push_s_a = m.ModuleRtspServerExtend(push_s, "/live/0", args.port)
+                if last_audio_module != None:
+                    push_s_a.setProductor(last_audio_module)
+                else:
+                    push_s_a.setProductor(input_source)
+                push_s_a.setAudioParameter(m.MEDIA_CODEC_AUDIO_AAC);
+                ret = push_s_a.init()
+                if ret < 0:
+                    print("Failed to init audio push server")
+                    return 1
+
+        if args.rtmp_url is not None:
+            push_c = m.ModuleRtmpClient(args.rtmp_url, m.ImagePara(), 0)
+            push_c.setProductor(last_module)
+            if args.sync != -1:
+                push_c.setSynchronize(m.Synchronize(m.SynchronizeType(args.sync)))
+            ret = push_c.init()
+            if ret < 0:
+                print("Fail to init rtmp client push")
+                return 1
+
     if args.enmux is not None:
         enm = m.ModuleFileWriter(args.enmux)
         enm.setProductor(last_module)
-        enm.init()
+        ret = enm.init()
         if ret < 0:
             print("ModuleFileWriter init failed")
             return 1
+
+        if args.audio:
+            enm_audio = m.ModuleFileWriterExtend(enm, args.enmux)
+            if last_audio_module != None:
+                enm_audio.setProductor(last_audio_module)
+            else:
+                enm_audio.setProductor(input_source)
+            enm_audio.setAudioParameter(0, 0, 0, m.MEDIA_CODEC_AUDIO_AAC);
+            ret = enm_audio.init()
+            if ret < 0:
+                print("Failed to init audio writer")
+                return 1
 
     if args.save_file is not None:
         file = open(args.save_file, "wb")
@@ -259,7 +330,13 @@ def main():
 
     input_source.start()
     input_source.dumpPipe()
+    if input_audio_source != None:
+        input_audio_source.start()
+        input_audio_source.dumpPipe()
     text = input("wait...")
+    if input_audio_source != None:
+        input_audio_source.dumpPipeSummary()
+        input_audio_source.stop()
     input_source.dumpPipeSummary()
     input_source.stop()
 

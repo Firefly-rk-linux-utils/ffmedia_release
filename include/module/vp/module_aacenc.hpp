@@ -9,9 +9,7 @@ struct AACENCODER;
 class ModuleAacEnc : public ModuleMedia
 {
     AACENCODER* enc;
-    SampleFormat fmt;
-    int sample_rate;
-    int nb_channels;
+    SampleInfo sample_info;
     int aot;
     int bit_rate;
     int afterburner;
@@ -28,8 +26,10 @@ public:
      * _nb_channels:
      *	1 ~ 8
      */
-    ModuleAacEnc(SampleFormat _fmt, int _sample_rate, int _nb_channels);
+    ModuleAacEnc();
+    ModuleAacEnc(const SampleInfo& sample_info);
     ~ModuleAacEnc();
+    int changeSampleInfo(const SampleInfo& sample_info);
     int init() override;
 
     // aot == 2;  "LC"
@@ -50,8 +50,11 @@ public:
 
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual bool setup() override;
+    virtual bool teardown() override;
 
 private:
+    int open();
     void close();
 };
 

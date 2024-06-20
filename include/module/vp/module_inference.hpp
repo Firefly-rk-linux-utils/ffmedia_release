@@ -13,7 +13,11 @@ public:
     void setInferenceInterval(uint32_t frame_count);
     int setModelData(void* model, size_t model_size);
     int removeModel();
+    void setInputImageCrop(const ImageCrop& corp);
     int init() override;
+
+    ImageCrop getInputImageCrop();
+    ImageCrop getOutputImageCrop();
     std::vector<rknn_tensor_mem*>* getOutputMemPtr();
     std::vector<rknn_tensor_attr*>* getOutputAttrPtr();
     std::vector<rknn_tensor_mem*>& getOutputMemRef();
@@ -32,4 +36,6 @@ private:
     rknnModelInference* rmi;
     uint32_t interval;
     uint32_t cur_frame_count;
+    ImageCrop input_image_crop;
+    ImageCrop output_image_crop;
 };

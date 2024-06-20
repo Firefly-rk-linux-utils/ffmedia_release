@@ -44,5 +44,6 @@ uint32_t v4l2ToDrmFormat(uint32_t v4l2_fmt);
 size_t v4l2GetFrameSize(uint32_t v4l2_fmt, int width, int height);
 uint32_t v4l2GetFmtByName(const char* name);
 ImageCrop getCenterCrop(ImagePara& src_para, ImagePara& dst_para);
+ImageCrop getLetterboxCrop(const ImagePara& src_para, const ImagePara& dst_para);
 bool v4l2fmtIsCompressed(uint32_t v4l2_fmt);
 #endif
