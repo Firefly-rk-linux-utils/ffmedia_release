@@ -33,37 +33,36 @@ apt install libopencv-dev
 
 ```
 $ ls
-build  CMakeLists.txt  demo  dist  documentation  include  lib  Readme.md  rknn
+build  CMakeLists.txt  demo  dist  documentation  include  lib  Readme.md  inference_examples
 
 $ mkdir build
 $ cd build
 ```
 
-2. 使用cmake 选择要编译的demo, 默认不编译opencv、rknn的demo
+2. 使用cmake 选择要编译的demo, 默认不编译opencv、inference的demo
 
 ```
-# 如果需要编译opencv、rknn的demo，则cmake ../ -DDEMO_OPENCV=ON -DDEMO_RKNN=ON
+# 如果需要编译opencv、inference的demo，则cmake ../ -DDEMO_OPENCV=ON -DDEMO_INFERENCE=ON
 $ cmake ../
 
 # 编译
 $ make -j8
 
-
 # 把rknn的库路径添加到当前环境；如果是rk356x板子，则把RK3588更改为RK356X。
 # 也可以忽略这步使用系统默认的rknn库或自行指定rknn库。
-$ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../rknn/lib/RK3588/
+$ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${PWD}/../inference_examples/lib/RK3588/
 
 ```
 
 **ffmedia默认使用了rknn,如果是rk3399等不支持rknn机型，也是需要指定rknn库的，使其编译时可以找到函数定义**
-，但不能使用推理模块
+，但不能使用推理模块推理
 
 ```
 #可以指定任意一个rknn库位置
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:../rknn/lib/RK3588/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${PWD}/../inference_examples/lib/RK3588/
 
 #或者直接将任意一个rknn库拷贝进系统中
-cp ../rknn/lib/RK3588/librknnrt.so /usr/lib/
+cp ../inference_examples/lib/RK3588/librknnrt.so /usr/lib/
 
 ```
 
@@ -87,6 +86,10 @@ cp ../rknn/lib/RK3588/librknnrt.so /usr/lib/
 
 ## 输入是摄像头设备，编码成h265，同时采集plughw:2,0音频设备音频，编码成aac，并封装成mp4文件保存。
 ./demo /dev/video0 -e h265 --arecord plughw:2,0 -m out.mp4
+
+## 循环读取本地视频文件, 转码成h264，然后推到gb28181服务器上。
+./demo /home/firefly/test.mp4 -e h264 -s -l --gb28181_user_id 000001 --gb28181_server_id 000002 --gb28181_server_ip 172.16.10.204 --gb28181_server_port 5060
+
 ```
 
 ### demo_simple.cpp demo_opencv.cpp demo_opencv_multi.cpp
@@ -137,16 +140,30 @@ cp ../rknn/lib/RK3588/librknnrt.so /usr/lib/
 ./demo_multi_splice
 ```
 
-### demo_rknn.cpp
-该源码在../rknn/src/demo_rknn.cpp 。
-该示例展现了使用推理模块进行推理，计算推理结果使用opencv将目标框住并显示。
+### demo_yolov5.cpp demo_yolov5_extend.cpp demo_yolov5_track.cpp
+该源码在inference_examples/yolov5/src/
+#### 编译
 
 ```
-cd build 													#进入编译目录
-cmake ../ -DDEMO_OPENCV=ON -DDEMO_RKNN=ON 					#打开编译opencv及rknn demo
-make -j8 													#编译
-cp -r ../rknn/model ./ 										#将rknn下的model目录拷贝到当前目录
-./demo_rknn rtsp://xxx ./model/RK3588/yolov5s-640-640.rknn 	#指定rtsp地址及模型文件路径运行
+cd build 								                        #进入编译目录
+cmake ../ -DDEMO_INFERENCE=ON                                   #打开编译inference demo
+make -j8 										                #编译
+cp -r ../inference_examples/yolov5/model inference_examples/    #将yolov5的model目录拷贝到运行目录
+
+```
+
+#### 运行测试
+
+```
+# 进入推理示例的编译目录
+cd inference_examples/
+# 物体识别示例
+./demo_yolov5 test.mp4 ./model/RK3588/yolov5s-640-640.rknn
+# taskset -c 4 ./demo_yolov5 test.mp4 ./model/RK3588/yolov5s-640-640.rknn
+
+# 目标跟踪示例
+./demo_yolov5_track rtsp://xxx ./model/RK3588/yolov5s-640-640.rknn
+
 
 ```
 

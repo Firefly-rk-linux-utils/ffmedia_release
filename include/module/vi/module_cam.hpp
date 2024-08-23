@@ -21,7 +21,6 @@ public:
     ~ModuleCam();
     int changeSource(string vdev);
     int camIoctlOperation(unsigned long cmd, void* arg);
-    int getCamFd();
     void setTimeOutSec(unsigned sec, unsigned usec);
     int init() override;
 };

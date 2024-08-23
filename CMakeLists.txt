@@ -19,16 +19,19 @@ SET(CMAKE_C_FLAGS_RELEASE "$ENV{CFLAGS} -O3 -Wall -fPIC -s")
 SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -fPIC -s")
 
 OPTION(DEMO_OPENCV "OpencvDemo" OFF)
-OPTION(DEMO_RKNN "RknnDemo" OFF)
-
+OPTION(DEMO_INFERENCE "InferenceDemo" OFF)
 
 IF(DEMO_OPENCV)
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 4 REQUIRED)
 ENDIF(DEMO_OPENCV)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
+
+IF(DEMO_INFERENCE)
+    add_subdirectory(inference_examples)
+ENDIF(DEMO_INFERENCE)
 
 add_executable(demo
                demo/demo.cpp
@@ -87,17 +90,6 @@ target_link_libraries(demo_opencv_multi ff_media ${OpenCV_LIBS})
 target_link_libraries(demo_rgablend ff_media ${OpenCV_LIBS})
 install(TARGETS demo_opencv demo_opencv_multi demo_rgablend
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-
-    IF(DEMO_RKNN)
-        add_executable(demo_rknn
-                    rknn/src/demo_rknn.cpp
-                    rknn/src/postprocess.cc
-                    )
-        target_link_libraries(demo_rknn ff_media ${OpenCV_LIBS})
-        install(TARGETS demo_rknn
-            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    ENDIF(DEMO_RKNN)
-
 ENDIF(DEMO_OPENCV)
 
 install(TARGETS demo demo_simple demo_simple1 demo_memory_read demo_multi_drmplane demo_multi_window demo_multi_splice

@@ -95,7 +95,7 @@ public:
     void dumpPipe();
     void dumpPipeSummary();
 
-protected:
+public:
     enum ConsumeResult {
         CONSUME_SUCCESS = 0,
         CONSUME_WAIT_FOR_CONSUMER,

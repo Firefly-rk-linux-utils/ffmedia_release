@@ -24,7 +24,8 @@ ffmedia一共包含以下单元
   - RTMP Server: 支持推流
   - File Writer: 支持mkv、mp4、flv、ts、ps文件封装及裸流等文件保存
   - Alsa PlayBack: 音频播放
-- pybind11 pymodule.cpp
+  - GB28181 Client: 支持点播
+- pybind11:
   - pymodule: 创建vi、vo、vp等的c++代码的Python绑定，以提供python调用vi、vo、vp等c++模块的python接口
 
 各个模块成员函数及参数说明请参看documentation/ffmedia.docx 。

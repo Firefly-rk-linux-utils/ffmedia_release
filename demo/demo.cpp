@@ -19,6 +19,7 @@
 #include "module/vo/module_drmDisplay.hpp"
 #include "module/vo/module_rtspServer.hpp"
 #include "module/vo/module_rtmpServer.hpp"
+#include "module/vo/module_gb28181Client.hpp"
 
 #if OPENGL_SUPPORT
 #include "module/vo/module_rendererVideo.hpp"
@@ -50,6 +51,10 @@ typedef struct _demo_config {
     char arecord[64] = "";
     char input_source[256] = "";
     char rtmp_url[256] = "";
+    char gb28181_user_id[64] = "";
+    char gb28181_server_id[64] = "";
+    char gb28181_server_ip[64] = "";
+    int gb28181_server_port = 5060;
     RgaRotate rotate = RGA_ROTATE_NONE;
     EncodeType encode_type = ENCODE_TYPE_H264;
     ImagePara input_image_para = {0, 0, 0, 0, 0};
@@ -74,6 +79,7 @@ typedef struct _demo_config {
     bool push_enabled = false;
     bool savetofile_enabled = false;
     bool audio_enable = false;
+    bool gb28181_enable = false;
 } DemoConfig;
 
 typedef struct _demo_data {
@@ -131,6 +137,10 @@ static void usage(char** argv)
         "--aplay                      Enable play audio, default disabled. e.g. --aplay plughw:3,0\n"
         "--arecord                    Enable record audio, default disabled. e.g. --arecord plughw:3,0\n"
         "-l, --loop                   Loop reads the media file.\n"
+        "--gb28181_user_id            Enable gb28181 client, default disabled. set user id\n"
+        "--gb28181_server_id          Set the server id of gb28181 client\n"
+        "--gb28181_server_ip          Set the server ip of gb28181 client\n"
+        "--gb28181_server_port        Set the server port of gb28181 client\n"
         "-r, --rotate                 Image rotation degree, default 0\n"
         "                               0:   none\n"
         "                               1:   vertical mirror\n"
@@ -170,6 +180,10 @@ static struct option long_options[] = {
     {"x11", no_argument, NULL, 'x'},
 #endif
     {"loop", no_argument, NULL, 'l'},
+    {"gb28181_user_id", required_argument, NULL, 'G'},
+    {"gb28181_server_id", required_argument, NULL, 'G'},
+    {"gb28181_server_ip", required_argument, NULL, 'G'},
+    {"gb28181_server_port", required_argument, NULL, 'G'},
     {NULL, 0, NULL, 0}
 };
 // clang-format on
@@ -384,6 +398,7 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
     } else if (inst_conf->rtmp_c_enabled) {
         shared_ptr<ModuleRtmpClient> rtmp_c = make_shared<ModuleRtmpClient>(inst_conf->input_source);
         rtmp_c->setProductor(NULL);
+        rtmp_c->setBufferCount(20);
         ret = rtmp_c->init();
         if (ret < 0) {
             ff_error("rtsp client init failed\n");
@@ -673,6 +688,21 @@ SOURCE_CREATED:
         ff_info("Rtmp client start push stream: %s\n\n", inst_conf->rtmp_url);
     }
 
+    if (inst_conf->gb28181_enable) {
+        auto gb28181 = make_shared<ModuleGB28181Client>(inst_conf->gb28181_user_id, "ffmedia");
+        gb28181->setProductor(inst->last_module);
+        if (inst_conf->sync_opt)
+            gb28181->setSynchronize(make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1)));
+
+        gb28181->setServerConfig(inst_conf->gb28181_server_id, inst_conf->gb28181_server_ip,
+                                 inst_conf->gb28181_server_ip, inst_conf->gb28181_server_port);
+        ret = gb28181->init();
+        if (ret) {
+            ff_error("Failed to init gb28181\n");
+            goto FAILED;
+        }
+    }
+
     if (inst_conf->savetofile_enabled) {
         inst->file_data = fopen(inst_conf->dump_filename, "w+");
         inst->source_module->setOutputDataCallback(inst, callback_dumpFrametofile);
@@ -808,6 +838,22 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                     strncpy(config->arecord, optarg, sizeof(config->arecord) - 1);
                     config->arecord[sizeof(config->arecord) - 1] = '\0';
                 }
+                break;
+            case 'G':
+                config->gb28181_enable = true;
+                if (strcmp(long_options[option_index].name, "gb28181_user_id") == 0) {
+                    strncpy(config->gb28181_user_id, optarg, sizeof(config->gb28181_user_id) - 1);
+                    config->gb28181_user_id[sizeof(config->gb28181_user_id) - 1] = '\0';
+                } else if (strcmp(long_options[option_index].name, "gb28181_server_id") == 0) {
+                    strncpy(config->gb28181_server_id, optarg, sizeof(config->gb28181_server_id) - 1);
+                    config->gb28181_server_id[sizeof(config->gb28181_server_id) - 1] = '\0';
+                } else if (strcmp(long_options[option_index].name, "gb28181_server_ip") == 0) {
+                    strncpy(config->gb28181_server_ip, optarg, sizeof(config->gb28181_server_ip) - 1);
+                    config->gb28181_user_id[sizeof(config->gb28181_user_id) - 1] = '\0';
+                } else if (strcmp(long_options[option_index].name, "gb28181_server_port") == 0) {
+                    config->gb28181_server_port = atoi(optarg);
+                }
+
                 break;
             case 'r':
                 i = atoi(optarg);

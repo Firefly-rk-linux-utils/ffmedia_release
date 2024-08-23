@@ -88,7 +88,10 @@ def get_parameters():
     parser.add_argument("-c", "--cvdisplay", dest='cvdisplay', type=int, default=0, help="OpenCv display, set window number, default 0")
     parser.add_argument("-x", "--x11display", dest='x11display', type=int, default=0, help="X11 window displays, render the video using gles. default disabled")
     parser.add_argument("-l", "--loop", dest='loop', action='store_true', help="Loop reads the media file.")
-
+    parser.add_argument("--gb28181_user_id", dest='gb28181_user_id', type=str, help="Enable gb28181 client, default disabled. set user id.")
+    parser.add_argument("--gb28181_server_id", dest='gb28181_server_id', type=str, help="Set the server id of gb28181 client.")
+    parser.add_argument("--gb28181_server_ip", dest='gb28181_server_ip', type=str, help="Set the server ip of gb28181 client\.")
+    parser.add_argument("--gb28181_server_port", dest='gb28181_server_port', type=int, default=5060, help="Set the server port of gb28181 client.")
     return parser.parse_args()
 
 def main():
@@ -302,6 +305,19 @@ def main():
             ret = push_c.init()
             if ret < 0:
                 print("Fail to init rtmp client push")
+                return 1
+
+        if args.gb28181_user_id is not None:
+            gb28181_c = m.ModuleGB28181Client(args.gb28181_user_id, "ffmedia")
+            gb28181_c.setProductor(last_module)
+            if args.sync != -1:
+                gb28181_c.setSynchronize(m.Synchronize(m.SynchronizeType(args.sync)))
+
+            gb28181_c.setServerConfig(args.gb28181_server_id, args.gb28181_server_ip, \
+                                      args.gb28181_server_ip, args.gb28181_server_port, 3600)
+            ret = gb28181_c.init()
+            if ret < 0:
+                print("Failed to init gb28181 client")
                 return 1
 
     if args.enmux is not None:

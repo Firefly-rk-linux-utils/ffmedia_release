@@ -85,6 +85,7 @@ private:
     bool setupDisplayDevice();
     int drmFindPlane();
     int drmCreateFb(shared_ptr<VideoBuffer> buffer);
+    bool drmVsync();
 
     int addWindow(ModuleDrmDisplay* window);
     void removeWindow(ModuleDrmDisplay* window);

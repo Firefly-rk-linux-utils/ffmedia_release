@@ -16,6 +16,8 @@ public:
     void setInputImageCrop(const ImageCrop& corp);
     int init() override;
 
+    void changedInputImagePara(const ImagePara& image_param);
+
     ImageCrop getInputImageCrop();
     ImageCrop getOutputImageCrop();
     std::vector<rknn_tensor_mem*>* getOutputMemPtr();
