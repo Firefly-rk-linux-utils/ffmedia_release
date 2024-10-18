@@ -414,8 +414,10 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
 
 SOURCE_CREATED:
 
-    if (inst_conf->sync_opt)
+    if (inst_conf->sync_opt) {
         inst->sync = make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1));
+        inst->sync->setFirstFrameDuration(100000);
+    }
 
 #if AUDIO_SUPPORT
     if (strlen(inst_conf->arecord)) {

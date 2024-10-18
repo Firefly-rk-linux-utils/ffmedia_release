@@ -1,3 +1,11 @@
+/*
+ * @Author: dengkx dkx@t-chip.com.cn
+ * @Date: 2024-08-27 09:07:55
+ * @LastEditors: dengkx dkx@t-chip.com.cn
+ * @LastEditTime: 2024-09-19 16:42:54
+ * @Description: 音频编码组件。音频编码，支持aac编码。
+ * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
+ */
 #ifndef __MODULE__AACENC_HPP__
 #define __MODULE__AACENC_HPP__
 
@@ -17,26 +25,44 @@ class ModuleAacEnc : public ModuleMedia
     int vbr;
 
 public:
-    /*
-     * SampleFormat:
-     *	SAMPLE_FMT_S16, SAMPLE_FMT_NONE
-     * _sample_rate:
-     *	96000, 88200, 64000, 48000, 44100, 32000,
-     *	24000, 22050, 16000, 12000, 11025, 8000, 0
-     * _nb_channels:
-     *	1 ~ 8
-     */
     ModuleAacEnc();
+    /**
+     * @description: ModuleAacEnc 的构造函数。
+     * @param {SampleInfo&} sample_info     音频样品信息。支持的参数如下：
+     *                                      SampleFormat:
+     *                                       SAMPLE_FMT_S16, SAMPLE_FMT_NONE
+     *                                      sample_rate：
+     *                                       96000, 88200, 64000, 48000, 44100, 32000,
+     *                                       24000, 22050, 16000, 12000, 11025, 8000, 0
+     *                                      nb_channels：
+     *                                       1 ~ 8
+     * @return {*}
+     */
     ModuleAacEnc(const SampleInfo& sample_info);
     ~ModuleAacEnc();
+
+    /**
+     * @description: 改变音频样品信息。此调用应在对象停止时使用。
+     * @param {SampleInfo&} sample_info 新的输入音频样品信息。
+     * @return {*}
+     */
     int changeSampleInfo(const SampleInfo& sample_info);
+
+    /**
+     * @description: 初始化对象。
+     * @return {int} 成功返回 0，失败返回负数。
+     */
     int init() override;
 
-    // aot == 2;  "LC"
-    // aot == 5;  "HE-AAC"
-    // aot == 29; "HE-AACv2"
-    // aot == 23; "LD"
-    // aot == 39; "ELD"
+    /**
+     * @description: 设置Aot。
+     * @param {int} _aot    aot == 2 : "LC";
+     *                             5 : "HE-AAC";
+     *                             29 : "HE-AACv2";
+     *                             23 : "LD";
+     *                             39 : "ELD"。
+     * @return {*}
+     */
     void setAot(int _aot) { aot = _aot; }
     int getAot() { return aot; }
     void setBitrate(int bitrate) { bit_rate = bitrate; }

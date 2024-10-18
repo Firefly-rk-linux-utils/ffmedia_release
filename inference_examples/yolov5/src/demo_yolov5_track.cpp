@@ -176,8 +176,8 @@ int main(int argc, char** argv)
         ctx1 = new External_ctx();
         ctx1->module = rga;
         ctx1->tracker = BYTETracker(30, 30);
-        ctx1->output_attrs = inf->getOutputAttrRef();
-        ctx1->output_mems = inf->getOutputMemRef();
+        ctx1->output_attrs = inf->getOutputAttr();
+        ctx1->output_mems = inf->getOutputMem();
         // The resolution of the output image of the inference module depends on the model.
         input_para = inf->getOutputImagePara();
         output_para = rga->getOutputImagePara();

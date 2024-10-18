@@ -1,3 +1,11 @@
+/*
+ * @Author: dengkx dkx@t-chip.com.cn
+ * @Date: 2024-08-27 09:07:55
+ * @LastEditors: dengkx dkx@t-chip.com.cn
+ * @LastEditTime: 2024-09-09 16:52:58
+ * @Description: 输出组件。GB28181客户端，支持推流到GB28181服务器。
+ * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
+ */
 #pragma once
 #include "module/module_media.hpp"
 

@@ -37,16 +37,16 @@ void callback_external(void* _ctx, shared_ptr<MediaBuffer> buffer)
     auto start = std::chrono::high_resolution_clock::now();
 #endif
     // inference
-    auto ret = ctx->inf->doConsume(buffer, nullptr);
+    auto ret = ctx->inf->inference(buffer);
 
 #ifdef TEST_INFERENCE_TIME
     auto end = std::chrono::high_resolution_clock::now();
     printf("once run use %ld us\n", std::chrono::duration_cast<std::chrono::microseconds>(end - start).count());
 #endif
 
-    if (ret == ModuleMedia::CONSUME_SUCCESS) {
-        auto output_attrs = ctx->inf->getOutputAttrRef();
-        auto output_mems = ctx->inf->getOutputMemRef();
+    if (ret == 0) {
+        auto output_attrs = ctx->inf->getOutputAttr();
+        auto output_mems = ctx->inf->getOutputMem();
         std::vector<float> out_scales;
         std::vector<int32_t> out_zps;
         for (auto it : output_attrs) {
@@ -76,7 +76,7 @@ void callback_external(void* _ctx, shared_ptr<MediaBuffer> buffer)
         int x2 = det_result->box.right;
         int y2 = det_result->box.bottom;
         rectangle(img, cv::Point(x1, y1), cv::Point(x2, y2), cv::Scalar(255, 0, 0, 255), 3);
-        putText(img, text, cv::Point(x1, y1 + 12), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0));
+        putText(img, text, cv::Point(x1 + 10, y1 + 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0, 0), 2);
     }
 
     static_pointer_cast<VideoBuffer>(buffer)->invalidateDrmBuf();
