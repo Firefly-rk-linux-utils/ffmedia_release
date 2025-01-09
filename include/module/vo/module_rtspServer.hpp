@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-09 17:28:09
+ * @LastEditTime: 2024-12-31 14:53:45
  * @Description: 输出组件。rtsp服务器，支持tcp和udp推流。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -30,8 +30,12 @@ private:
 
     media_codec_t video_codec;
 
+    std::string auth_realm;
+    std::string auth_username;
+    std::string auth_password;
+
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
 
 public:
@@ -44,6 +48,15 @@ public:
     ModuleRtspServer(const char* path, int port);
     ModuleRtspServer(const ImagePara& para, const char* path, int port);
     ~ModuleRtspServer();
+
+    /**
+     * @description: 设置身份信息，用于身份验证。此调用应在对象初始化之前调用。
+     * @param {string} &realm       领域
+     * @param {string} &username    用户名称
+     * @param {string} &password    用户密码
+     * @return {*}
+     */
+    void setAuthInfo(const std::string& realm, const std::string& username, const std::string& password);
 
     /**
      * @description: 初始化对象。
@@ -60,7 +73,7 @@ class ModuleRtspServerExtend : public ModuleMedia
     media_codec_t audio_codec;
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
 
 public:
@@ -73,6 +86,15 @@ public:
      */
     ModuleRtspServerExtend(shared_ptr<ModuleRtspServer> module, const char* path, int port);
     ~ModuleRtspServerExtend();
+
+    /**
+     * @description: 设置身份信息。此调用应在对象初始化之前调用。
+     * @param {string} &realm       领域
+     * @param {string} &username    用户名称
+     * @param {string} &password    用户密码
+     * @return {*}
+     */
+    void setAuthInfo(const std::string& realm, const std::string& username, const std::string& password);
 
     /**
      * @description: 设置音频参数。此调用应在初始化对象之前使用。

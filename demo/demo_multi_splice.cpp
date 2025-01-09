@@ -54,8 +54,10 @@ void inputHanderCallback(void* _ctx, shared_ptr<MediaBuffer> buffer)
     MemReaderContext* memRCtx = ctx->memRCtx;
     {
         std::shared_lock<std::shared_timed_mutex> lck(memRCtx->mtx);
+
+        shared_ptr<MediaBuffer> output_buffer = memRCtx->buffer;
         // copy buffer to memRCtx->buffer
-        ctx->rga->doConsume(buffer, memRCtx->buffer);
+        ctx->rga->doConsume(buffer, output_buffer);
         memRCtx->bufferStatus |= 1 << ctx->index;
     }
 

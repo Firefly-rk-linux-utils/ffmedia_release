@@ -2,11 +2,12 @@
 #define __PIXEL_FMT__
 #include <linux/videodev2.h>
 #include "ff_log.h"
+#include "ff_type.hpp"
 
 #define ALIGN(x, a) (((x) + (a)-1) & ~((a)-1))
 
-const char* v4l2GetFmtName(uint32_t v4l2_fmt);
-const char* drmGetFmtName(uint32_t drm_fmt);
+FFMEDIA_API const char* v4l2GetFmtName(uint32_t v4l2_fmt);
+FFMEDIA_API const char* drmGetFmtName(uint32_t drm_fmt);
 
 struct ImagePara {
     uint32_t width;
@@ -40,10 +41,10 @@ struct ImageCrop {
     uint32_t h;
 };
 
-uint32_t v4l2ToDrmFormat(uint32_t v4l2_fmt);
-size_t v4l2GetFrameSize(uint32_t v4l2_fmt, int width, int height);
-uint32_t v4l2GetFmtByName(const char* name);
-ImageCrop getCenterCrop(ImagePara& src_para, ImagePara& dst_para);
-ImageCrop getLetterboxCrop(const ImagePara& src_para, const ImagePara& dst_para);
-bool v4l2fmtIsCompressed(uint32_t v4l2_fmt);
+FFMEDIA_API uint32_t v4l2ToDrmFormat(uint32_t v4l2_fmt);
+FFMEDIA_API size_t v4l2GetFrameSize(uint32_t v4l2_fmt, int width, int height);
+FFMEDIA_API uint32_t v4l2GetFmtByName(const char* name);
+FFMEDIA_API ImageCrop getCenterCrop(ImagePara& src_para, ImagePara& dst_para);
+FFMEDIA_API ImageCrop getLetterboxCrop(const ImagePara& src_para, const ImagePara& dst_para);
+FFMEDIA_API bool v4l2fmtIsCompressed(uint32_t v4l2_fmt);
 #endif

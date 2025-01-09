@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-19 16:55:19
+ * @LastEditTime: 2024-12-31 10:37:24
  * @Description: 输入源组件，支持从内存读取媒体数据。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -76,8 +76,8 @@ public:
     void setBufferCount(uint16_t buffer_count) { (void)buffer_count; }
 
 protected:
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer> output_buffer) override;
-    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer) override;
+    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer>& buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
 

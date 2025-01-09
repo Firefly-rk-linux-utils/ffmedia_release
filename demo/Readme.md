@@ -1,71 +1,7 @@
 # demo 用法
 该目录下的demo是展现vi、vp及vo 模块的使用示例
 
-## 安装依赖库
-1. 安装编译环境
-
-```
-apt update
-apt install -y gcc g++ make cmake
-apt install libdrm-dev libjpeg9-dev
-```
-2. 安装音频相关模块依赖库
-
-```
-apt install libasound2-dev libfdk-aac-dev
-```
-3. 安装opengl相关模块依赖库。在ubuntu18上没有libgles-dev软件包，可更改成libgles2-mesa-dev软件包
-
-```
-apt install libgles-dev libx11-dev
-```
-4. 如需要支持opencv相关demo，安装下列软件包
-
-```
-apt install libopencv-dev
-```
-
 ## c++ demo
-
-### 编译demo
-
-1. 首先在源码根路径创建编译文件夹并进入
-
-```
-$ ls
-build  CMakeLists.txt  demo  dist  documentation  include  lib  Readme.md  inference_examples
-
-$ mkdir build
-$ cd build
-```
-
-2. 使用cmake 选择要编译的demo, 默认不编译opencv、inference的demo
-
-```
-# 如果需要编译opencv、inference的demo，则cmake ../ -DDEMO_OPENCV=ON -DDEMO_INFERENCE=ON
-$ cmake ../
-
-# 编译
-$ make -j8
-
-# 把rknn的库路径添加到当前环境；如果是rk356x板子，则把RK3588更改为RK356X。
-# 也可以忽略这步使用系统默认的rknn库或自行指定rknn库。
-$ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${PWD}/../inference_examples/lib/RK3588/
-
-```
-
-**ffmedia默认使用了rknn,如果是rk3399等不支持rknn机型，也是需要指定rknn库的，使其编译时可以找到函数定义**
-，但不能使用推理模块推理
-
-```
-#可以指定任意一个rknn库位置
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${PWD}/../inference_examples/lib/RK3588/
-
-#或者直接将任意一个rknn库拷贝进系统中
-cp ../inference_examples/lib/RK3588/librknnrt.so /usr/lib/
-
-```
-
 
 ### demo.cpp
 该demo展现了大部分模块的基本使用示例。
@@ -89,6 +25,14 @@ cp ../inference_examples/lib/RK3588/librknnrt.so /usr/lib/
 
 ## 循环读取本地视频文件, 转码成h264，然后推到gb28181服务器上。
 ./demo /home/firefly/test.mp4 -e h264 -s -l --gb28181_user_id 000001 --gb28181_server_id 000002 --gb28181_server_ip 172.16.10.204 --gb28181_server_port 5060
+
+## 播放本地视频
+./demo /home/firefly/test.mp4 -d 0
+./demo /home/firefly/test.mp4 --use_ffmpeg_demux -d 0
+
+## 录屏并显示
+./demo /dev/dri/card0 --use_ffmpeg_demux=kmsgrab -x -s
+
 
 ```
 

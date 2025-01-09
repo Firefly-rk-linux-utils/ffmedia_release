@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-09 15:57:57
+ * @LastEditTime: 2024-12-31 14:45:39
  * @Description: 输出组件，通过alsa接口播放音频。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -46,7 +46,7 @@ public:
     int init() override;
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
 

@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-19 16:43:18
+ * @LastEditTime: 2024-12-31 14:54:43
  * @Description: 音频解码组件。支持aac格式解码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -50,7 +50,7 @@ public:
     int init() override;
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool teardown() override;
 
 private:

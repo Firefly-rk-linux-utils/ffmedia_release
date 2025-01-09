@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-10-17 16:46:37
+ * @LastEditTime: 2024-12-31 14:55:53
  * @Description: 处理组件。模型推理。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -94,7 +94,7 @@ public:
     int inference(shared_ptr<MediaBuffer>& input_buffer);
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     void reset() override;
 
 private:

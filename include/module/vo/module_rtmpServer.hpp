@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-04-25 12:52:36
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-09 17:20:09
+ * @LastEditTime: 2024-12-31 14:53:01
  * @Description: 输出组件。rtmp服务器。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -22,7 +22,7 @@ private:
     string push_path;
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
 

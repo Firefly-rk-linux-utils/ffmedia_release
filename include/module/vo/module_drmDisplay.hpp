@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-25 10:01:41
+ * @LastEditTime: 2024-12-31 14:47:59
  * @Description: 输出组件。drm显示输出。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -151,7 +151,7 @@ private:
     bool checkPlaneType(uint64_t plane_drm_type);
     bool isSamePlane(shared_ptr<DrmDisplayPlane> a, shared_ptr<DrmDisplayPlane> b);
 
-    void processBuffer(ModuleDrmDisplay* window, shared_ptr<MediaBuffer> input_buffer);
+    void processBuffer(ModuleDrmDisplay* window, shared_ptr<MediaBuffer>& input_buffer);
 
 private:
     shared_ptr<DrmDisplayDevice> display_device;
@@ -310,7 +310,7 @@ private:
     bool setupWindow();
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
 };
 

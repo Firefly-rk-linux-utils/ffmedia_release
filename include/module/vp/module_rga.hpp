@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-19 16:42:02
+ * @LastEditTime: 2024-12-31 17:10:48
  * @Description: 图像处理组件，支持颜色格式转换、缩放、叠加等功能。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -183,7 +183,7 @@ public:
      * @param {shared_ptr<MediaBuffer>} output_buffer   输出的图像内存。
      * @return {ConsumeResult}                          成功返回CONSUME_SUCCESS。
      */
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
 };
 
 #endif  //__MODULE_RGA_HPP__

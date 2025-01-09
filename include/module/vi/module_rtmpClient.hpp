@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-04-25 12:52:36
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-09 15:36:10
+ * @LastEditTime: 2024-12-31 14:42:02
  * @Description:兼容输入和输出组件。Rtmp客户端，支持推流到Rtmp服务器和从Rtmp服务器拉流。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -72,11 +72,11 @@ public:
     void setTimeOutSec(int sec, int usec);
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
-    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer) override;
+    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer>& buffer) override;
 
 private:
     shared_ptr<rtmpClient> rtmp_client;

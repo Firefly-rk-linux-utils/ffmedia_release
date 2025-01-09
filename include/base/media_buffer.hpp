@@ -9,7 +9,7 @@
 #include "pixel_fmt.hpp"
 
 using namespace std;
-class MediaBuffer
+class FFMEDIA_API MediaBuffer
 {
 protected:
     uint16_t index;

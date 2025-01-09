@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-19 16:42:54
+ * @LastEditTime: 2024-12-31 14:55:00
  * @Description: 音频编码组件。音频编码，支持aac编码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -75,7 +75,7 @@ public:
     int gerVbr() { return vbr; }
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
 

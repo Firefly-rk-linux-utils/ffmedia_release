@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:54
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-19 16:53:26
+ * @LastEditTime: 2025-01-08 17:41:12
  * @Description: 所有组件均派生自ModuleMedia类，ModuleMedia的成员中包含一个消费者队列，记录该组件的所有消费者；
  *               一个MediaBuffer队列，记录该组件所分配的buffer. MediaBuffer队列中存储当前组件的输出数据，
  *               MediaBuffer队列同时也是该组件的所有消费者的输入。
@@ -54,7 +54,7 @@ using callback_handler = std::function<void(void_object, shared_ptr<MediaBuffer>
 enum ModuleStatus {
     STATUS_CREATED = 0,  // 创建状态
     STATUS_STARTED,      // 运行状态
-    STATUS_EOS,          // 异常状态
+    STATUS_EOS,          // 流结束状态
     STATUS_STOPED,       // 停止状态
 };
 
@@ -264,18 +264,18 @@ protected:
     };
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer);
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer> buffer);
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer);
+    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& buffer);
 
     virtual int initBuffer();
     int initBuffer(VideoBuffer::BUFFER_TYPE buffer_type);
 
-    shared_ptr<MediaBuffer> outputBufferQueueHead();
-    void setOutputBufferQueueHead(shared_ptr<MediaBuffer> buffer);
+    shared_ptr<MediaBuffer>& outputBufferQueueHead();
+    void setOutputBufferQueueHead(shared_ptr<MediaBuffer>& buffer);
     void fillAllOutputBufferQueue();
     void cleanInputBufferQueue();
 
-    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer);
+    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer>& buffer);
     std::cv_status waitForProduce(std::unique_lock<std::mutex>& lk);
     void waitAllForConsume();
     std::cv_status waitForConsume(std::unique_lock<std::mutex>& lk);

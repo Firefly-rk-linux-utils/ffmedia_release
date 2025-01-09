@@ -1,6 +1,8 @@
 #ifndef __TYPE_H__
 #define __TYPE_H__
 
+#define FFMEDIA_API __attribute__((visibility("default")))
+
 /*
  * Decode type support
  */
@@ -8,6 +10,11 @@ enum DecodeType {
     DECODE_TYPE_H264 = 0,
     DECODE_TYPE_H265,
     DECODE_TYPE_MJPEG,
+    DECODE_TYPE_VP8,
+    DECODE_TYPE_VP9,
+    DECODE_TYPE_MPEG1,
+    DECODE_TYPE_MPEG2,
+    DECODE_TYPE_MPEG4,
     DECODE_TYPE_MAX,
 };
 

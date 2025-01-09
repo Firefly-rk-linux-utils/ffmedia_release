@@ -7,7 +7,7 @@
 
 #include "ff_type.hpp"
 
-class Synchronize
+class FFMEDIA_API Synchronize
 {
 public:
     struct Clock {
@@ -19,9 +19,10 @@ private:
     Clock audio;
     Clock video;
     Clock absolute;
-    float ptsRatio;
     SynchronizeType type;
 
+    int64_t video_dropped_pts;
+    int video_dropped_diff;
     int video_last_duration;
     int audio_last_duration;
 
@@ -37,7 +38,6 @@ public:
     explicit Synchronize(SynchronizeType _type);
     int64_t getCurrentTime();
     void reset();
-    void setPtsRatio(float ratio);
     Clock& getMasterClock();
     int64_t getMasterTime();
     void setClockTime(SynchronizeType _type, int64_t pts);

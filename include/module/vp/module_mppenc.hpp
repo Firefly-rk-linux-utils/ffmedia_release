@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-19 16:41:18
+ * @LastEditTime: 2024-12-31 14:57:14
  * @Description: 视频编码组件。支持H264、H265及MJPEG编码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -28,13 +28,13 @@ private:
     EncodeProfile profile;
     int64_t cur_pts;
     int64_t duration;
-    shared_ptr<VideoBuffer> encoderExtraData(shared_ptr<VideoBuffer> buffer);
+    shared_ptr<VideoBuffer> encoderExtraData(shared_ptr<VideoBuffer>& buffer);
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer> buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& buffer) override;
     virtual int initBuffer() override;
-    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer> buffer) override;
+    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer>& buffer) override;
     virtual bool setup() override;
     void chooseOutputParaFmt();
     void reset() override;

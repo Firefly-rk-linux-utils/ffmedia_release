@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-09 15:58:04
+ * @LastEditTime: 2024-12-31 10:32:27
  * @Description: 输入源组件，音频数据通过alsa接口采集。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -46,7 +46,7 @@ public:
     int init() override;
 
 protected:
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
 

@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-09 16:52:58
+ * @LastEditTime: 2025-01-06 15:56:48
  * @Description: 输出组件。GB28181客户端，支持推流到GB28181服务器。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -21,7 +21,7 @@ public:
      * @param transport      sip transport protocol type.
      * @param port           local sip port.
      */
-    ModuleGB28181Client(std::string userId, std::string userAgent, SIP_TRANSPORT_TYPE transport = TRANSPORT_TYPE_TCP, int port = 0);
+    ModuleGB28181Client(const std::string& userId, const std::string& userAgent, SIP_TRANSPORT_TYPE transport = TRANSPORT_TYPE_TCP, int port = 0);
     ~ModuleGB28181Client();
     int init();
 
@@ -34,7 +34,7 @@ public:
      * @param serverPort         The sip server port.
      * @param expiry             The expires value for registration.
      */
-    int setServerConfig(std::string serverId, std::string serverRealm, std::string serverIp,
+    int setServerConfig(const std::string& serverId, const std::string& serverRealm, const std::string& serverIp,
                         unsigned short serverPort = 5060, int expiry = 3600);
 
     /**
@@ -43,7 +43,16 @@ public:
      * @param username       username
      * @param password       password
      */
-    int setAuthenticationInfo(std::string username, std::string password);
+    int setAuthenticationInfo(const std::string& username, const std::string& password);
+
+    /**
+     * @description: Set device information.
+     * @param {string&} deviceName
+     * @param {string&} manufacturer
+     * @param {string&} channel         device channel id.
+     * @return {int}                    Return 0 on success.
+     */
+    int setDeviceInfo(const std::string& deviceName, const std::string& manufacturer, const std::string& channel);
 
     /**
      * This method is used to replace contact address with
@@ -54,7 +63,7 @@ public:
      *
      * @param firewallip    the ip address.
      */
-    int setFirewallip(std::string firewallip);
+    int setFirewallip(const std::string& firewallip);
     int setAutoMasquerade(int automasquerade);
 
     /**
@@ -65,7 +74,7 @@ public:
     int setKeepaliveDuration(int seconds);
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
 

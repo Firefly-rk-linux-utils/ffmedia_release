@@ -92,6 +92,8 @@ def get_parameters():
     parser.add_argument("--gb28181_server_id", dest='gb28181_server_id', type=str, help="Set the server id of gb28181 client.")
     parser.add_argument("--gb28181_server_ip", dest='gb28181_server_ip', type=str, help="Set the server ip of gb28181 client\.")
     parser.add_argument("--gb28181_server_port", dest='gb28181_server_port', type=int, default=5060, help="Set the server port of gb28181 client.")
+    parser.add_argument("--use_ffmpeg_demux", dest='use_ffmpeg_demux', type=str, help="Use ffmpeg demux and specify the input format. e.g. --use_ffmpeg_demux default or --use_ffmpeg_demux kmsgrab")
+
     return parser.parse_args()
 
 def main():
@@ -99,9 +101,16 @@ def main():
     args = get_parameters()
     last_audio_module = None
     input_audio_source = None
+    input_source = None
 
     if args.input_source is None:
         return 1
+    elif args.use_ffmpeg_demux is not None:
+        if args.loop:
+            input_source = m.ModuleFFmpegDemux(args.input_source, -1)
+        else:
+            input_source = m.ModuleFFmpegDemux(args.input_source)
+        input_source.setInputFormat(args.use_ffmpeg_demux)
     elif args.input_source.startswith("rtsp://"):
         print("input source is a rtsp url")
         input_source = m.ModuleRtspClient(args.input_source, m.RTSP_STREAM_TYPE(args.rtsp_transport), True, args.audio)

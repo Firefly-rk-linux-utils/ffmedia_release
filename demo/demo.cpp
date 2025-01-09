@@ -32,6 +32,10 @@
 #include "module/vo/module_alsaPlayBack.hpp"
 #endif
 
+#if FFMPEG_SUPPORT
+#include "module/vi/module_ffmpegDemux.hpp"
+#endif
+
 struct timeval curr_time;
 struct timeval start_time;
 
@@ -47,6 +51,9 @@ typedef struct _demo_config {
     int drm_display_plane_zpos = 0xFF;
     char dump_filename[256] = "";
     char output_filename[256] = "";
+#if FFMPEG_SUPPORT
+    char ffmpeg_informat[64] = "";
+#endif
     char aplay[64] = "";
     char arecord[64] = "";
     char input_source[256] = "";
@@ -67,6 +74,7 @@ typedef struct _demo_config {
 
     bool cam_enabled = false;
     bool file_r_enabled = false;
+    bool ffmpeg_demux_enabled = false;
     bool loop = false;
     bool dec_enabled = false;
     bool rga_enabled = false;
@@ -115,6 +123,9 @@ static void usage(char** argv)
         "-o, --output                 Output image size, default same as input\n"
         "-a, --inputfmt               Input image format, default MJPEG\n"
         "-b, --outputfmt              Output image format, default NV12\n"
+#if FFMPEG_SUPPORT
+        "--use_ffmpeg_demux           Use ffmpeg demux. e.g. --use_ffmpeg_demux or --use_ffmpeg_demux=kmsgrab\n"
+#endif
         "-c, --count                  Instance count, default 1\n"
         "-d, --drmdisplay             Drm display, set display plane, set 0 to auto find plane, default disabled\n"
         "    --connector              Set drm display connector, default 0 to auto find connector\n"
@@ -178,6 +189,9 @@ static struct option long_options[] = {
     {"rtmp_url", required_argument, NULL, 'R'},
 #if OPENGL_SUPPORT
     {"x11", no_argument, NULL, 'x'},
+#endif
+#if FFMPEG_SUPPORT
+    {"use_ffmpeg_demux", optional_argument, NULL, 'F'},
 #endif
     {"loop", no_argument, NULL, 'l'},
     {"gb28181_user_id", required_argument, NULL, 'G'},
@@ -262,12 +276,12 @@ void callback_savetofile(void* ctx, shared_ptr<MediaBuffer> buffer)
 void callback_dumpFrametofile(void* ctx, shared_ptr<MediaBuffer> buffer)
 {
     DemoData* demo = (DemoData*)ctx;
-    if (buffer == NULL || buffer->getMediaBufferType() != BUFFER_TYPE_VIDEO)
+    if (buffer == NULL)
         return;
-    shared_ptr<VideoBuffer> buf = static_pointer_cast<VideoBuffer>(buffer);
+    shared_ptr<VideoBuffer> buf = dynamic_pointer_cast<VideoBuffer>(buffer);
 
     if (demo->file_data) {
-        if (v4l2fmtIsCompressed(buf->getImagePara().v4l2Fmt))
+        if (buffer->getMediaBufferType() != BUFFER_TYPE_VIDEO || v4l2fmtIsCompressed(buf->getImagePara().v4l2Fmt))
             dump_normalbuffer_to_file(buf, demo->file_data);
         else
             dump_videobuffer_to_file(buf, demo->file_data);
@@ -323,35 +337,33 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         inst_conf->rtmp_c_enabled = true;
     } else {
         struct stat st;
-        if (stat(inst_conf->input_source, &st) == -1) {
-            perror(inst_conf->input_source);
-            exit(1);
-        }
+        if (!stat(inst_conf->input_source, &st)) {
+            switch (st.st_mode & S_IFMT) {
+                case S_IFCHR:
+                    ff_info("enable v4l2 camera\n");
+                    inst_conf->cam_enabled = true;
+                    break;
+                case S_IFREG:
+                    ff_info("enable file reader\n");
+                    inst_conf->file_r_enabled = true;
+                    break;
+                case S_IFBLK:
+                case S_IFDIR:
+                case S_IFIFO:
+                case S_IFLNK:
+                case S_IFSOCK:
+                default:
+                    inst_conf->ffmpeg_demux_enabled = true;
+                    break;
+            }
 
-        switch (st.st_mode & S_IFMT) {
-            case S_IFCHR:
-                ff_info("enable v4l2 camera\n");
-                inst_conf->cam_enabled = true;
-                break;
-            case S_IFREG:
-                ff_info("enable file reader\n");
-                inst_conf->file_r_enabled = true;
-                break;
-            case S_IFBLK:
-            case S_IFDIR:
-            case S_IFIFO:
-            case S_IFLNK:
-            case S_IFSOCK:
-            default:
-                ff_error("%s is not support\n", inst_conf->input_source);
-                exit(1);
-                break;
-        }
-
-        if (strstr(inst_conf->input_source, "mp4")) {
-            inst_conf->dec_enabled = true;
-        } else if (strstr(inst_conf->input_source, "mkv")) {
-            inst_conf->dec_enabled = true;
+            if (strstr(inst_conf->input_source, "mp4")) {
+                inst_conf->dec_enabled = true;
+            } else if (strstr(inst_conf->input_source, "mkv")) {
+                inst_conf->dec_enabled = true;
+            }
+        } else {
+            inst_conf->ffmpeg_demux_enabled = true;
         }
     }
 
@@ -359,6 +371,27 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         inst->source_module = common_source_module;
         goto SOURCE_CREATED;
     }
+
+#if FFMPEG_SUPPORT
+    if (inst_conf->ffmpeg_demux_enabled) {
+        shared_ptr<ModuleFFmpegDemux> ffmpeg_demux = make_shared<ModuleFFmpegDemux>(inst_conf->input_source, inst_conf->loop ? -1 : 1);
+        ffmpeg_demux->setOutputImagePara(inst_conf->input_image_para);
+        ffmpeg_demux->setInputFormat(inst_conf->ffmpeg_informat);
+        ret = ffmpeg_demux->init();
+        if (ret < 0) {
+            ff_error("Failed to init ffmpeg demux\n");
+            goto FAILED;
+        }
+        inst->last_module = ffmpeg_demux;
+        inst->source_module = ffmpeg_demux;
+        goto SOURCE_CREATED;
+    }
+#else
+    if (inst_conf->ffmpeg_demux_enabled) {
+        ff_error("%s is not support\n", inst_conf->input_source);
+        goto FAILED;
+    }
+#endif
 
     if (inst_conf->cam_enabled) {
         shared_ptr<ModuleCam> cam = make_shared<ModuleCam>(inst_conf->input_source);
@@ -416,7 +449,7 @@ SOURCE_CREATED:
 
     if (inst_conf->sync_opt) {
         inst->sync = make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1));
-        inst->sync->setFirstFrameDuration(100000);
+        inst->sync->setFirstFrameDuration(30000);
     }
 
 #if AUDIO_SUPPORT
@@ -883,6 +916,15 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                         return -1;
                 }
                 break;
+#if FFMPEG_SUPPORT
+            case 'F':
+                config->ffmpeg_demux_enabled = true;
+                if (optarg) {
+                    strncpy(config->ffmpeg_informat, optarg, sizeof config->ffmpeg_informat);
+                    config->ffmpeg_informat[sizeof(config->ffmpeg_informat) - 1] = '\0';
+                }
+                break;
+#endif
             default:
                 return -1;
         }

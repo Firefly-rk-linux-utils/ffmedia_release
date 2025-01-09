@@ -9,7 +9,7 @@ class DrmBuffer;
 typedef void* MppBuffer;
 typedef void* MppBufferGroup;
 
-class VideoBuffer : public MediaBuffer
+class FFMEDIA_API VideoBuffer : public MediaBuffer
 {
 public:
     enum BUFFER_TYPE {

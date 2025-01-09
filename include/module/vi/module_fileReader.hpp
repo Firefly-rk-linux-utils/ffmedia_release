@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-04-25 12:52:36
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-26 15:28:25
+ * @LastEditTime: 2025-01-03 14:57:41
  * @Description: 输入源组件，支持裸流读取和mp4、mkv、flv、ts及ps等媒体文件解封装读取。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -19,7 +19,9 @@ private:
     string filepath;
     size_t fileSize;
     shared_ptr<generalFileRead> reader;
-    bool first_audio_frame;
+    int videoFirstBuffer;
+    int audioFirstBuffer;
+
     bool loopMode;
 
     media_codec_t videoCodec;
@@ -27,7 +29,7 @@ private:
     SampleInfo audioSampleInfo;
 
 protected:
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     void initMediaInfo();
 

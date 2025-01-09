@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-05-22 17:34:39
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-09-19 16:43:56
+ * @LastEditTime: 2024-12-31 16:07:42
  * @Description: 输出组件。视频渲染器，使用opengGles接口渲染视频到X11窗口。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -25,8 +25,6 @@ private:
     Shader* shader;
     Texture *tex1, *tex2;
     Model* quadModel;
-    shared_ptr<VideoBuffer> buffer;
-    void *y, *uv;
 
     /// Display handle
     EGLNativeDisplayType eglNativeDisplay;
@@ -67,7 +65,7 @@ public:
     int changeOutputResolution(int width, int height);
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer> input_buffer, shared_ptr<MediaBuffer> output_buffer) override;
+    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
     void reset() override;
