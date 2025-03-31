@@ -20,6 +20,7 @@ protected:
     int64_t p_ustimestamp;
     int64_t d_ustimestamp;
     bool eos;
+    int flags;
     void* private_data;
     shared_ptr<MediaBuffer> extra_data;
     MEDIA_BUFFER_TYPE media_type;
@@ -72,6 +73,9 @@ public:
 
     bool getEos() const { return eos; }
     void setEos(const bool& eos_) { eos = eos_; }
+
+    int getFlags() const { return flags; }
+    void setFlags(const int& flags_) { flags = flags_; }
 
     bool getStatus();
     void setStatus(bool _status);

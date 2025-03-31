@@ -121,6 +121,7 @@ public:
 protected:
     int initMediaInfo(const AVCodecParameters* par);
     void cleanup();
+    virtual bool teardown() override;
 
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
     virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer>& buffer) override;

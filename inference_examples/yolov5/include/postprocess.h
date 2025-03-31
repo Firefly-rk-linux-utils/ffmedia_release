@@ -2,6 +2,7 @@
 #define _RKNN_ZERO_COPY_DEMO_POSTPROCESS_H_
 
 #include <stdint.h>
+#include <stddef.h>
 #include <vector>
 
 #define OBJ_CLASS_NUM 80

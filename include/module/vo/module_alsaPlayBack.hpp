@@ -55,4 +55,6 @@ private:
     std::string device;
     SampleInfo sampleInfo;
     AI_LAYOUT_E layout;
+    char* frame;
+    size_t frameBytes;
 };

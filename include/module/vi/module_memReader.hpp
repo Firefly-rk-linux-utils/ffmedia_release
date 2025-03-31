@@ -52,6 +52,7 @@ public:
      * @return {int}            成功返回0，失败返回-1。
      */
     int setInputBuffer(void* buf, size_t bytes, int buf_fd = -1, int64_t pts = 0);
+    int setInputBuffer(const shared_ptr<MediaBuffer>& buf);
 
     /**
      * @description: 等待对象处理输入数据。

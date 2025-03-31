@@ -377,6 +377,13 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         shared_ptr<ModuleFFmpegDemux> ffmpeg_demux = make_shared<ModuleFFmpegDemux>(inst_conf->input_source, inst_conf->loop ? -1 : 1);
         ffmpeg_demux->setOutputImagePara(inst_conf->input_image_para);
         ffmpeg_demux->setInputFormat(inst_conf->ffmpeg_informat);
+        if (inst_conf->rtsp_transport == RTSP_STREAM_TYPE_UDP)
+            ffmpeg_demux->setFormatOption("rtsp_transport", "udp", 0);
+        else if (inst_conf->rtsp_transport == RTSP_STREAM_TYPE_TCP)
+            ffmpeg_demux->setFormatOption("rtsp_transport", "tcp", 0);
+        else
+            ffmpeg_demux->setFormatOption("rtsp_transport", "udp_multicast", 0);
+
         ret = ffmpeg_demux->init();
         if (ret < 0) {
             ff_error("Failed to init ffmpeg demux\n");

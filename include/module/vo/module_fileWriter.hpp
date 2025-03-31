@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-04-25 12:52:36
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 14:48:47
+ * @LastEditTime: 2025-03-27 09:27:45
  * @Description: 输出组件。文件写入，支持裸流写入及mp4、mkv、flv、ts及ps封装格式写入。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -78,6 +78,13 @@ public:
      */
     void setAudioExtraData(const uint8_t* extra_data, unsigned extra_size);
 
+    /**
+     * @description: 手动输入媒体数据。
+     * @param {shared_ptr<MediaBuffer>} input_buffer
+     * @return {int}    成功返回0，失败返回负数。
+     */
+    int setInputBuffer(shared_ptr<MediaBuffer> input_buffer);
+
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     int restart(string file_name);
@@ -103,6 +110,7 @@ public:
     void setVideoExtraData(const uint8_t* extra_data, unsigned extra_size);
     void setAudioParameter(int channel_count, int bit_per_sample, int sample_rate, media_codec_t type);
     void setAudioExtraData(const uint8_t* extra_data, unsigned extra_size);
+    int setInputBuffer(shared_ptr<MediaBuffer> input_buffer);
 
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;

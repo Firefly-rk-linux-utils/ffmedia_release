@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#include "module/vi/module_fileReader.hpp"
+#include "module/vi/module_ffmpegDemux.hpp"
 #include "module/vp/module_mppdec.hpp"
 #include "module/vp/module_inference.hpp"
 #include "module/vp/module_rga.hpp"
@@ -108,33 +108,38 @@ int main(int argc, char** argv)
     }
 
     do {
-        auto source = make_shared<ModuleFileReader>(argv[1], true);
+        shared_ptr<ModuleMedia> last_module;
+        auto source = make_shared<ModuleFFmpegDemux>(argv[1], -1);
         ret = source->init();
         if (ret < 0) {
             ff_error("source init failed\n");
             break;
         }
 
-        auto dec = make_shared<ModuleMppDec>();
-        dec->setProductor(source);  // Join the source module consumer queue.
-        ret = dec->init();
-        if (ret < 0) {
-            ff_error("Dec init failed\n");
-            break;
+        last_module = source;
+        auto source_para = source->getOutputImagePara();
+        if (v4l2fmtIsCompressed(source_para.v4l2Fmt)) {
+            auto dec = make_shared<ModuleMppDec>();
+            dec->setProductor(source);  // Join the source module consumer queue.
+            ret = dec->init();
+            if (ret < 0) {
+                ff_error("Dec init failed\n");
+                break;
+            }
+            last_module = dec;
         }
-
         /*
             The rga module is used to convert the output image format of the
             decode module into bgr24 and adjust the virtual width and virtual height,
             which is convenient for opencv display.
         */
-        auto input_para = dec->getOutputImagePara();
+        auto input_para = last_module->getOutputImagePara();
         auto output_para = input_para;
         output_para.hstride = output_para.width;
         output_para.vstride = output_para.height;
         output_para.v4l2Fmt = V4L2_PIX_FMT_BGR24;
         auto rga = make_shared<ModuleRga>(output_para, RGA_ROTATE_NONE);
-        rga->setProductor(dec);  // Join the decode module consumer queue.
+        rga->setProductor(last_module);  // Join the last module consumer queue.
         ret = rga->init();
         if (ret < 0) {
             ff_error("rga init failed\n");
@@ -151,6 +156,16 @@ int main(int argc, char** argv)
         if (ret < 0) {
             ff_error("drm display init failed\n");
             return ret;
+        } else {
+            input_para = drm_display->getInputImagePara();
+            uint32_t t_w, t_h;
+            drm_display->getPlaneSize(&t_w, &t_h);
+            uint32_t w = std::min(t_w, input_para.width);
+            uint32_t h = std::min(t_h, input_para.height);
+            uint32_t x = (t_w - w) / 2;
+            uint32_t y = (t_h - h) / 2;
+            ff_info("x y w h %d %d %d %d\n", x, y, w, h);
+            drm_display->setPlaneRect(x, y, w, h);
         }
 
         /*

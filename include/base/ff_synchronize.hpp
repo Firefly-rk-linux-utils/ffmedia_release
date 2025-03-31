@@ -21,7 +21,7 @@ private:
     Clock absolute;
     SynchronizeType type;
 
-    int64_t video_dropped_pts;
+    int video_last_delay_zero_counts;
     int video_dropped_diff;
     int video_last_duration;
     int audio_last_duration;

@@ -4,7 +4,7 @@
 #include <sys/stat.h>
 #include <iostream>
 
-#include "module/vi/module_rtspClient.hpp"
+#include "module/vi/module_ffmpegDemux.hpp"
 #include "module/vp/module_mppdec.hpp"
 #include "module/vp/module_inference.hpp"
 #include "module/vp/module_rga.hpp"
@@ -128,24 +128,29 @@ int main(int argc, char** argv)
     };
 
     do {
-
-        auto source = make_shared<ModuleRtspClient>(argv[1]);
+        shared_ptr<ModuleMedia> last_module;
+        auto source = make_shared<ModuleFFmpegDemux>(argv[1], -1);
         ret = source->init();
         if (ret < 0) {
             ff_error("source init failed\n");
             break;
         }
+        last_module = source;
 
-        auto dec = make_shared<ModuleMppDec>();
-        dec->setProductor(source);
-        ret = dec->init();
-        if (ret < 0) {
-            ff_error("Dec init failed\n");
-            break;
+        auto source_para = source->getOutputImagePara();
+        if (v4l2fmtIsCompressed(source_para.v4l2Fmt)) {
+            auto dec = make_shared<ModuleMppDec>();
+            dec->setProductor(source);
+            ret = dec->init();
+            if (ret < 0) {
+                ff_error("Dec init failed\n");
+                break;
+            }
+            last_module = dec;
         }
 
         auto inf = make_shared<ModuleInference>();
-        inf->setProductor(dec);
+        inf->setProductor(last_module);
         inf->setInferenceInterval(1);
         if (inf->setModelData(argv[2], 0) < 0) {
             ff_error("inf setModelData fail!\n");
@@ -157,7 +162,7 @@ int main(int argc, char** argv)
             break;
         }
 
-        auto input_para = dec->getOutputImagePara();
+        auto input_para = last_module->getOutputImagePara();
         auto output_para = input_para;
         output_para.width = input_para.width;
         output_para.height = input_para.height;
@@ -166,7 +171,7 @@ int main(int argc, char** argv)
         output_para.v4l2Fmt = V4L2_PIX_FMT_BGR24;
         auto rga = make_shared<ModuleRga>(output_para, RGA_ROTATE_NONE);
         // The producer of the rga module is the same as the inference module producer.
-        rga->setProductor(dec);
+        rga->setProductor(last_module);
         ret = rga->init();
         if (ret < 0) {
             ff_error("rga init failed\n");

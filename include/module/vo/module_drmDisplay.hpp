@@ -63,6 +63,8 @@ class DrmDisplayPlane : public std::enable_shared_from_this<DrmDisplayPlane>
         int free_index;
         int use_index;
         int etc_index;
+        int flags;
+        ImagePara para;
     };
 
     friend class ModuleDrmDisplay;
@@ -138,12 +140,12 @@ public:
 
     bool splitPlane(uint32_t w_parts, uint32_t h_hparts);
     bool flushAllWindowRectUpdate();
+    bool setVisibility(bool isVisible);
 
 private:
     bool setupDisplayDevice();
     int drmFindPlane();
     int drmCreateFb(shared_ptr<VideoBuffer> buffer);
-    bool drmVsync();
 
     int addWindow(ModuleDrmDisplay* window);
     void removeWindow(ModuleDrmDisplay* window);
@@ -151,7 +153,7 @@ private:
     bool checkPlaneType(uint64_t plane_drm_type);
     bool isSamePlane(shared_ptr<DrmDisplayPlane> a, shared_ptr<DrmDisplayPlane> b);
 
-    void processBuffer(ModuleDrmDisplay* window, shared_ptr<MediaBuffer>& input_buffer);
+    void onDisplayThreadRun();
 
 private:
     shared_ptr<DrmDisplayDevice> display_device;
@@ -177,6 +179,8 @@ private:
     bool full_plane;       // It's a plane that fills the screen
     bool mini_size_plane;  // It's a plane that size is 0
     unordered_set<ModuleDrmDisplay*> windows;
+    std::shared_ptr<std::thread> display_thread;
+    bool display_thread_exit;
 };
 
 class ModuleDrmDisplay : public ModuleMedia
@@ -250,6 +254,7 @@ public:
      * @return {*}
      */
     bool setWindowRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+    bool setImageRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
     void getPlaneSize(uint32_t* w, uint32_t* h);
     void getWindowSize(uint32_t* w, uint32_t* h);
 
@@ -274,13 +279,6 @@ public:
     bool setWindowRelativeRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h, bool sync = true);
     bool flushRelativeUpdate();
 
-    /**
-     * @description: 设置图层图像更新窗口。如果不设置，则图层的第一个窗口是他的图像更新窗口，图层图像更新速度将取决于该窗口。
-     * @param {bool} isSync
-     * @return {*}
-     */
-    void setWindowSyncPlane(bool isSync);
-
     // replaced by getPlaneSize
     [[deprecated]] void getDisplayPlaneSize(uint32_t* w, uint32_t* h);
     // replaced by setPlaneRect
@@ -304,7 +302,6 @@ private:
     bool visibility;
     bool mini_size_window;
     int zpos;
-    bool sync_window;
 
 private:
     bool setupWindow();
