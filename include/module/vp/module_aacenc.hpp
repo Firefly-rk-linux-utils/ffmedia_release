@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 14:55:00
+ * @LastEditTime: 2025-05-29 19:49:29
  * @Description: 音频编码组件。音频编码，支持aac编码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -53,6 +53,11 @@ public:
      * @return {int} 成功返回 0，失败返回负数。
      */
     int init() override;
+    /**
+     * @description: 获取媒体附加数据。此调用应在对象初始化之后调用。
+     * @return {shared_ptr<MediaBuffer>} 成功返回含有附加数据及媒体参数的 MediaBuffer，失败返回空指针。
+     */
+    shared_ptr<MediaBuffer> getExtraBuffer();
 
     /**
      * @description: 设置Aot。
@@ -76,7 +81,6 @@ public:
 
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
-    virtual bool setup() override;
     virtual bool teardown() override;
 
 private:

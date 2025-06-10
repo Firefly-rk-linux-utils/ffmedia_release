@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 17:10:48
+ * @LastEditTime: 2025-04-25 14:51:17
  * @Description: 图像处理组件，支持颜色格式转换、缩放、叠加等功能。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -157,21 +157,22 @@ public:
      */
     void setRgaSchedulerCore(RGA_SCHEDULER_CORE core);
 
-    /**
-     * @description: 申请对象使用的图像内存。可供exportUseMediaBuffer交换图像使用。
-     * @param {BUFFER_TYPE} buffer_type     内存类型。
-     * @return {*}
-     */
-    shared_ptr<MediaBuffer> newModuleMediaBuffer(VideoBuffer::BUFFER_TYPE buffer_type = VideoBuffer::BUFFER_TYPE::DRM_BUFFER_CACHEABLE);
 
     /**
-     * @description: 导出匹配的图像内存。
-     * @param {shared_ptr<MediaBuffer>}     match_buffer 需要导出的对象图像内存。
-     * @param {shared_ptr<MediaBuffer>}     input_buffer 要和对象内存池交换的图像内存，如果为空，则会自动申请补充图像内存池。
-     * @param {int} flag                    操作标志位。0为交换操作，1为拷贝操作。
-     * @return {shared_ptr<MediaBuffer>}    成功返回导出后的图像内存；失败返回空指针，match_buffer不在对象的图像内存池里。
+     * @description: 从缓冲池中导出指定索引值缓冲区。
+     * @param {uint16_t} index              缓冲池的索引值。
+     * @return {shared_ptr<MediaBuffer>}    返回导出的缓冲区。
      */
-    shared_ptr<MediaBuffer> exportUseMediaBuffer(shared_ptr<MediaBuffer> match_buffer, shared_ptr<MediaBuffer> input_buffer, int flag);
+    virtual shared_ptr<MediaBuffer> exportBufferFromBufferPool(uint16_t index) override;
+
+    /**
+     * @description: 归还缓冲区到缓冲池的指定索引。
+     * @param {shared_ptr<MediaBuffer>} buffer  归还的缓冲区。
+     * @param {uint16_t} index                  缓冲池的索引值。
+     * @return {int}                            成功返回0，失败返回负数。
+     */
+    virtual int importBufferToBufferPool(shared_ptr<MediaBuffer> buffer, uint16_t index) override;
+
     int dstFillColor(int color);
 
     static void alignStride(uint32_t fmt, uint32_t& wstride, uint32_t& hstride);

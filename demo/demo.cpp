@@ -34,6 +34,7 @@
 
 #if FFMPEG_SUPPORT
 #include "module/vi/module_ffmpegDemux.hpp"
+#include "module/vo/module_ffmpegMux.hpp"
 #endif
 
 struct timeval curr_time;
@@ -53,6 +54,7 @@ typedef struct _demo_config {
     char output_filename[256] = "";
 #if FFMPEG_SUPPORT
     char ffmpeg_informat[64] = "";
+    char ffmpeg_outformat[64] = "";
 #endif
     char aplay[64] = "";
     char arecord[64] = "";
@@ -75,6 +77,7 @@ typedef struct _demo_config {
     bool cam_enabled = false;
     bool file_r_enabled = false;
     bool ffmpeg_demux_enabled = false;
+    bool ffmpeg_mux_enabled = false;
     bool loop = false;
     bool dec_enabled = false;
     bool rga_enabled = false;
@@ -125,6 +128,7 @@ static void usage(char** argv)
         "-b, --outputfmt              Output image format, default NV12\n"
 #if FFMPEG_SUPPORT
         "--use_ffmpeg_demux           Use ffmpeg demux. e.g. --use_ffmpeg_demux or --use_ffmpeg_demux=kmsgrab\n"
+        "--use_ffmpeg_mux             Use ffmpeg demux. e.g. --use_ffmpeg_mux or --use_ffmpeg_mux=rtsp\n"
 #endif
         "-c, --count                  Instance count, default 1\n"
         "-d, --drmdisplay             Drm display, set display plane, set 0 to auto find plane, default disabled\n"
@@ -192,6 +196,7 @@ static struct option long_options[] = {
 #endif
 #if FFMPEG_SUPPORT
     {"use_ffmpeg_demux", optional_argument, NULL, 'F'},
+    {"use_ffmpeg_mux", optional_argument, NULL, 'F'},
 #endif
     {"loop", no_argument, NULL, 'l'},
     {"gb28181_user_id", required_argument, NULL, 'G'},
@@ -310,6 +315,8 @@ void add_index_to_filename(char* filename, int index)
 int start_instance(DemoData* inst, int inst_index, int inst_count)
 {
     int ret;
+    shared_ptr<MediaBuffer> video_extra_buffer;
+    shared_ptr<MediaBuffer> audio_extra_buffer;
     ImagePara productor_output_para;
     DemoConfig* inst_conf = &(inst->config);
 
@@ -389,14 +396,12 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             ff_error("Failed to init ffmpeg demux\n");
             goto FAILED;
         }
+
+        video_extra_buffer = ffmpeg_demux->getExtraBuffer(BUFFER_TYPE_VIDEO);
+        audio_extra_buffer = ffmpeg_demux->getExtraBuffer(BUFFER_TYPE_AUDIO);
         inst->last_module = ffmpeg_demux;
         inst->source_module = ffmpeg_demux;
         goto SOURCE_CREATED;
-    }
-#else
-    if (inst_conf->ffmpeg_demux_enabled) {
-        ff_error("%s is not support\n", inst_conf->input_source);
-        goto FAILED;
     }
 #endif
 
@@ -423,6 +428,8 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             ff_error("file reader init failed\n");
             goto FAILED;
         }
+        video_extra_buffer = file_reader->getExtraBuffer(BUFFER_TYPE_VIDEO);
+        audio_extra_buffer = file_reader->getExtraBuffer(BUFFER_TYPE_AUDIO);
         inst->last_module = file_reader;
     } else if (inst_conf->rtsp_c_enabled) {
         shared_ptr<ModuleRtspClient> rtsp_c = make_shared<ModuleRtspClient>(inst_conf->input_source, inst_conf->rtsp_transport,
@@ -434,6 +441,8 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             ff_error("rtsp client init failed\n");
             goto FAILED;
         }
+        video_extra_buffer = rtsp_c->getExtraBuffer(BUFFER_TYPE_VIDEO);
+        audio_extra_buffer = rtsp_c->getExtraBuffer(BUFFER_TYPE_AUDIO);
         inst->last_module = rtsp_c;
     } else if (inst_conf->rtmp_c_enabled) {
         shared_ptr<ModuleRtmpClient> rtmp_c = make_shared<ModuleRtmpClient>(inst_conf->input_source);
@@ -444,6 +453,8 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             ff_error("rtsp client init failed\n");
             goto FAILED;
         }
+        video_extra_buffer = rtmp_c->getExtraBuffer(BUFFER_TYPE_VIDEO);
+        audio_extra_buffer = rtmp_c->getExtraBuffer(BUFFER_TYPE_AUDIO);
         inst->last_module = rtmp_c;
     }
 
@@ -475,18 +486,24 @@ SOURCE_CREATED:
         inst->source_audio_module = capture;
         inst->last_audio_module = capture;
 
-        auto aac_enc = make_shared<ModuleAacEnc>();
+        auto aac_enc = make_shared<ModuleAacEnc>(info);
         aac_enc->setProductor(inst->last_audio_module);
         ret = aac_enc->init();
         if (ret < 0) {
             ff_error("aac_enc init failed\n");
             goto FAILED;
         }
+        audio_extra_buffer = aac_enc->getExtraBuffer();
         inst->last_audio_module = aac_enc;
     }
 
     if (strlen(inst_conf->aplay)) {
-        shared_ptr<ModuleAacDec> aac_dec = make_shared<ModuleAacDec>();
+        shared_ptr<ModuleAacDec> aac_dec;
+        if (audio_extra_buffer)
+            aac_dec = make_shared<ModuleAacDec>((uint8_t*)audio_extra_buffer->getActiveData(), audio_extra_buffer->getActiveSize(),
+                                                audio_extra_buffer->getSamplePara().sample_rate, audio_extra_buffer->getSamplePara().channels);
+        else
+            aac_dec = make_shared<ModuleAacDec>();
         aac_dec->setProductor(inst->last_audio_module ? inst->last_audio_module : inst->last_module);
         ret = aac_dec->init();
         if (ret < 0) {
@@ -518,11 +535,7 @@ SOURCE_CREATED:
         inst_conf->output_image_para.hstride = ALIGN(inst_conf->output_image_para.width, 16);
         inst_conf->output_image_para.vstride = ALIGN(inst_conf->output_image_para.height, 16);
 
-        //(input_para.v4l2Fmt == V4L2_PIX_FMT_VP8) ||
-        //(input_para.v4l2Fmt == V4L2_PIX_FMT_VP9))
-        if ((source_module_output_para.v4l2Fmt == V4L2_PIX_FMT_MJPEG)
-            || (source_module_output_para.v4l2Fmt == V4L2_PIX_FMT_H264)
-            || (source_module_output_para.v4l2Fmt == V4L2_PIX_FMT_HEVC)) {
+        if (v4l2fmtIsCompressed(source_module_output_para.v4l2Fmt)) {
             inst_conf->dec_enabled = true;
         }
     } else {
@@ -531,7 +544,7 @@ SOURCE_CREATED:
 
     inst->last_module = inst->source_module;
 
-    // inst->dec_enabled = false;
+    // inst_conf->dec_enabled = false;
     if (inst_conf->dec_enabled) {
         shared_ptr<ModuleMppDec> dec = make_shared<ModuleMppDec>();
         dec->setProductor(inst->last_module);
@@ -567,6 +580,7 @@ SOURCE_CREATED:
         }
     }
 
+    // inst_conf->rga_enabled = false;
     if (inst_conf->rga_enabled) {
         shared_ptr<ModuleRga> rga = make_shared<ModuleRga>(inst_conf->output_image_para, inst_conf->rotate);
         rga->setProductor(inst->last_module);
@@ -650,28 +664,48 @@ SOURCE_CREATED:
             ff_error("Enc init failed\n");
             goto FAILED;
         }
+        video_extra_buffer = enc->getExtraBuffer();
         inst->last_module = enc;
     }
 
     if (inst_conf->file_w_enabled) {
-        shared_ptr<ModuleFileWriter> file_writer = make_shared<ModuleFileWriter>(inst_conf->output_filename);
-        file_writer->setProductor(inst->last_module);
-        ret = file_writer->init();
-        if (ret < 0) {
-            ff_error("ModuleFileWriter init failed\n");
-            goto FAILED;
-        }
+        do {
+#if FFMPEG_SUPPORT
+            if (inst_conf->ffmpeg_mux_enabled) {
+                shared_ptr<ModuleFFmpegMux> ffmpeg_muxer = make_shared<ModuleFFmpegMux>(inst_conf->output_filename, inst_conf->ffmpeg_outformat);
+                ffmpeg_muxer->setProductor(inst->last_module);
+                if (inst_conf->sync_opt)
+                    ffmpeg_muxer->setSynchronize(make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1)));
 
-        if (inst_conf->audio_enable) {
-            auto file_writer_a = make_shared<ModuleFileWriterExtend>(file_writer, string());
-            file_writer_a->setProductor(inst->last_audio_module ? inst->last_audio_module : inst->source_module);
-            file_writer_a->setAudioParameter(0, 0, 0, MEDIA_CODEC_AUDIO_AAC);
-            ret = file_writer_a->init();
+                /* Some muxes require media extra data to be set in advance. */
+                ffmpeg_muxer->setExtraBuffer(BUFFER_TYPE_VIDEO, video_extra_buffer);
+                ret = ffmpeg_muxer->init();
+                if (ret < 0) {
+                    ff_error("Failed to init ffmpeg muxer\n");
+                    goto FAILED;
+                }
+                break;
+            }
+#endif
+            shared_ptr<ModuleFileWriter> file_writer = make_shared<ModuleFileWriter>(inst_conf->output_filename);
+            file_writer->setProductor(inst->last_module);
+            ret = file_writer->init();
             if (ret < 0) {
-                ff_error("audio writer init failed\n");
+                ff_error("ModuleFileWriter init failed\n");
                 goto FAILED;
             }
-        }
+
+            if (inst_conf->audio_enable) {
+                auto file_writer_a = make_shared<ModuleFileWriterExtend>(file_writer, string());
+                file_writer_a->setProductor(inst->last_audio_module ? inst->last_audio_module : inst->source_module);
+                file_writer_a->setAudioParameter(0, 0, 0, audio_extra_buffer ? audio_extra_buffer->getMediaCodec() : MEDIA_CODEC_AUDIO_AAC);
+                ret = file_writer_a->init();
+                if (ret < 0) {
+                    ff_error("audio writer init failed\n");
+                    goto FAILED;
+                }
+            }
+        } while (0);
     }
 
     if (inst_conf->push_enabled) {
@@ -705,7 +739,7 @@ SOURCE_CREATED:
             if (inst_conf->audio_enable) {
                 auto rtsp_s_a = make_shared<ModuleRtspServerExtend>(rtsp_s, push_path, inst_conf->push_port);
                 rtsp_s_a->setProductor(inst->last_audio_module ? inst->last_audio_module : inst->source_module);
-                rtsp_s_a->setAudioParameter(MEDIA_CODEC_AUDIO_AAC);
+                rtsp_s_a->setAudioParameter(audio_extra_buffer ? audio_extra_buffer->getMediaCodec() : MEDIA_CODEC_AUDIO_AAC);
                 ret = rtsp_s_a->init();
                 if (ret) {
                     ff_error("rtsp server audio init failed\n");
@@ -925,10 +959,19 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                 break;
 #if FFMPEG_SUPPORT
             case 'F':
-                config->ffmpeg_demux_enabled = true;
-                if (optarg) {
-                    strncpy(config->ffmpeg_informat, optarg, sizeof config->ffmpeg_informat);
-                    config->ffmpeg_informat[sizeof(config->ffmpeg_informat) - 1] = '\0';
+                if (strcmp(long_options[option_index].name, "use_ffmpeg_demux") == 0) {
+                    config->ffmpeg_demux_enabled = true;
+                    if (optarg) {
+                        strncpy(config->ffmpeg_informat, optarg, sizeof config->ffmpeg_informat);
+                        config->ffmpeg_informat[sizeof(config->ffmpeg_informat) - 1] = '\0';
+                    }
+
+                } else if (strcmp(long_options[option_index].name, "use_ffmpeg_mux") == 0) {
+                    config->ffmpeg_mux_enabled = true;
+                    if (optarg) {
+                        strncpy(config->ffmpeg_outformat, optarg, sizeof config->ffmpeg_outformat);
+                        config->ffmpeg_outformat[sizeof(config->ffmpeg_outformat) - 1] = '\0';
+                    }
                 }
                 break;
 #endif

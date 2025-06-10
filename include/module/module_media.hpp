@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:54
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-01-08 17:41:12
+ * @LastEditTime: 2025-04-25 14:44:03
  * @Description: 所有组件均派生自ModuleMedia类，ModuleMedia的成员中包含一个消费者队列，记录该组件的所有消费者；
  *               一个MediaBuffer队列，记录该组件所分配的buffer. MediaBuffer队列中存储当前组件的输出数据，
  *               MediaBuffer队列同时也是该组件的所有消费者的输入。
@@ -145,6 +145,20 @@ public:
      */
     shared_ptr<MediaBuffer> getBufferFromIndex(uint16_t index);
 
+    /**
+     * @description: 从缓冲池中导出指定索引值缓冲区。
+     * @param {uint16_t} index              缓冲池的索引值。
+     * @return {shared_ptr<MediaBuffer>}    返回导出的缓冲区。
+     */
+    virtual shared_ptr<MediaBuffer> exportBufferFromBufferPool(uint16_t index);
+
+    /**
+     * @description: 归还缓冲区到缓冲池的指定索引。
+     * @param {shared_ptr<MediaBuffer>} buffer  归还的缓冲区。
+     * @param {uint16_t} index                  缓冲池的索引值。
+     * @return {int}                            成功返回0，失败返回负数。
+     */
+    virtual int importBufferToBufferPool(shared_ptr<MediaBuffer> buffer, uint16_t index);
 
     /**
      * @description: 设置对象的输入数据的图像参数。

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import ff_pymedia as m
+import numpy as np
 import argparse
 import re
 import os
@@ -21,42 +22,23 @@ class Cv2Display():
 def align(x, a):
     return (x + a - 1) & ~(a - 1)
 
-def find_two_numbers(n, x, y):
-    a = 1
-    b = n
-    min_diff = 8192
-    result = (0, 0)
-    while a <= b:
-        if n % a == 0:
-            b = n // a
-            diff1 = abs(a - x) + abs(b - y)
-            diff2 = abs(a - y) + abs(b - x)
-            if diff1 < min_diff or diff2 < min_diff:
-                if diff1 < diff2:
-                    result = (a, b)
-                else:
-                    result = (b, a)
-                min_diff = min(diff1, diff2)
-        a += 1
-    return result
-
 def cv2_extcall_back(obj, MediaBuffer):
     vb = m.VideoBuffer.from_base(MediaBuffer)
     if obj.sync is not None:
         delay = obj.sync.updateVideo(vb.getPUstimestamp(), 0)
         if delay > 0:
             time.sleep(delay/1000000)
-    data = vb.getActiveData()
-    #flush dma buf to cpu
-    vb.invalidateDrmBuf();
 
-    try:
-        img = data.reshape((vb.getImagePara().vstride, vb.getImagePara().hstride, 3))
-    except ValueError:
-        print("Invalid image resolution!")
-        resolution = find_two_numbers(data.size//3, vb.getImagePara().hstride, vb.getImagePara().vstride)
-        print("Try the recommended resolution: -o {}x{}".format(resolution[0], resolution[1]))
-        exit(-1)
+    # flush dma buf to cpu
+    vb.invalidateDrmBuf()
+
+    # get memoryview object
+    data = vb.getActiveData()
+    img_param = vb.getImagePara()
+    img = np.ndarray(shape=(img_param.height, img_param.width, 3), buffer=data, dtype=np.uint8, strides=(img_param.hstride * 3, 3, 1))
+    #img = np.ndarray(shape =(img_param.vstride, img_param.hstride, 3), buffer=data, dtype=np.uint8)
+    #img_cropped = img[:img_param.height, :img_param.width, :]
+
     for i in range(obj.count):
         cv2.imshow(obj.name + str(i), img)
     cv2.waitKey(1)
@@ -93,15 +75,19 @@ def get_parameters():
     parser.add_argument("--gb28181_server_ip", dest='gb28181_server_ip', type=str, help="Set the server ip of gb28181 client\.")
     parser.add_argument("--gb28181_server_port", dest='gb28181_server_port', type=int, default=5060, help="Set the server port of gb28181 client.")
     parser.add_argument("--use_ffmpeg_demux", dest='use_ffmpeg_demux', type=str, help="Use ffmpeg demux and specify the input format. e.g. --use_ffmpeg_demux default or --use_ffmpeg_demux kmsgrab")
+    parser.add_argument("--use_ffmpeg_mux", dest='use_ffmpeg_mux', type=str, help="Use ffmpeg mux and specify the output format. e.g. --use_ffmpeg_mux mp4 or --use_ffmpeg_mux rtsp")
 
     return parser.parse_args()
 
 def main():
 
     args = get_parameters()
+    video_extra_buffer = None
+    audio_extra_buffer = None
     last_audio_module = None
     input_audio_source = None
     input_source = None
+    ret = 0
 
     if args.input_source is None:
         return 1
@@ -111,29 +97,55 @@ def main():
         else:
             input_source = m.ModuleFFmpegDemux(args.input_source)
         input_source.setInputFormat(args.use_ffmpeg_demux)
+        ret = input_source.init()
+        if ret < 0:
+            print("input_source init failed")
+            return 1
+
+        video_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_VIDEO)
+        audio_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_AUDIO)
     elif args.input_source.startswith("rtsp://"):
         print("input source is a rtsp url")
         input_source = m.ModuleRtspClient(args.input_source, m.RTSP_STREAM_TYPE(args.rtsp_transport), True, args.audio)
+        ret = input_source.init()
+        if ret < 0:
+            print("input_source init failed")
+            return 1
+        video_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_VIDEO)
+        audio_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_AUDIO)
     elif args.input_source.startswith("rtmp://"):
         print("input source is a rtmp url")
         input_source = m.ModuleRtmpClient(args.input_source)
+        ret = input_source.init()
+        if ret < 0:
+            print("input_source init failed")
+            return 1
+        video_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_VIDEO)
+        audio_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_AUDIO)
     else:
         is_stat = os.stat(args.input_source)
         if stat.S_ISCHR(is_stat.st_mode):
             print("input source is a camera device.")
             input_source = m.ModuleCam(args.input_source)
+            ret = input_source.init()
+            if ret < 0:
+                print("input_source init failed")
+                return 1
+
         elif stat.S_ISREG(is_stat.st_mode):
             print("input source is a regular file.")
             input_source = m.ModuleFileReader(args.input_source, args.loop);
+            ret = input_source.init()
+            if ret < 0:
+                print("input_source init failed")
+                return 1
+            video_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_VIDEO)
+            audio_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_AUDIO)
         else:
             print("{} is not support.".format(args.input_source))
             return 1
 
-    ret = input_source.init()
     last_module = input_source
-    if ret < 0:
-        print("input_source init failed")
-        return 1
 
     if args.sync == -1:
         sync = None
@@ -154,17 +166,22 @@ def main():
         input_audio_source = capture
         last_audio_module = capture
 
-        aac_enc = m.ModuleAacEnc()
+        aac_enc = m.ModuleAacEnc(s_info)
         aac_enc.setProductor(last_audio_module)
         ret = aac_enc.init()
         if ret < 0:
             print("Failed to init aac_enc")
             return ret
         last_audio_module = aac_enc
-
+        audio_extra_buffer = aac_enc.getExtraBuffer()
 
     if args.aplay is not None:
-        aac_dec = m.ModuleAacDec()
+        aac_dec = None
+        if audio_extra_buffer is not None:
+            s_info = audio_extra_buffer.getSamplePara()
+            aac_dec = m.ModuleAacDec(audio_extra_buffer.getActiveData(), audio_extra_buffer.getActiveSize(), s_info.sample_rate, s_info.channels)
+        else:
+            aac_dec = m.ModuleAacDec()
         if last_audio_module != None:
             aac_dec.setProductor(last_audio_module)
         else:
@@ -183,9 +200,7 @@ def main():
             return 1
 
     input_para = last_module.getOutputImagePara()
-    if input_para.v4l2Fmt == m.v4l2GetFmtByName("H264") or \
-        input_para.v4l2Fmt == m.v4l2GetFmtByName("MJPEG")or \
-        input_para.v4l2Fmt == m.v4l2GetFmtByName("H265"):
+    if m.v4l2fmtIsCompressed(input_para.v4l2Fmt):
         dec = m.ModuleMppDec()
         dec.setProductor(last_module)
         ret = dec.init()
@@ -276,6 +291,7 @@ def main():
         if ret < 0:
             print("ModuleMppEnc init failed")
             return 1
+        video_extra_buffer = enc.getExtraBuffer()
         last_module = enc
 
         if args.port != 0:
@@ -300,7 +316,11 @@ def main():
                     push_s_a.setProductor(last_audio_module)
                 else:
                     push_s_a.setProductor(input_source)
-                push_s_a.setAudioParameter(m.MEDIA_CODEC_AUDIO_AAC);
+    
+                if audio_extra_buffer is not None:
+                    push_s_a.setAudioParameter(audio_extra_buffer.getMediaCodec())
+                else:
+                    push_s_a.setAudioParameter(m.MEDIA_CODEC_AUDIO_AAC)
                 ret = push_s_a.init()
                 if ret < 0:
                     print("Failed to init audio push server")
@@ -330,24 +350,37 @@ def main():
                 return 1
 
     if args.enmux is not None:
-        enm = m.ModuleFileWriter(args.enmux)
-        enm.setProductor(last_module)
-        ret = enm.init()
-        if ret < 0:
-            print("ModuleFileWriter init failed")
-            return 1
 
-        if args.audio:
-            enm_audio = m.ModuleFileWriterExtend(enm, args.enmux)
-            if last_audio_module != None:
-                enm_audio.setProductor(last_audio_module)
-            else:
-                enm_audio.setProductor(input_source)
-            enm_audio.setAudioParameter(0, 0, 0, m.MEDIA_CODEC_AUDIO_AAC);
-            ret = enm_audio.init()
+        if args.use_ffmpeg_mux is not None:
+            ffmpeg_muxer = m.ModuleFFmpegMux(args.enmux, args.use_ffmpeg_mux)
+            ffmpeg_muxer.setProductor(last_module)
+            if args.sync != -1:
+                ffmpeg_muxer.setSynchronize(m.Synchronize(m.SynchronizeType(args.sync)))
+            # Some muxes require media extra data to be set in advance.
+            ffmpeg_muxer.setExtraBuffer(m.BUFFER_TYPE_VIDEO, video_extra_buffer)
+            ret = ffmpeg_muxer.init()
             if ret < 0:
-                print("Failed to init audio writer")
+                print("Failed to init ModuleFFmpegMux", ret)
                 return 1
+        else:
+            enm = m.ModuleFileWriter(args.enmux)
+            enm.setProductor(last_module)
+            ret = enm.init()
+            if ret < 0:
+                print("Failed to init ModuleFileWriter")
+                return 1
+
+            if args.audio:
+                enm_audio = m.ModuleFileWriterExtend(enm, args.enmux)
+                if last_audio_module != None:
+                    enm_audio.setProductor(last_audio_module)
+                else:
+                    enm_audio.setProductor(input_source)
+                enm_audio.setAudioParameter(0, 0, 0, m.MEDIA_CODEC_AUDIO_AAC);
+                ret = enm_audio.init()
+                if ret < 0:
+                    print("Failed to init audio writer")
+                    return 1
 
     if args.save_file is not None:
         file = open(args.save_file, "wb")

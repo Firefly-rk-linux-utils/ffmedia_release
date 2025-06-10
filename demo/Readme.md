@@ -33,6 +33,8 @@
 ## 录屏并显示
 ./demo /dev/dri/card0 --use_ffmpeg_demux=kmsgrab -x -s
 
+## 读取本地文件，转码成h264,然后使用ffmpeg进行rtsp封装推流
+./demo test.mp4 -e h264 --use_ffmpeg_mux rtsp -m rtsp://192.168.0.11:8554/live -s
 
 ```
 
@@ -140,4 +142,15 @@ c++所展示使用模块接口和python的一一对应。
 
 ## 输入是摄像头设备，编码成h265并封装成mkv文件保存。
 ./demo.py -i /dev/video0 -e 1 -m out.mkv
+
+## 播放本地视频
+./demo.py /home/firefly/test.mp4 -d 0
+./demo.py /home/firefly/test.mp4 --use_ffmpeg_demux mp4 -d 0
+
+## 录屏并显示
+./demo.py -i /dev/dri/card0 --use_ffmpeg_demux kmsgrab -x 1
+
+## 读取本地文件，转码成h264,然后使用ffmpeg进行rtsp封装推流
+./demo.py test.mp4 -e 0 --use_ffmpeg_mux rtsp -m rtsp://192.168.0.11:8554/live -s 0
+
 ```

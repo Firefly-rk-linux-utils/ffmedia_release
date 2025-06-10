@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-04-25 12:52:36
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 14:42:02
+ * @LastEditTime: 2025-05-29 16:20:15
  * @Description:兼容输入和输出组件。Rtmp客户端，支持推流到Rtmp服务器和从Rtmp服务器拉流。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -40,29 +40,11 @@ public:
     int init() override;
 
     /**
-     * @description: 获取视频附加数据。此调用应在对象初始化后使用。
-     * @return {*}
+     * @description: 获取指定类型的媒体附加数据。此调用应在对象初始化之后调用。
+     * @param {MEDIA_BUFFER_TYPE} meida_type    媒体类型。
+     * @return {shared_ptr<MediaBuffer>}        成功返回含有附加数据及媒体参数的MediaBuffer，失败返回空指针。
      */
-    const uint8_t* videoExtraData();
-
-    /**
-     * @description: 获取视频附加数据大小。 此调用应在对象初始化后使用。
-     * @return {*}
-     */
-    unsigned videoExtraDataSize();
-
-    /**
-     * @description: 获取音频附加数据。此调用应在对象初始化后使用。
-     * @return {const uint8_t*}
-     */
-    const uint8_t* audioExtraData();
-
-    /**
-     * @description: 获取音频附加数据大小。此调用应在对象初始化后使用。
-     * @return {*}
-     */
-    unsigned audioExtraDataSize();
-
+    shared_ptr<MediaBuffer> getExtraBuffer(MEDIA_BUFFER_TYPE media_type);
     /**
      * @description: 设置获取网络数据的超时时间。
      * @param {unsigned} sec    秒。

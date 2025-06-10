@@ -26,6 +26,7 @@ ffmedia一共包含以下单元
   - File Writer: 支持mkv、mp4、flv、ts、ps文件封装及裸流等文件保存
   - Alsa PlayBack: 音频播放
   - GB28181 Client: 支持点播
+  - FFmpeg Mux: 支持文件、网络流等封装输出
 - pybind11:
   - pymodule: 创建vi、vo、vp等的c++代码的Python绑定，以提供python调用vi、vo、vp等c++模块的python接口
 
@@ -42,7 +43,7 @@ ffmedia一共包含以下单元
 
 ```
 apt update
-apt install -y gcc g++ make cmake libdrm-dev libjpeg9-dev libasound2-dev libfdk-aac-dev libgles-dev libx11-dev
+apt install -y gcc g++ make cmake libdrm-dev libasound2-dev libfdk-aac1 libgles-dev libx11-dev libjpeg62
 
 # 如需要支持opencv相关demo，安装下列软件包
 
@@ -103,9 +104,24 @@ cp ../inference_examples/lib/RK3588/librknnrt.so /usr/lib/
 ## ffmedia api 文档
 ffmedia的api详细文档：[ffmedia_api.pdf](documentation/ffmedia_api.pdf)
 
-## 多路编解码问题
+## 常见问题
 
-在多路编解码时，如果出现无法申请buf或者无法初始化等，可能是系统限制了进程使用fd的数量
+### 缺少库问题
+如果系统无法安装对应软件包，可在3rdlibs/libs下寻找对应库放进系统或者将该库路径添加到环境里,可参考依赖库路径问题章节添加。
+
+### 依赖库路径问题
+程序运行环境区别可能导致寻找不到依赖的动态库，可通过LD_LIBRARY_PATH将库路径添加进当前环境。
+```
+export LD_LIBRARY_PATH=/path/to/your/libs:$LD_LIBRARY_PATH
+```
+
+或者通过patchelf直接修改程序或者动态库的库路径。
+```
+patchelf --set-rpath /path/to/your/libs <your-binary>
+```
+### 多路编解码失败问题
+
+在多路编解码时，如果出现无法申请buf或者无法初始化等，可能是进程使用文件描述符数量限制，一般为1024。
 更改进程使用的fd数量，临时更改：
 
 ```
@@ -124,13 +140,6 @@ sudo vim /etc/security/limits.conf
 
 ```
 
-## 依赖库路径问题
-程序运行环境区别可能导致寻找不到依赖的动态库，可通过LD_LIBRARY_PATH将库路径添加进当前环境。
-```
-export LD_LIBRARY_PATH=/path/to/your/libs:$LD_LIBRARY_PATH
-```
+## 其他
 
-或者通过patchelf直接修改程序或者动态库的库路径。
-```
-patchelf --set-rpath /path/to/your/libs <your-binary>
-```
+如果遇到问题或者有其他功能需求的，可以提issue，我们将在下个版本修复或添加支持。

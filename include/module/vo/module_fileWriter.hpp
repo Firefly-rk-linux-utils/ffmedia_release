@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-04-25 12:52:36
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-03-27 09:27:45
+ * @LastEditTime: 2025-05-29 16:49:26
  * @Description: 输出组件。文件写入，支持裸流写入及mp4、mkv、flv、ts及ps封装格式写入。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -52,13 +52,14 @@ public:
      */
     void setVideoParameter(int width, int height, media_codec_t type);
 
+
     /**
-     * @description: 设置视频额外数据。
-     * @param {uint8_t*} extra_data     额外数据内存地址。
-     * @param {unsigned} extra_size     额外数据大小。
-     * @return {*}
+     * @description: 设置媒体附件数据。
+     * @param {MEDIA_BUFFER_TYPE} media_type            媒体流类型。
+     * @param {shared_ptr<MediaBuffer>} extra_buffer    含有媒体附加数据的MediaBuffer。
+     * @return {int}                                    >= o 为成功，< 0 为错误代码。
      */
-    void setVideoExtraData(const uint8_t* extra_data, unsigned extra_size);
+    int setExtraBuffer(MEDIA_BUFFER_TYPE media_type, shared_ptr<MediaBuffer> extra_buffer);
 
     /**
      * @description: 设置音频参数，提前创建音频封装器，不设置则从流中实时创建封装器。如果多流混合封装则全部都要提前创建封装器。
@@ -69,14 +70,6 @@ public:
      * @return {*}
      */
     void setAudioParameter(int channel_count, int bit_per_sample, int sample_rate, media_codec_t type);
-
-    /**
-     * @description: 设置音频额外数据。
-     * @param {uint8_t*} extra_data 额外数据内存地址。
-     * @param {unsigned} extra_size 额外数据大小。
-     * @return {*}
-     */
-    void setAudioExtraData(const uint8_t* extra_data, unsigned extra_size);
 
     /**
      * @description: 手动输入媒体数据。
@@ -107,9 +100,8 @@ public:
     int changeFileName(string file_name);
     int init() override;
     void setVideoParameter(int width, int height, media_codec_t type);
-    void setVideoExtraData(const uint8_t* extra_data, unsigned extra_size);
     void setAudioParameter(int channel_count, int bit_per_sample, int sample_rate, media_codec_t type);
-    void setAudioExtraData(const uint8_t* extra_data, unsigned extra_size);
+    int setExtraBuffer(MEDIA_BUFFER_TYPE media_type, shared_ptr<MediaBuffer> extra_buffer);
     int setInputBuffer(shared_ptr<MediaBuffer> input_buffer);
 
 protected:

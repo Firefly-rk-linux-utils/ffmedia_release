@@ -213,11 +213,13 @@ def inf_task(inf, media_buffer, ratio=(1.0,1.0)):
     #print(f"post process run use: {end_time - start_time:.6f} s")
 
     vb = m.VideoBuffer.from_base(media_buffer)
+    vb.invalidateDrmBuf();
+    # get memoryview object
     data = vb.getActiveData()
-    img = data.reshape((vb.getImagePara().vstride, vb.getImagePara().hstride, 3))
+    img_param = vb.getImagePara()
+    img = np.ndarray(shape=(img_param.height, img_param.width, 3), buffer=data, dtype=np.uint8, strides=(img_param.hstride * 3, 3, 1))
     if boxes is not None:
         draw(img, boxes, scores, classes, ratio)
 
-    vb.invalidateDrmBuf();
     return img
 

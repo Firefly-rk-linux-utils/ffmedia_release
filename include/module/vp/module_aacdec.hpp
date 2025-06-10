@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 14:54:43
+ * @LastEditTime: 2025-05-30 17:03:25
  * @Description: 音频解码组件。支持aac格式解码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -24,6 +24,8 @@ class ModuleAacDec : public ModuleMedia
 
 public:
     ModuleAacDec();
+    ModuleAacDec(shared_ptr<MediaBuffer> extra_buffer);
+
     /**
      * @description: ModuleAacDec 的构造函数。以下参数可从aac流中获取，可不用设置。
      * @param {const uint8_t*} _extradata   音频额外数据。

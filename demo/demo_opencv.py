@@ -1,31 +1,13 @@
 #!/usr/bin/env python3
 import ff_pymedia as m
+import numpy as np
 import argparse
 import re
 import os
 import stat
 import cv2
 import threading
-
-def find_two_numbers(n, x, y):
-    a = 1
-    b = n
-    min_diff = 8192
-    result = (0, 0)
-    while a <= b:
-        if n % a == 0:
-            b = n // a
-            diff1 = abs(a - x) + abs(b - y)
-            diff2 = abs(a - y) + abs(b - x)
-            if diff1 < min_diff or diff2 < min_diff:
-                if diff1 < diff2:
-                    result = (a, b)
-                else:
-                    result = (b, a)
-                min_diff = min(diff1, diff2)
-        a += 1
-    return result
-
+import time
 
 class Cv2Display(threading.Thread):
     def __init__(self, name, module, sync):
@@ -44,34 +26,29 @@ class Cv2Display(threading.Thread):
         cv2.namedWindow(self.name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(self.name, input_para.width, input_para.height)
         cv2.startWindowThread()
-        delay = 1
         while not self.is_stop and cv2.getWindowProperty(self.name, cv2.WND_PROP_VISIBLE) > 0:
-            with self.lock:
-                while not self.frame_complete:
-                    self.condition.wait()
+            with self.condition:
+                if not self.frame_complete:
+                    self.condition.wait(timeout=1)
 
-                data = self.frame.getActiveData()
-                #flush dma buf to cpu
-                self.frame.invalidateDrmBuf();
+                if self.frame_complete:
+                    if self.sync is not None:
+                        delay = self.sync.updateVideo(self.frame.getPUstimestamp(), 0)
+                        if delay > 0:
+                            time.sleep(delay/1000000)
 
-                try:
-                    img = data.reshape((input_para.vstride, input_para.hstride, 3))
-                except ValueError:
-                    print("Invalid image resolution!")
-                    resolution = find_two_numbers(data.size//3, input_para.hstride, input_para.vstride)
-                    print("Try the recommended resolution: -o {}x{}".format(resolution[0], resolution[1]))
-                    break
+                    #flush dma buf to cpu
+                    self.frame.invalidateDrmBuf();
+                    data = self.frame.getActiveData()
+                    img_param = self.frame.getImagePara()
+                    img = np.ndarray(shape=(img_param.height, img_param.width, 3), buffer=data, dtype=np.uint8, strides=(img_param.hstride * 3, 3, 1))
+                    #img = np.ndarray(shape =(img_param.vstride, img_param.hstride, 3), buffer=data, dtype=np.uint8)
+                    #img_cropped = img[:img_param.height, :img_param.width, :]
 
-                if self.sync is not None:
-                    delay = self.sync.updateVideo(self.frame.getPUstimestamp(), 0)//1000
-                    if delay == 0:
-                        delay = 1
-
-                cv2.imshow(self.name, img)
-                self.frame_complete = False
-                self.condition.notify()
-
-            cv2.waitKey(delay)
+                    cv2.imshow(self.name, img)
+                    cv2.waitKey(1)
+                    self.frame_complete = False
+                    self.condition.notify()
 
         cv2.destroyAllWindows()
 
@@ -88,13 +65,15 @@ def call_back(obj, MediaBuffer):
 #    print('VideoBuffer data size: ', a.size)
 
 def cv2_call_back(obj, MediaBuffer):
-    with obj.lock:
+    with obj.condition:
         while obj.frame_complete:
             if not obj.condition.wait(timeout=1):
                 return
-        vb = obj.module.exportUseMediaBuffer(MediaBuffer, obj.frame, 0)
-        if vb is not None:
-            obj.frame = vb
+
+        if obj.frame is not None:
+            obj.module.importBufferToBufferPool(obj.frame, obj.frame.getIndex())
+        obj.frame = obj.module.exportBufferFromBufferPool(MediaBuffer.getIndex())
+        if obj.frame is not None:
             obj.frame_complete = True
         obj.condition.notify()
 
@@ -129,7 +108,7 @@ def main():
             input_source = m.ModuleCam(args.input_source)
         elif stat.S_ISREG(is_stat.st_mode):
             print("input source is a regular file.")
-            input_source = m.ModuleFileReader(args.input_source, 1);
+            input_source = m.ModuleFileReader(args.input_source, 0);
         else:
             print("{} is not support.".format(args.input_source))
             return 1
@@ -194,7 +173,7 @@ def main():
 
         rga = m.ModuleRga(input_para, output_para, rotate)
         rga.setProductor(last_module)
-        rga.setBufferCount(1)
+        rga.setBufferCount(2)
         ret = rga.init()
         if ret < 0:
             print("rga init failed")
@@ -228,7 +207,6 @@ def main():
 
         cv_display = Cv2Display("Cv2Display", last_module, sync)
         last_module.setOutputDataCallback(cv_display, cv2_call_back)
-        cv_display.frame = last_module.newModuleMediaBuffer(m.BUFFER_TYPE.DRM_BUFFER_CACHEABLE)
         cv_display.start()
 
     if args.save_file is not None:
@@ -237,11 +215,11 @@ def main():
 
     input_source.start()
     text = input("wait...")
+    input_source.stop()
 
     if cv_display is not None:
         cv_display.stop()
         cv_display.join()
-    input_source.stop()
 
     if args.save_file is not None:
         file.close()

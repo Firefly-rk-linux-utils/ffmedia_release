@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-01-07 17:39:30
+ * @LastEditTime: 2025-04-25 14:48:34
  * @Description: 视频解码组件。支持H264、H265及MJPEG解码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -62,6 +62,21 @@ public:
      * @return {int} 成功返回 0，失败返回负数。
      */
     int init() override;
+
+    /**
+     * @description: 从缓冲池中导出指定索引值缓冲区。
+     * @param {uint16_t} index              缓冲池的索引值。
+     * @return {shared_ptr<MediaBuffer>}    返回导出的缓冲区。
+     */
+    virtual shared_ptr<MediaBuffer> exportBufferFromBufferPool(uint16_t index) override;
+
+    /**
+     * @description: 归还缓冲区到缓冲池的指定索引。
+     * @param {shared_ptr<MediaBuffer>} buffer  归还的缓冲区。
+     * @param {uint16_t} index                  缓冲池的索引值。
+     * @return {int}                            成功返回0，失败返回负数。
+     */
+    virtual int importBufferToBufferPool(shared_ptr<MediaBuffer> buffer, uint16_t index) override;
 };
 
 #endif

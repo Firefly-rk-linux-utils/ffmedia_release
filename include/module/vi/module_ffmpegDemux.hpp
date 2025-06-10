@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-11-01 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 10:35:38
+ * @LastEditTime: 2025-05-29 15:46:09
  * @Description: 输入源组件, 支持文件、网络及UVC等流的读取。通过FFmpeg接口操作获取数据。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -44,10 +44,10 @@ public:
 
     /**
      * @description: 设置参数选项的键值对。
-     * @param {string} key      键。
+     * @param {const string &} key      键, 为空时清空所有键值对。
      * @param {const string &} value    值。
-     * @param {int} flags       标志位。
-     * @return {int}            >= o 为成功，< 0 为错误代码。
+     * @param {int} flags               标志位。
+     * @return {int}                    >= o 为成功，< 0 为错误代码。
      */
     int setFormatOption(const string& key, const string& value, int flags);
     /**
@@ -85,31 +85,17 @@ public:
     SampleInfo getAudioSampleInfo();
 
     /**
-     * @description: 获取音频附加数据。此调用应在对象初始化后使用。
-     * @return {const uint8_t*}
+     * @description: 获取指定类型的媒体附加数据。此调用应在对象初始化之后调用。
+     * @param {MEDIA_BUFFER_TYPE} meida_type    媒体类型。
+     * @return {shared_ptr<MediaBuffer>}        成功返回含有附加数据及媒体参数的MediaBuffer，失败返回空指针。
      */
-    const uint8_t* audioExtraData();
-    /**
-     * @description: 获取音频附加数据大小。此调用应在对象初始化后使用。
-     * @return {*}
-     */
-    unsigned audioExtraDataSize();
+    shared_ptr<MediaBuffer> getExtraBuffer(MEDIA_BUFFER_TYPE media_type);
 
     /**
      * @description: 获取视频格式。此调用应在对象初始化后使用。
      * @return {*}
      */
     media_codec_t getVideoCodec();
-    /**
-     * @description: 获取视频附加数据。此调用应在对象初始化后使用。
-     * @return {*}
-     */
-    const uint8_t* videoExtraData();
-    /**
-     * @description: 获取视频附加数据大小。 此调用应在对象初始化后使用。
-     * @return {*}
-     */
-    unsigned videoExtraDataSize();
 
     /**
      * @description: 设置读取数据包的超时时间。

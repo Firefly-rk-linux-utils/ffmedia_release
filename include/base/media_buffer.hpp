@@ -32,6 +32,7 @@ protected:
         SampleInfo a;
         ImagePara v;
     } mediaPara;
+    media_codec_t media_codec;
 
 public:
     MediaBuffer(size_t _size = 0);
@@ -91,6 +92,8 @@ public:
     void setImagePara(const ImagePara& para) { mediaPara.v = para; }
     SampleInfo getSamplePara() const { return mediaPara.a; }
     void setSamplePara(const SampleInfo& para) { mediaPara.a = para; }
+    media_codec_t getMediaCodec() const { return media_codec; }
+    void setMediaCodec(media_codec_t codec) { media_codec = codec; }
 };
 
 #endif
