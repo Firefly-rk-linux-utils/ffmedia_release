@@ -15,6 +15,16 @@ class rknnModelInference;
 class ModuleInference : public ModuleMedia
 {
 public:
+    enum NPU_SCHEDULER_CORE {
+        NPU_CORE_AUTO = 0,
+        NPU_CORE_0 = 1 << 0,
+        NPU_CORE_1 = 1 << 1,
+        NPU_CORE_2 = 2 << 2,
+        NPU_CORE_0_1 = NPU_CORE_0 | NPU_CORE_1,
+        NPU_CORE_0_1_2 = NPU_CORE_0_1 | NPU_CORE_2
+    };
+
+public:
     ModuleInference();
     /**
      * @description: ModuleInference 的构建函数。
@@ -37,7 +47,7 @@ public:
      * @param {size_t} model_size   模型大小。输入模型路径时大小设置0。
      * @return {*}
      */
-    int setModelData(void* model, size_t model_size);
+    int setModelData(void* model, size_t model_size, NPU_SCHEDULER_CORE mask = NPU_CORE_AUTO);
 
     /**
      * @description: 移除加载的模型。此调用应在对象初始化之前或停止期间调用。

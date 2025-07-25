@@ -32,8 +32,6 @@ void callback_blend(void* _ctx, shared_ptr<MediaBuffer> buffer)
     cv::putText(image, timeText, textPosition, cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 0, 255), 2);
 
     if (buf_fd > 0) {
-        // flush data to dma
-        ctx->vb->flushDrmBuf();
         ctx->rga->setPatBuffer(buf_fd, ModuleRga::BLEND_DST_OVER);
     } else {
         ctx->rga->setPatBuffer(buf, ModuleRga::BLEND_DST_OVER);
@@ -54,7 +52,7 @@ int main(int argc, char** argv)
     blend_ctx.vb = NULL;
 
     // 1. rtsp client module
-    rtsp_c = make_shared<ModuleRtspClient>("rtsp://admin:firefly123@168.168.2.99:554/av_stream", RTSP_STREAM_TYPE_TCP);
+    rtsp_c = make_shared<ModuleRtspClient>("rtsp://admin:firefly123@172.16.2.99:554/av_stream", RTSP_STREAM_TYPE_TCP);
     ret = rtsp_c->init();
     if (ret < 0) {
         ff_error("rtsp client init failed\n");
@@ -87,7 +85,7 @@ int main(int argc, char** argv)
     // Use rga output ImagePara construct the blend BGRA ImagePara
     ImagePara BGRA_para(input_para.width, input_para.height, input_para.hstride, input_para.vstride, V4L2_PIX_FMT_BGR32);
     blend_ctx.rga = rga;
-    blend_ctx.vb = make_shared<VideoBuffer>(VideoBuffer::DRM_BUFFER_CACHEABLE);
+    blend_ctx.vb = make_shared<VideoBuffer>(VideoBuffer::DRM_BUFFER_NONCACHEABLE);
     blend_ctx.vb->allocBuffer(BGRA_para);
     memset(blend_ctx.vb->getData(), 0, blend_ctx.vb->getSize());
     // set the blend image para
@@ -114,13 +112,13 @@ int main(int argc, char** argv)
     } else {
         uint32_t t_w, t_h;
         drm_display->getPlaneSize(&t_w, &t_h);
-        uint32_t w = std::min(t_w / 2, input_para.width);
-        uint32_t h = std::min(t_h / 2, input_para.height);
+        uint32_t w = std::min(t_w, input_para.width);
+        uint32_t h = std::min(t_h, input_para.height);
         uint32_t x = (t_w - w) / 2;
         uint32_t y = (t_h - h) / 2;
 
         ff_info("x y w h %d %d %d %d\n", x, y, w, h);
-        drm_display->setWindowRect(x, y, w, h);
+        drm_display->setPlaneRect(x, y, w, h);
     }
 
     // 4. start origin producer

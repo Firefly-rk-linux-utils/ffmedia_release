@@ -2,14 +2,16 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-05-29 19:49:29
+ * @LastEditTime: 2025-07-09 14:45:59
  * @Description: 音频编码组件。音频编码，支持aac编码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE__AACENC_HPP__
-#define __MODULE__AACENC_HPP__
+#pragma once
 
 #include "module/module_media.hpp"
+
+#if AUDIO_SUPPORT
+
 #include "base/ff_type.hpp"
 
 struct AACENCODER;

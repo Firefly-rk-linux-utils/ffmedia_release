@@ -2,12 +2,14 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 14:45:39
+ * @LastEditTime: 2025-07-09 14:52:08
  * @Description: 输出组件，通过alsa接口播放音频。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
 #pragma once
 #include "module/module_media.hpp"
+
+#if AUDIO_SUPPORT
 
 class AlsaPlayBack;
 class ModuleAlsaPlayBack : public ModuleMedia
@@ -58,3 +60,5 @@ private:
     char* frame;
     size_t frameBytes;
 };
+
+#endif  // AUDIO_SUPPORT

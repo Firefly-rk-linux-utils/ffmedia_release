@@ -137,11 +137,11 @@ public:
 
     /**
      * @description: 设置混合回调函数，混合前将会调用该回调。使用图像混合功能，需要更新混合的图像，可在回调中设置混合图像内存。
-     * @param {void_object_p} ctx           上下文。
+     * @param {void_object} ctx             上下文。
      * @param {callback_handler} callback   混合回调函数指针。
      * @return {*}
      */
-    void setBlendCallback(void_object_p ctx, callback_handler callback);
+    void setBlendCallback(void_object ctx, callback_handler callback);
 
     /**
      * @description: 设置图像旋转模式

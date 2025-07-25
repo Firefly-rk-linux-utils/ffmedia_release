@@ -1,11 +1,155 @@
 # demo 用法
 该目录下的demo是展现vi、vp及vo 模块的使用示例
 
-## c++ demo
+## CPP demo
 
 ### demo.cpp
 该demo展现了大部分模块的基本使用示例。
-简单使用示例说明:
+
+#### file
+
+读取或写入文件。
+
+- 读取
+
+```
+# 解封装解码播放; opengl渲染(-x), drm渲染(-d 0), 同步(-s)
+./demo input.mp4 -x -s
+./demo input.mp4 -d 0 -s
+# 使用ffmpeg解封装
+./demo input.mp4 --use_ffmpeg_demux -x -s
+```
+
+- 写入
+
+```
+# mp4转封装mkv; 关闭解码（--dec_disabled）
+./demo input.mp4 --dec_disabled -m output.mpeg
+# 使用ffmpeg转封装
+./demo input.mp4 --use_ffmpeg_demux --dec_disabled --use_ffmpeg_mux -m output.mpeg
+# 管道输出
+./demo input.mp4 --dec_disabled --use_ffmpeg_mux=h264 -m pipe:1
+```
+
+#### camera
+
+```
+# 尝试以分辨率为1920x1080，格式为nv12图像参数实时预览摄像头；指定输入图像分辨率(-i 1920x1080), 指定输入图像格式(-a nv12)
+./demo /dev/videoX -i 1920x1080 -a nv12 -d 0
+```
+
+#### rtsp
+
+- 拉流
+```
+# 拉流解码播放; drm渲染(-d 0), 同步(-s), 传输协议（--rtsp_transport udp）
+./demo rtsp://hostname[:port]/path -d 0 -s
+./demo rtsp://hostname[:port]/path --use_ffmpeg_demux=rtsp --rtsp_transport udp -d 0 -s
+
+# 拉取16路rtsp流解码播放
+./demo rtsp://hostname[:port]/path -d 0 -s -c 16
+```
+
+- 推流
+
+```
+# 媒体视频文件实时发送流到RTSP服务器，供其他人观看
+./demo input.mp4 --use_ffmpeg_mux=rtsp --dec_disabled -m rtsp://hostname[:port]/path -s
+```
+
+- RTSP服务器
+
+```
+# 自身做RTSP服务器，供其他人来拉流观看：rtsp://localhost:8554/live/test
+./demo input.mp4 --dec_disabled --port 8554 --push_path "/live/test" -s
+# 拉流转码转播
+./demo rtsp://hostname[:port]/path -e h265 --port 8554 --push_path "/live/test" -s
+```
+
+
+#### rtmp
+
+- 拉流
+
+```
+# 拉流解码播放; drm渲染(-d 0), 同步(-s)
+./demo rtmp://server[:port][/app][/playpath] -d 0 -s
+./demo rtmp://server[:port][/app][/playpath] --use_ffmpeg_demux=rtmp -d 0 -s
+```
+
+
+- 推流
+
+```
+# 媒体视频文件实时发送流到RTMP服务器，供其他人观看
+./demo input.mp4 --dec_disabled --rtmp_url rtmp://server[:port][/app][/playpath] -s
+./demo input.mp4 --dec_disabled --use_ffmpeg_mux=rtmp -m rtmp://server[:port][/app][/playpath] -s
+# 转码h264再发送流到RTMP服务器
+./demo input.mp4 -e h264 --use_ffmpeg_mux=rtmp -m rtmp://server[:port][/app][/playpath] -s
+```
+
+
+- RTMP服务器
+
+```
+# 自身做RTMP服务器，供其他人来拉流观看：rtsp://localhost:1935/live/test
+./demo input.mp4 --dec_disabled --push_type rtmp --port 1935 --push_path "/live/test" -s
+```
+
+
+#### webrtc
+
+- whep
+
+```
+# 拉流播放，如需设置token可通过FFmpegDemux的setFormatOption接口设置：setFormatOption("bearer_token"，"xxxx", 0);
+./demo "http://server:port/path" --use_ffmpeg_demux=whep -d 0 -s
+```
+
+- whip
+
+```
+# 推流到webrtc服务器，如需设置token可通过FFmpegMux的setFormatOption接口设置。
+./demo input.mp4 --dec_disabled --use_ffmpeg_mux=whip -m "http://server:port/path"
+# 转码h264再发送流到webrtc服务器
+./demo input.mp4 -e h264 --use_ffmpeg_mux=whip -m "http://server:port/path"
+```
+
+#### 视频处理
+
+- 解码
+
+解码默认开启，如果不需要解码可通过--dec_disabled关闭解码
+
+```
+# 读取视频文件并解码输出到 output.nv12文件上
+./demo input.mp4 -m output.nv12
+# 拉取rtsp流解码并通过管道输出到标准输出(stdout)
+./demo rtsp://hostname[:port]/path --use_ffmpeg_mux=rawvideo -m pipe:1
+```
+
+- 图像处理
+
+```
+# 读取媒体文件就，解码并将图像分辨率调整至1280x720，图像格式转换成bgr24，并且旋转180度显示
+./demo input.mp4 -o 1280x720 -b bgr24 -r 180 -x -s
+
+# 拉取rtsp流解码并调整图像格式为YUV420，通过管道输出到标准输出(stdout)
+./demo rtsp://hostname[:port]/path -b YUV420 --use_ffmpeg_mux=rawvideo -m pipe:1
+```
+
+- 编码
+
+```
+# 读取分辨率为1920x1080,格式为nv12裸流进行h264编码并输出文件
+./demo input.yuv -i 1920x1080 -a nv12 -e h264 -m output.h264
+# rtmp拉流、转码成h265、并推流到RTSP服务器
+./demo rtmp://server[:port][/app][/playpath] -e h265 --use_ffmpeg_mux=rtsp -m "rtsp://hostname[:port]/path"
+```
+
+
+
+#### 其他示范
 
 ```
 ## 示范：输入是分辨率为 1080p 的tcp流 rtsp 摄像头，把解码图像缩放为 720p 并且旋转 90 度，使用drm显示, 使用同步播放。
@@ -34,7 +178,7 @@
 ./demo /dev/dri/card0 --use_ffmpeg_demux=kmsgrab -x -s
 
 ## 读取本地文件，转码成h264,然后使用ffmpeg进行rtsp封装推流
-./demo test.mp4 -e h264 --use_ffmpeg_mux rtsp -m rtsp://192.168.0.11:8554/live -s
+./demo test.mp4 -e h264 --use_ffmpeg_mux=rtsp -m rtsp://192.168.0.11:8554/live -s
 
 ```
 
@@ -86,7 +230,7 @@
 ./demo_multi_splice
 ```
 
-### demo_yolov5.cpp demo_yolov5_extend.cpp demo_yolov5_track.cpp
+### 推理示例
 该源码在inference_examples/yolov5/src/
 #### 编译
 
@@ -103,11 +247,11 @@ cp -r ../inference_examples/yolov5/model inference_examples/    #将yolov5的mod
 ```
 # 进入推理示例的编译目录
 cd inference_examples/
-# 物体识别示例
-./demo_yolov5 test.mp4 ./model/RK3588/yolov5s-640-640.rknn
-# taskset -c 4 ./demo_yolov5 test.mp4 ./model/RK3588/yolov5s-640-640.rknn
+# 物体识别示例，可输入媒体文件、网络流等
+./demo_yolov5 input.mp4 ./model/RK3588/yolov5s-640-640.rknn
+# taskset -c 4 ./demo_yolov5 input.mp4 ./model/RK3588/yolov5s-640-640.rknn
 
-# 目标跟踪示例
+# 目标跟踪示例，可输入媒体文件、网络流等
 ./demo_yolov5_track rtsp://xxx ./model/RK3588/yolov5s-640-640.rknn
 
 
@@ -121,7 +265,7 @@ c++所展示使用模块接口和python的一一对应。
 
 如需要更新python版本的ffmedia库需要先卸载旧库再安装新的。
 ### demo.py
-该demo展现了大部分模块的基本使用示例。
+demo.py和demo.cpp的参数类似。
 简单使用说明:
 
 ```
@@ -154,3 +298,15 @@ c++所展示使用模块接口和python的一一对应。
 ./demo.py test.mp4 -e 0 --use_ffmpeg_mux rtsp -m rtsp://192.168.0.11:8554/live -s 0
 
 ```
+
+### 推理示例
+
+yolov5推理示例位于inference_examples/yolov5/python目录下
+
+对该目录下的sample_720p.mp4视频解封装、解码、推理、将推理结果绘制到画面并显示和编码封装成result.mp4
+
+```
+cd inference_examples/yolov5/python
+python3 main.py
+```
+

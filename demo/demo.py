@@ -68,7 +68,7 @@ def get_parameters():
     parser.add_argument("--connector", dest='connector', type=int, default=0, help="Set drm display connector, default 0 to auto find connector")
     parser.add_argument("-z","--zpos", dest='zpos', type=int, default=0xff, help="Drm display plane zpos, default auto select")
     parser.add_argument("-c", "--cvdisplay", dest='cvdisplay', type=int, default=0, help="OpenCv display, set window number, default 0")
-    parser.add_argument("-x", "--x11display", dest='x11display', type=int, default=0, help="X11 window displays, render the video using gles. default disabled")
+    parser.add_argument("-x", "--x11display", dest='x11display', type=bool, default=False, help="X11 window displays, render the video using gles. default disabled")
     parser.add_argument("-l", "--loop", dest='loop', action='store_true', help="Loop reads the media file.")
     parser.add_argument("--gb28181_user_id", dest='gb28181_user_id', type=str, help="Enable gb28181 client, default disabled. set user id.")
     parser.add_argument("--gb28181_server_id", dest='gb28181_server_id', type=str, help="Set the server id of gb28181 client.")
@@ -263,8 +263,8 @@ def main():
             y = (t_h - h) // 2
             drm_display.setWindowSize(x, y, w, h)
     else:
-        if args.x11display != 0:
-            x11_display = m.ModuleRendererVideo(args.input_source)
+        if args.x11display:
+            x11_display = m.ModuleRendererVideo()
             x11_display.setProductor(last_module)
             x11_display.setSynchronize(sync)
             ret = x11_display.init()
@@ -316,7 +316,7 @@ def main():
                     push_s_a.setProductor(last_audio_module)
                 else:
                     push_s_a.setProductor(input_source)
-    
+
                 if audio_extra_buffer is not None:
                     push_s_a.setAudioParameter(audio_extra_buffer.getMediaCodec())
                 else:

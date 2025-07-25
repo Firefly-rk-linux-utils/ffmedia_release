@@ -35,12 +35,12 @@ def process(input, mask, anchors):
     anchors = [anchors[i] for i in mask]
     grid_h, grid_w = map(int, input.shape[0:2])
 
-    box_confidence = sigmoid(input[..., 4])
+    box_confidence = input[..., 4]
     box_confidence = np.expand_dims(box_confidence, axis=-1)
 
-    box_class_probs = sigmoid(input[..., 5:])
+    box_class_probs = input[..., 5:]
 
-    box_xy = sigmoid(input[..., :2])*2 - 0.5
+    box_xy = input[..., :2] * 2 - 0.5
 
     col = np.tile(np.arange(0, grid_w), grid_w).reshape(-1, grid_w)
     row = np.tile(np.arange(0, grid_h).reshape(-1, 1), grid_h)
@@ -50,7 +50,7 @@ def process(input, mask, anchors):
     box_xy += grid
     box_xy *= int(IMG_SIZE/grid_h)
 
-    box_wh = pow(sigmoid(input[..., 2:4])*2, 2)
+    box_wh = pow(input[..., 2:4] * 2, 2)
     box_wh = box_wh * anchors
 
     box = np.concatenate((box_xy, box_wh), axis=-1)

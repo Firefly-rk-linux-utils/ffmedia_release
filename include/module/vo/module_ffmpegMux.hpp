@@ -2,14 +2,14 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2025-05-21 15:33:04
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-05-30 15:11:41
+ * @LastEditTime: 2025-07-08 17:38:01
  * @Description: 输出组件，支持文件，网络等流输出。通过FFmpeg接口输出数据。
  * Copyright (c) 2025-present The ffmedia project authors, All Rights Reserved.
  */
 
 #pragma once
-
 #include "module/module_media.hpp"
+#if FFMPEG_SUPPORT
 
 struct AVFormatContext;
 struct AVDictionary;
@@ -111,3 +111,5 @@ private:
     OutPutStream _audio_stream;
     bool _header_written;
 };
+
+#endif  // FFMPEG_SUPPORT

@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:54
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-04-25 14:44:03
+ * @LastEditTime: 2025-07-07 16:51:55
  * @Description: 所有组件均派生自ModuleMedia类，ModuleMedia的成员中包含一个消费者队列，记录该组件的所有消费者；
  *               一个MediaBuffer队列，记录该组件所分配的buffer. MediaBuffer队列中存储当前组件的输出数据，
  *               MediaBuffer队列同时也是该组件的所有消费者的输入。
@@ -39,24 +39,24 @@
 #include "base/ff_log.h"
 #include "base_config.h"
 
-using namespace std;
-#ifdef PYBIND11_MODULE
-#include <pybind11/pybind11.h>
-using void_object = pybind11::object;
-using void_object_p = pybind11::object&;
-#else
-using void_object = void*;
-using void_object_p = void*;
-#endif
-
-using callback_handler = std::function<void(void_object, shared_ptr<MediaBuffer>)>;
-
 enum ModuleStatus {
     STATUS_CREATED = 0,  // 创建状态
     STATUS_STARTED,      // 运行状态
     STATUS_EOS,          // 流结束状态
     STATUS_STOPED,       // 停止状态
 };
+
+using namespace std;
+#ifdef PYBIND11_MODULE
+#include <pybind11/pybind11.h>
+using void_object = pybind11::object;
+using callback_handler = std::function<void(void_object, shared_ptr<MediaBuffer>)>;
+using ModuleStatusChangeCallbackFunc = std::function<void(void_object, ModuleStatus)>;
+#else
+using void_object = void*;
+typedef void (*callback_handler)(void_object arg, shared_ptr<MediaBuffer> buffer);
+typedef void (*ModuleStatusChangeCallbackFunc)(void_object ctx, ModuleStatus status);
+#endif
 
 class ModuleMedia : public std::enable_shared_from_this<ModuleMedia>
 {
@@ -216,21 +216,29 @@ public:
     void setSynchronize(shared_ptr<Synchronize> syn) { sync = syn; }
 
     /**
-     * @description: 为对象添加回调函数，处理对象的输出数据，每次生产数据后，均会被调用。
-     * @param {void_object_p} ctx           回调函数上下文。
+     * @description: 添加对象状态改变回调函数。
+     * @param {void_object} ctx             回调函数上下文。
      * @param {callback_handler} callback   回调函数。
      * @return {*}
      */
-    void setOutputDataCallback(void_object_p ctx, callback_handler callback);
+    void setStatusChangeCallback(void_object ctx, ModuleStatusChangeCallbackFunc callback);
+
+    /**
+     * @description: 为对象添加回调函数，处理对象的输出数据，每次生产数据后，均会被调用。
+     * @param {void_object} ctx             回调函数上下文。
+     * @param {callback_handler} callback   回调函数。
+     * @return {*}
+     */
+    void setOutputDataCallback(void_object ctx, callback_handler callback);
     /**
      * @description: 为组件添加一个外部的消费者。其功能与添加回调相似，两者区别在于组件可以添加多个外部消费者，但是只能添加一个回调函数。
      * @param {const char*} name            外部消费者名称
-     * @param {void_object_p} ctx           外部消费者上下文。
+     * @param {void_object} ctx             外部消费者上下文。
      * @param {callback_handler} callback   外部消费者数据处理函数。
      * @return {shared_ptr<ModuleMedia>}    返回外部组件。
      */
     shared_ptr<ModuleMedia> addExternalConsumer(const char* name,
-                                                void_object_p external_consume_ctx,
+                                                void_object external_consume_ctx,
                                                 callback_handler external_consume);
 
     /**
@@ -297,7 +305,7 @@ protected:
     void notifyProduce();
     void notifyConsume();
 
-    void setModuleStatus(const ModuleStatus& moduleStatus) { module_status = moduleStatus; }
+    void setModuleStatus(const ModuleStatus& moduleStatus);
 
     void work();
     void _dumpPipe(int depth, std::function<void(ModuleMedia*)> func);
@@ -387,6 +395,9 @@ protected:
     bool initialize;
     const uint32_t produce_timeout = 5000;
     const uint32_t consume_timeout = 5000;
+
+    ModuleStatusChangeCallbackFunc moduleStatusHandler;
+    void_object moduleStatusHandlerData;
 };
 
 #endif

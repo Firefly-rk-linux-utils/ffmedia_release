@@ -5,7 +5,7 @@
 #include <getopt.h>
 #include <queue>
 #include <math.h>
-#include <termios.h>
+#include <csignal>
 
 #include "utils.hpp"
 #include "module/vi/module_cam.hpp"
@@ -59,6 +59,7 @@ typedef struct _demo_config {
     char aplay[64] = "";
     char arecord[64] = "";
     char input_source[256] = "";
+    char push_path[256] = "";
     char rtmp_url[256] = "";
     char gb28181_user_id[64] = "";
     char gb28181_server_id[64] = "";
@@ -67,7 +68,7 @@ typedef struct _demo_config {
     RgaRotate rotate = RGA_ROTATE_NONE;
     EncodeType encode_type = ENCODE_TYPE_H264;
     ImagePara input_image_para = {0, 0, 0, 0, 0};
-    ImagePara output_image_para = {0, 0, 0, 0, V4L2_PIX_FMT_NV12};
+    ImagePara output_image_para = {0, 0, 0, 0, 0};
     int push_port = -1;
     int push_type = 0;
     int sync_opt = 0;
@@ -79,7 +80,7 @@ typedef struct _demo_config {
     bool ffmpeg_demux_enabled = false;
     bool ffmpeg_mux_enabled = false;
     bool loop = false;
-    bool dec_enabled = false;
+    bool dec_enabled = true;
     bool rga_enabled = false;
     bool drmdisplay_enabled = false;
     bool x11display_enabled = false;
@@ -104,18 +105,6 @@ typedef struct _demo_data {
 
 } DemoData;
 
-static int mygetch(void)
-{
-    struct termios oldt, newt;
-    int ch;
-    tcgetattr(STDIN_FILENO, &oldt);
-    newt = oldt;
-    newt.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    ch = getchar();
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    return ch;
-}
 
 static void usage(char** argv)
 {
@@ -139,9 +128,10 @@ static void usage(char** argv)
         "-z, --zpos                   Drm display plane zpos, default auto select\n"
         "-e, --encodetype             Encode encode, set encode type, default disabled\n"
         "-f, --file                   Enable save source output data to file, set filename, default disabled\n"
-        "-p, --port                   Enable push stream, default rtsp stream, set push port, depend on encode enabled, default disabled\n"
-        "    --push_type              Set push stream type, default rtsp. e.g. --push_type rtmp\n"
-        "    --rtmp_url               Set the rtmp client push address. e.g. --rtmp_url rtmp://xxx\n"
+        "--port                       Enable push stream, default rtsp stream, set push port, depend on encode enabled, default disabled\n"
+        "--push_type                  Set push stream type, default rtsp. e.g. --push_type rtmp\n"
+        "--push_path                  Set push stream path, default /live/0. e.g. --push_path /live/test\n"
+        "--rtmp_url                   Set the rtmp client push address. e.g. --rtmp_url rtmp://xxx\n"
         "--rtsp_transport             Set the rtsp transport type, default udp.\n"
         "                               e.g. --rtsp_transport tcp | --rtsp_transport multicast\n"
         "-m, --enmux                  Enable save encode data to file. Enable package as mp4, mkv, flv, ts, ps or raw stream files, muxer type depends on the filename suffix.\n"
@@ -156,6 +146,7 @@ static void usage(char** argv)
         "--gb28181_server_id          Set the server id of gb28181 client\n"
         "--gb28181_server_ip          Set the server ip of gb28181 client\n"
         "--gb28181_server_port        Set the server port of gb28181 client\n"
+        "--dec_disabled               Disabled decoder\n"
         "-r, --rotate                 Image rotation degree, default 0\n"
         "                               0:   none\n"
         "                               1:   vertical mirror\n"
@@ -167,7 +158,7 @@ static void usage(char** argv)
         argv[0]);
 }
 
-static const char* short_options = "i:o:a:b:c:d:z:e:f:p:m:r:s::xl";
+static const char* short_options = "i:o:a:b:c:d:z:e:f:m:r:s::xl";
 
 // clang-format off
 static struct option long_options[] = {
@@ -189,7 +180,8 @@ static struct option long_options[] = {
     {"arecord", required_argument, NULL, 'A'},
     {"sync", optional_argument, NULL, 's' },
     {"rtsp_transport", required_argument, NULL, 'P'},
-    {"push_type", required_argument, NULL, 't'},
+    {"push_type", required_argument, NULL, 'p'},
+    {"push_path", required_argument, NULL, 'p'},
     {"rtmp_url", required_argument, NULL, 'R'},
 #if OPENGL_SUPPORT
     {"x11", no_argument, NULL, 'x'},
@@ -203,6 +195,7 @@ static struct option long_options[] = {
     {"gb28181_server_id", required_argument, NULL, 'G'},
     {"gb28181_server_ip", required_argument, NULL, 'G'},
     {"gb28181_server_port", required_argument, NULL, 'G'},
+    {"dec_disabled", no_argument, NULL, 'D'},
     {NULL, 0, NULL, 0}
 };
 // clang-format on
@@ -364,11 +357,6 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
                     break;
             }
 
-            if (strstr(inst_conf->input_source, "mp4")) {
-                inst_conf->dec_enabled = true;
-            } else if (strstr(inst_conf->input_source, "mkv")) {
-                inst_conf->dec_enabled = true;
-            }
         } else {
             inst_conf->ffmpeg_demux_enabled = true;
         }
@@ -394,7 +382,7 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         ret = ffmpeg_demux->init();
         if (ret < 0) {
             ff_error("Failed to init ffmpeg demux\n");
-            goto FAILED;
+            return ret;
         }
 
         video_extra_buffer = ffmpeg_demux->getExtraBuffer(BUFFER_TYPE_VIDEO);
@@ -413,7 +401,7 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         ret = cam->init();
         if (ret < 0) {
             ff_error("camera init failed\n");
-            goto FAILED;
+            return ret;
         }
         inst->last_module = cam;
     } else if (inst_conf->file_r_enabled) {
@@ -426,7 +414,7 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         ret = file_reader->init();
         if (ret < 0) {
             ff_error("file reader init failed\n");
-            goto FAILED;
+            return ret;
         }
         video_extra_buffer = file_reader->getExtraBuffer(BUFFER_TYPE_VIDEO);
         audio_extra_buffer = file_reader->getExtraBuffer(BUFFER_TYPE_AUDIO);
@@ -439,7 +427,7 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         ret = rtsp_c->init();
         if (ret < 0) {
             ff_error("rtsp client init failed\n");
-            goto FAILED;
+            return ret;
         }
         video_extra_buffer = rtsp_c->getExtraBuffer(BUFFER_TYPE_VIDEO);
         audio_extra_buffer = rtsp_c->getExtraBuffer(BUFFER_TYPE_AUDIO);
@@ -451,7 +439,7 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
         ret = rtmp_c->init();
         if (ret < 0) {
             ff_error("rtsp client init failed\n");
-            goto FAILED;
+            return ret;
         }
         video_extra_buffer = rtmp_c->getExtraBuffer(BUFFER_TYPE_VIDEO);
         audio_extra_buffer = rtmp_c->getExtraBuffer(BUFFER_TYPE_AUDIO);
@@ -467,7 +455,7 @@ SOURCE_CREATED:
 
     if (inst_conf->sync_opt) {
         inst->sync = make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1));
-        inst->sync->setFirstFrameDuration(30000);
+        // inst->sync->setFirstFrameDuration(30000);
     }
 
 #if AUDIO_SUPPORT
@@ -481,7 +469,7 @@ SOURCE_CREATED:
         ret = capture->init();
         if (ret < 0) {
             ff_error("capture init failed\n");
-            goto FAILED;
+            return ret;
         }
         inst->source_audio_module = capture;
         inst->last_audio_module = capture;
@@ -491,7 +479,7 @@ SOURCE_CREATED:
         ret = aac_enc->init();
         if (ret < 0) {
             ff_error("aac_enc init failed\n");
-            goto FAILED;
+            return ret;
         }
         audio_extra_buffer = aac_enc->getExtraBuffer();
         inst->last_audio_module = aac_enc;
@@ -508,7 +496,7 @@ SOURCE_CREATED:
         ret = aac_dec->init();
         if (ret < 0) {
             ff_error("aac_dec init failed\n");
-            goto FAILED;
+            return ret;
         }
 
         auto aplay = make_shared<ModuleAlsaPlayBack>(inst_conf->aplay);
@@ -517,7 +505,7 @@ SOURCE_CREATED:
         ret = aplay->init();
         if (ret < 0) {
             ff_error("Audio playback init failed\n");
-            goto FAILED;
+            return ret;
         }
     }
 #endif
@@ -535,11 +523,11 @@ SOURCE_CREATED:
         inst_conf->output_image_para.hstride = ALIGN(inst_conf->output_image_para.width, 16);
         inst_conf->output_image_para.vstride = ALIGN(inst_conf->output_image_para.height, 16);
 
-        if (v4l2fmtIsCompressed(source_module_output_para.v4l2Fmt)) {
-            inst_conf->dec_enabled = true;
+        if (!v4l2fmtIsCompressed(source_module_output_para.v4l2Fmt)) {
+            inst_conf->dec_enabled = false;
         }
     } else {
-        goto FAILED;
+        return -1;
     }
 
     inst->last_module = inst->source_module;
@@ -552,21 +540,23 @@ SOURCE_CREATED:
         ret = dec->init();
         if (ret < 0) {
             ff_error("Dec init failed\n");
-            goto FAILED;
+            return ret;
         }
         inst->last_module = dec;
     }
 
-    {
+    const ImagePara& input_para = inst->last_module->getOutputImagePara();
+    if (!v4l2fmtIsCompressed(input_para.v4l2Fmt)) {
+        if (inst_conf->output_image_para.v4l2Fmt == 0)
+            inst_conf->output_image_para.v4l2Fmt = input_para.v4l2Fmt;
 
-        if (inst_conf->rotate != RGA_ROTATE_NONE) {
-            inst_conf->rga_enabled = true;
-        }
-
-        const ImagePara& input_para = inst->last_module->getOutputImagePara();
         if ((input_para.height != inst_conf->output_image_para.height)
             || (input_para.width != inst_conf->output_image_para.width)
             || (input_para.v4l2Fmt != inst_conf->output_image_para.v4l2Fmt)) {
+            inst_conf->rga_enabled = true;
+        }
+
+        if (inst_conf->rotate != RGA_ROTATE_NONE) {
             inst_conf->rga_enabled = true;
         }
 
@@ -588,7 +578,7 @@ SOURCE_CREATED:
         ret = rga->init();
         if (ret < 0) {
             ff_error("rga init failed\n");
-            goto FAILED;
+            return ret;
         }
         inst->last_module = rga;
     }
@@ -606,7 +596,7 @@ SOURCE_CREATED:
         ret = drm_display->init();
         if (ret < 0) {
             ff_error("drm display init failed\n");
-            goto FAILED;
+            return ret;
         }
 
         uint32_t t_h, t_v;
@@ -643,13 +633,13 @@ SOURCE_CREATED:
     }
 #if OPENGL_SUPPORT
     else if (inst_conf->x11display_enabled) {
-        shared_ptr<ModuleRendererVideo> x11_display = make_shared<ModuleRendererVideo>(inst_conf->input_source);
+        shared_ptr<ModuleRendererVideo> x11_display = make_shared<ModuleRendererVideo>();
         x11_display->setProductor(inst->last_module);
         x11_display->setSynchronize(inst->sync);
         ret = x11_display->init();
         if (ret < 0) {
             ff_error("x11 display init failed\n");
-            goto FAILED;
+            return ret;
         }
     }
 #endif
@@ -662,7 +652,7 @@ SOURCE_CREATED:
         ret = enc->init();
         if (ret < 0) {
             ff_error("Enc init failed\n");
-            goto FAILED;
+            return ret;
         }
         video_extra_buffer = enc->getExtraBuffer();
         inst->last_module = enc;
@@ -682,7 +672,7 @@ SOURCE_CREATED:
                 ret = ffmpeg_muxer->init();
                 if (ret < 0) {
                     ff_error("Failed to init ffmpeg muxer\n");
-                    goto FAILED;
+                    return ret;
                 }
                 break;
             }
@@ -692,7 +682,7 @@ SOURCE_CREATED:
             ret = file_writer->init();
             if (ret < 0) {
                 ff_error("ModuleFileWriter init failed\n");
-                goto FAILED;
+                return ret;
             }
 
             if (inst_conf->audio_enable) {
@@ -702,17 +692,18 @@ SOURCE_CREATED:
                 ret = file_writer_a->init();
                 if (ret < 0) {
                     ff_error("audio writer init failed\n");
-                    goto FAILED;
+                    return ret;
                 }
             }
         } while (0);
     }
 
     if (inst_conf->push_enabled) {
-        char push_path[256] = "";
-        sprintf(push_path, "/live/%d", inst_index);
+        if (strlen(inst_conf->push_path) == 0)
+            sprintf(inst_conf->push_path, "/live/%d", inst_index);
+
         if (inst_conf->push_type) {
-            shared_ptr<ModuleRtmpServer> rtmp_s = make_shared<ModuleRtmpServer>(push_path,
+            shared_ptr<ModuleRtmpServer> rtmp_s = make_shared<ModuleRtmpServer>(inst_conf->push_path,
                                                                                 inst_conf->push_port);
             rtmp_s->setProductor(inst->last_module);
             rtmp_s->setBufferCount(0);
@@ -722,10 +713,10 @@ SOURCE_CREATED:
             ret = rtmp_s->init();
             if (ret) {
                 ff_error("rtmp server init failed\n");
-                goto FAILED;
+                return ret;
             }
         } else {
-            shared_ptr<ModuleRtspServer> rtsp_s = make_shared<ModuleRtspServer>(push_path,
+            shared_ptr<ModuleRtspServer> rtsp_s = make_shared<ModuleRtspServer>(inst_conf->push_path,
                                                                                 inst_conf->push_port);
             rtsp_s->setProductor(inst->last_module);
             rtsp_s->setBufferCount(0);
@@ -734,20 +725,23 @@ SOURCE_CREATED:
             ret = rtsp_s->init();
             if (ret) {
                 ff_error("rtsp server init failed\n");
-                goto FAILED;
+                return ret;
             }
             if (inst_conf->audio_enable) {
-                auto rtsp_s_a = make_shared<ModuleRtspServerExtend>(rtsp_s, push_path, inst_conf->push_port);
+                auto rtsp_s_a = make_shared<ModuleRtspServerExtend>(rtsp_s,
+                                                                    inst_conf->push_path, inst_conf->push_port);
                 rtsp_s_a->setProductor(inst->last_audio_module ? inst->last_audio_module : inst->source_module);
                 rtsp_s_a->setAudioParameter(audio_extra_buffer ? audio_extra_buffer->getMediaCodec() : MEDIA_CODEC_AUDIO_AAC);
                 ret = rtsp_s_a->init();
                 if (ret) {
                     ff_error("rtsp server audio init failed\n");
-                    goto FAILED;
+                    return ret;
                 }
             }
         }
-        ff_info("\n Start push stream: %s://LocalIpAddr:%d%s\n\n", inst_conf->push_type ? "rtmp" : "rtsp", inst_conf->push_port, push_path);
+        ff_info("\n Start push stream: %s://LocalIpAddr:%d%s\n\n",
+                inst_conf->push_type ? "rtmp" : "rtsp", inst_conf->push_port,
+                inst_conf->push_path);
     }
 
     if (strlen(inst_conf->rtmp_url) > 0) {
@@ -759,7 +753,7 @@ SOURCE_CREATED:
         ret = rtmp_c_push->init();
         if (ret) {
             ff_error("Fail to init rtmp client push\n");
-            goto FAILED;
+            return ret;
         }
         ff_info("Rtmp client start push stream: %s\n\n", inst_conf->rtmp_url);
     }
@@ -775,7 +769,7 @@ SOURCE_CREATED:
         ret = gb28181->init();
         if (ret) {
             ff_error("Failed to init gb28181\n");
-            goto FAILED;
+            return ret;
         }
     }
 
@@ -812,9 +806,6 @@ SOURCE_CREATED:
     // clang-format on
 
     return 0;
-
-FAILED:
-    return -1;
 }
 
 static int parse_config(int argc, char** argv, DemoConfig* config)
@@ -867,14 +858,18 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                 config->savetofile_enabled = true;
                 break;
             case 'p':
-                config->push_port = atoi(optarg);
-                config->push_enabled = true;
-                break;
-            case 't':
-                if (strcmp(optarg, "rtmp") == 0)
-                    config->push_type = 1;
-                else
-                    config->push_type = 0;
+                if (strcmp(long_options[option_index].name, "port") == 0) {
+                    config->push_port = atoi(optarg);
+                    config->push_enabled = true;
+                } else if (strcmp(long_options[option_index].name, "push_path") == 0) {
+                    strncpy(config->push_path, optarg, sizeof(config->push_path) - 1);
+                    config->push_path[sizeof(config->push_path) - 1] = '\0';
+                } else if (strcmp(long_options[option_index].name, "push_type") == 0) {
+                    if (strcmp(optarg, "rtmp") == 0)
+                        config->push_type = 1;
+                    else
+                        config->push_type = 0;
+                }
                 break;
             case 'R':
                 strcpy(config->rtmp_url, optarg);
@@ -930,6 +925,9 @@ static int parse_config(int argc, char** argv, DemoConfig* config)
                     config->gb28181_server_port = atoi(optarg);
                 }
 
+                break;
+            case 'D':
+                config->dec_enabled = false;
                 break;
             case 'r':
                 i = atoi(optarg);
@@ -1024,8 +1022,32 @@ int main(int argc, char** argv)
         }
     }
 
-    while (mygetch() != 'q') {
-        usleep(10000);
+    {
+        static volatile sig_atomic_t wait_flag;
+        auto source_module = (insts && insts->source_module) ? insts->source_module : common_source_module;
+        if (source_module) {
+            wait_flag = 1;
+            source_module->setStatusChangeCallback(nullptr, [](void*, ModuleStatus status) {
+                printf("Module state has changed(%d)\n", status);
+                if (status != STATUS_STARTED) {
+                    wait_flag = 0;
+                    kill(getpid(), SIGINT);
+                }
+            });
+        }
+
+        int sig;
+        sigset_t st;
+        sigemptyset(&st);
+        sigaddset(&st, SIGINT);
+        sigaddset(&st, SIGTERM);
+        sigprocmask(SIG_SETMASK, &st, NULL);
+        while (wait_flag) {
+            if (!sigwait(&st, &sig)) {
+                ff_info("receive sig: %d\n", sig);
+                break;
+            }
+        }
     }
 
 EXIT:

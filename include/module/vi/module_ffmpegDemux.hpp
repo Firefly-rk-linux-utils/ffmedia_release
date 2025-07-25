@@ -2,13 +2,13 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-11-01 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-05-29 15:46:09
+ * @LastEditTime: 2025-07-08 17:38:12
  * @Description: 输入源组件, 支持文件、网络及UVC等流的读取。通过FFmpeg接口操作获取数据。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
 #pragma once
-
 #include "module/module_media.hpp"
+#if FFMPEG_SUPPORT
 
 struct AVFormatContext;
 struct AVInputFormat;
@@ -132,3 +132,4 @@ private:
 
     string src;
 };
+#endif  // FFMPEG_SUPPORT

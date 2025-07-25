@@ -84,6 +84,7 @@ protected:
 
 private:
     shared_ptr<VideoBuffer> buffer;
+    shared_ptr<MediaBuffer> swap_buffer;
     DATA_PROCESS_STATUS op_status;
     std::mutex tMutex;
     std::condition_variable tConVar;

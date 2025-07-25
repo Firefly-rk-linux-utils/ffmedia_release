@@ -2,15 +2,17 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-05-30 17:03:25
+ * @LastEditTime: 2025-07-09 14:45:40
  * @Description: 音频解码组件。支持aac格式解码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE__AACDEC_HPP__
-#define __MODULE__AACDEC_HPP__
+
+#pragma once
 
 #include "module/module_media.hpp"
 #include "base/ff_type.hpp"
+
+#if AUDIO_SUPPORT
 
 class AlsaPlayBack;
 struct AAC_DECODER_INSTANCE;
@@ -60,4 +62,4 @@ private:
     void close();
 };
 
-#endif
+#endif  // AUDIO_SUPPORT

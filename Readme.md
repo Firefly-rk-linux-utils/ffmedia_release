@@ -43,7 +43,7 @@ ffmedia一共包含以下单元
 
 ```
 apt update
-apt install -y gcc g++ make cmake libdrm-dev libasound2-dev libfdk-aac1 libgles-dev libx11-dev libjpeg62
+apt install -y gcc g++ make cmake libdrm-dev libasound2-dev libgles-dev libx11-dev libjpeg62
 
 # 如需要支持opencv相关demo，安装下列软件包
 
@@ -105,9 +105,6 @@ cp ../inference_examples/lib/RK3588/librknnrt.so /usr/lib/
 ffmedia的api详细文档：[ffmedia_api.pdf](documentation/ffmedia_api.pdf)
 
 ## 常见问题
-
-### 缺少库问题
-如果系统无法安装对应软件包，可在3rdlibs/libs下寻找对应库放进系统或者将该库路径添加到环境里,可参考依赖库路径问题章节添加。
 
 ### 依赖库路径问题
 程序运行环境区别可能导致寻找不到依赖的动态库，可通过LD_LIBRARY_PATH将库路径添加进当前环境。

@@ -2,12 +2,14 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 10:32:27
+ * @LastEditTime: 2025-07-09 14:51:12
  * @Description: 输入源组件，音频数据通过alsa接口采集。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
 #pragma once
 #include "module/module_media.hpp"
+
+#if AUDIO_SUPPORT
 
 class AlsaCapture;
 class ModuleAlsaCapture : public ModuleMedia
@@ -56,3 +58,5 @@ private:
     SampleInfo sampleInfo;
     AI_LAYOUT_E layout;
 };
+
+#endif  // AUDIO_SUPPORT
