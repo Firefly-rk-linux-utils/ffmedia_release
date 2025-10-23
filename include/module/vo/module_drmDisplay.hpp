@@ -1,8 +1,8 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 14:47:59
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2025-08-08 09:26:25
  * @Description: 输出组件。drm显示输出。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -11,6 +11,7 @@
 
 #include <mutex>
 #include <unordered_set>
+#include <unordered_map>
 #include "module/module_media.hpp"
 
 class ModuleRga;
@@ -56,10 +57,22 @@ struct Rect {
 
 class DrmDisplayPlane : public std::enable_shared_from_this<DrmDisplayPlane>
 {
+public:
+    enum PLANE_DISPLAY_MODE {
+        MULTI_WINDOW_DISPLAY,  // 多窗口模式，图层管理显存，实现多窗口使用同个图层显示。
+        SINGLE_WINDOW_DISPLAY  // 单窗口模式，显示窗口独占图层，图像直通显存，无需拷贝。
+    };
+
+    enum LAYOUT_MODE {
+        RELATIVE_LAYOUT,
+        ABSOLUTE_LAYOUT
+    };
+
+private:
     struct PlaneBuffer {
         RWLock* lock;
         vector<shared_ptr<VideoBuffer>> buffers;
-        vector<int> buffers_fb;
+        vector<int> buffer_fbs;
         int free_index;
         int use_index;
         int etc_index;
@@ -79,11 +92,6 @@ public:
      */
     DrmDisplayPlane(uint32_t fmt = V4L2_PIX_FMT_NV12, int _screen_index = 0, uint32_t plane_zpos = 0xFF);
     ~DrmDisplayPlane();
-
-    enum LAYOUT_MODE {
-        RELATIVE_LAYOUT,
-        ABSOLUTE_LAYOUT
-    };
 
     /**
      * @description: 设置图层绑定的显示器，此调用应在对象setup之前使用。
@@ -138,6 +146,9 @@ public:
     LAYOUT_MODE getWindowLayoutMode() const { return window_layout_mode; }
     void setWindowLayoutMode(const LAYOUT_MODE& windowLayoutMode) { window_layout_mode = windowLayoutMode; }
 
+    int setWindowDisplayMode(PLANE_DISPLAY_MODE mode);
+    PLANE_DISPLAY_MODE getWindowDisplayMode();
+
     bool splitPlane(uint32_t w_parts, uint32_t h_hparts);
     bool flushAllWindowRectUpdate();
     bool setVisibility(bool isVisible);
@@ -154,6 +165,7 @@ private:
     bool isSamePlane(shared_ptr<DrmDisplayPlane> a, shared_ptr<DrmDisplayPlane> b);
 
     void onDisplayThreadRun();
+    int drmSync();
 
 private:
     shared_ptr<DrmDisplayDevice> display_device;
@@ -172,6 +184,7 @@ private:
     uint32_t w_parts;
     uint32_t h_parts;
     LAYOUT_MODE window_layout_mode;
+    PLANE_DISPLAY_MODE window_display_mode;
     bool setuped;
     int index_in_display_device;
     uint32_t windows_count;
@@ -254,7 +267,23 @@ public:
      * @return {*}
      */
     bool setWindowRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+    /**
+     * @description: 设置图像的显示区域。
+     * @param {uint32_t} x  显示区域x坐标。
+     * @param {uint32_t} y  显示区域y坐标。
+     * @param {uint32_t} w  显示区域宽度。
+     * @param {uint32_t} h  显示区域高度。
+     * @return {*}
+     */
     bool setImageRect(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+
+    /**
+     * @description: 设置图层显示模式，该接口应在对象初始化后调用。
+     * @param {PLANE_DISPLAY_MODE} mode 显示模式。
+     * @return {int}                    成功返回0。
+     */
+    int setPlaneDisplayMode(DrmDisplayPlane::PLANE_DISPLAY_MODE mode);
+
     void getPlaneSize(uint32_t* w, uint32_t* h);
     void getWindowSize(uint32_t* w, uint32_t* h);
 
@@ -288,6 +317,13 @@ public:
 
 private:
     shared_ptr<ModuleRga> rga;
+    std::unordered_map<shared_ptr<MediaBuffer>, int> drmfbs;
+    FFMedia::Rect image_rect;
+    shared_ptr<MediaBuffer> last_buffer;
+    int last_fb_id;
+
+    int skip_buffer_max;
+    int skip_buffer_count;
 
 private:
     shared_ptr<DrmDisplayPlane> plane_device;
@@ -309,6 +345,7 @@ private:
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
+    virtual bool teardown() override;
 };
 
 #endif

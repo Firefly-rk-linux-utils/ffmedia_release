@@ -1,8 +1,8 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-04-25 14:48:34
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2025-10-22 15:43:59
  * @Description: 视频解码组件。支持H264、H265及MJPEG解码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -51,7 +51,7 @@ public:
     void setNeedSplit(uint32_t split);
 
     /**
-     * @description: 设置获取帧超时时间，默认为10ms。
+     * @description: 设置获取帧超时时间，默认为0。
      * @param {int} timeout_ms  超时时间
      * @return {*}
      */

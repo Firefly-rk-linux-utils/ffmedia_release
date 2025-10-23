@@ -1,8 +1,8 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:54
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-07-07 16:51:55
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2025-09-16 17:13:03
  * @Description: 所有组件均派生自ModuleMedia类，ModuleMedia的成员中包含一个消费者队列，记录该组件的所有消费者；
  *               一个MediaBuffer队列，记录该组件所分配的buffer. MediaBuffer队列中存储当前组件的输出数据，
  *               MediaBuffer队列同时也是该组件的所有消费者的输入。
@@ -44,6 +44,7 @@ enum ModuleStatus {
     STATUS_STARTED,      // 运行状态
     STATUS_EOS,          // 流结束状态
     STATUS_STOPED,       // 停止状态
+    STATUS_ABNORMAL,     // 运行异常状态
 };
 
 using namespace std;
@@ -159,6 +160,20 @@ public:
      * @return {int}                            成功返回0，失败返回负数。
      */
     virtual int importBufferToBufferPool(shared_ptr<MediaBuffer> buffer, uint16_t index);
+
+    /**
+     * @description: 持有输出缓冲区，对象在使用该缓冲区时会等待它释放再使用。
+     * @param {shared_ptr<MediaBuffer>} &obuf   需要持有的输出缓冲区。
+     * @return {int}                            成功返回0，失败返回负数。
+     */
+    int holdOutputBuffer(shared_ptr<MediaBuffer>& obuf);
+
+    /**
+     * @description: 释放输出缓冲区。
+     * @param {shared_ptr<MediaBuffer>} &obuf   需要释放的输出缓冲区。
+     * @return {int}                            成功返回0，失败返回负数。
+     */
+    int releaseOutputBuffer(shared_ptr<MediaBuffer>& obuf);
 
     /**
      * @description: 设置对象的输入数据的图像参数。
@@ -305,7 +320,7 @@ protected:
     void notifyProduce();
     void notifyConsume();
 
-    void setModuleStatus(const ModuleStatus& moduleStatus);
+    inline void setModuleStatus(const ModuleStatus& moduleStatus);
 
     void work();
     void _dumpPipe(int depth, std::function<void(ModuleMedia*)> func);
@@ -330,10 +345,10 @@ private:
     int nextBufferPos(uint16_t pos);
 
     void produceOneBuffer(shared_ptr<MediaBuffer> buffer);
-    void consumeOneBuffer();
-    void consumeOneBufferNoLock();
+    void consumeOneBuffer(const shared_ptr<ModuleMedia>& pro);
+    void consumeOneBufferNoLock(const shared_ptr<ModuleMedia>& pro);
 
-    shared_ptr<MediaBuffer> inputBufferQueueTail();
+    shared_ptr<MediaBuffer> inputBufferQueueTail(const shared_ptr<ModuleMedia>& pro);
     bool inputBufferQueueIsFull();
     bool inputBufferQueueIsEmpty();
 

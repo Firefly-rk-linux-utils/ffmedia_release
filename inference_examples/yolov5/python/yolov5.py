@@ -213,7 +213,6 @@ def inf_task(inf, media_buffer, ratio=(1.0,1.0)):
     #print(f"post process run use: {end_time - start_time:.6f} s")
 
     vb = m.VideoBuffer.from_base(media_buffer)
-    vb.invalidateDrmBuf();
     # get memoryview object
     data = vb.getActiveData()
     img_param = vb.getImagePara()
@@ -221,5 +220,6 @@ def inf_task(inf, media_buffer, ratio=(1.0,1.0)):
     if boxes is not None:
         draw(img, boxes, scores, classes, ratio)
 
+    vb.invalidateDrmBuf();
     return img
 

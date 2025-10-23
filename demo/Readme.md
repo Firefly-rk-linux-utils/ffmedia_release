@@ -110,9 +110,9 @@
 
 ```
 # 推流到webrtc服务器，如需设置token可通过FFmpegMux的setFormatOption接口设置。
-./demo input.mp4 --dec_disabled --use_ffmpeg_mux=whip -m "http://server:port/path"
+./demo input.mp4 --dec_disabled --use_ffmpeg_mux=whip -m 'http://server:port/path'
 # 转码h264再发送流到webrtc服务器
-./demo input.mp4 -e h264 --use_ffmpeg_mux=whip -m "http://server:port/path"
+./demo input.mp4 -e h264 --use_ffmpeg_mux=whip -m 'http://server:port/path'
 ```
 
 #### 视频处理
@@ -232,6 +232,11 @@
 
 ### 推理示例
 该源码在inference_examples/yolov5/src/
+#### 安装依赖
+
+```
+apt install libeigen3-dev
+```
 #### 编译
 
 ```
@@ -254,7 +259,8 @@ cd inference_examples/
 # 目标跟踪示例，可输入媒体文件、网络流等
 ./demo_yolov5_track rtsp://xxx ./model/RK3588/yolov5s-640-640.rknn
 
-
+# 推理池使用示例，多线程并发推理
+./demo_multi_detector input.mp4 ./model/RK3588/yolov5s-640-640.rknn model/coco_80_labels_list.txt
 ```
 
 

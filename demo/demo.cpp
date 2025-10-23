@@ -378,6 +378,8 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             ffmpeg_demux->setFormatOption("rtsp_transport", "tcp", 0);
         else
             ffmpeg_demux->setFormatOption("rtsp_transport", "udp_multicast", 0);
+        /* Reducing probesize can speed up the opening of streams.*/
+        ffmpeg_demux->setFormatOption("probesize", "200K", 0);
 
         ret = ffmpeg_demux->init();
         if (ret < 0) {
@@ -455,7 +457,7 @@ SOURCE_CREATED:
 
     if (inst_conf->sync_opt) {
         inst->sync = make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1));
-        // inst->sync->setFirstFrameDuration(30000);
+        inst->sync->setFirstFrameDuration(50000);
     }
 
 #if AUDIO_SUPPORT
@@ -536,7 +538,12 @@ SOURCE_CREATED:
     if (inst_conf->dec_enabled) {
         shared_ptr<ModuleMppDec> dec = make_shared<ModuleMppDec>();
         dec->setProductor(inst->last_module);
+        /* Some special video sources may require more buffers to decode. */
         dec->setBufferCount(10);
+        /* Some special video sources may require the split mode to be enabled. */
+        // dec->setNeedSplit(1);
+        /* Reducing the timeout period can increase the decoding rate. */
+        // dec->setOutputTimeOut(0);
         ret = dec->init();
         if (ret < 0) {
             ff_error("Dec init failed\n");
@@ -599,6 +606,7 @@ SOURCE_CREATED:
             return ret;
         }
 
+        // drm_display->setPlaneDisplayMode(DrmDisplayPlane::SINGLE_WINDOW_DISPLAY);
         uint32_t t_h, t_v;
         drm_display->getPlaneSize(&t_h, &t_v);
         int hc, vc;
@@ -1026,27 +1034,35 @@ int main(int argc, char** argv)
         static volatile sig_atomic_t wait_flag;
         auto source_module = (insts && insts->source_module) ? insts->source_module : common_source_module;
         if (source_module) {
-            wait_flag = 1;
             source_module->setStatusChangeCallback(nullptr, [](void*, ModuleStatus status) {
                 printf("Module state has changed(%d)\n", status);
-                if (status != STATUS_STARTED) {
-                    wait_flag = 0;
+                /* Exit the program after waiting for the media stream to end. */
+                if (status == STATUS_EOS) {
+                    /* Sleep for 1 second before exiting to give consumers time to process the remaining data. */
+                    sleep(1);
                     kill(getpid(), SIGINT);
                 }
             });
+
+            if (source_module->getModuleStatus() == STATUS_STARTED)
+                wait_flag = 1;
         }
 
-        int sig;
-        sigset_t st;
-        sigemptyset(&st);
-        sigaddset(&st, SIGINT);
-        sigaddset(&st, SIGTERM);
-        sigprocmask(SIG_SETMASK, &st, NULL);
+        /* Set the exit signal processing function */
+        signal(SIGINT, [](int) {
+            ff_info(" SIGINT: exit\n");
+            signal(SIGINT, SIG_IGN);
+            wait_flag = 0;
+        });
+
+        signal(SIGTERM, [](int) {
+            ff_info(" SIGTERM: exit\n");
+            signal(SIGTERM, SIG_IGN);
+            wait_flag = 0;
+        });
+
         while (wait_flag) {
-            if (!sigwait(&st, &sig)) {
-                ff_info("receive sig: %d\n", sig);
-                break;
-            }
+            sleep(1);
         }
     }
 
@@ -1055,6 +1071,7 @@ EXIT:
     if (common_source_module != NULL) {
         common_source_module->dumpPipeSummary();
         common_source_module->stop();
+        common_source_module.reset();
     } else {
         for (int i = 0; i < instance_count; i++) {
             if (insts + i != NULL) {
@@ -1064,10 +1081,12 @@ EXIT:
                 if (insts[i].source_audio_module) {
                     insts[i].source_audio_module->dumpPipeSummary();
                     insts[i].source_audio_module->stop();
+                    insts[i].source_audio_module.reset();
                 }
 
                 insts[i].source_module->dumpPipeSummary();
                 insts[i].source_module->stop();
+                insts[i].source_module.reset();
             }
         }
     }

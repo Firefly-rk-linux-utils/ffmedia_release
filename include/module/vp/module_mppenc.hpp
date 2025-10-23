@@ -1,8 +1,8 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-05-29 19:58:22
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2025-10-20 11:28:23
  * @Description: 视频编码组件。支持H264、H265及MJPEG编码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -20,12 +20,6 @@ class ModuleMppEnc : public ModuleMedia
 private:
     EncodeType encode_type;
     shared_ptr<MppEncoder> enc;
-    int fps;
-    int gop;
-    int bps;
-    EncodeRcMode mode;
-    EncodeQuality quality;
-    EncodeProfile profile;
     int64_t cur_pts;
     int64_t duration;
     shared_ptr<VideoBuffer> encoderExtraData(shared_ptr<VideoBuffer>& buffer);
@@ -78,6 +72,15 @@ public:
     int changeEncodeParameter(EncodeType type, int fps = 30, int gop = 60, int bps = 2048,
                               EncodeRcMode mode = ENCODE_RC_MODE_CBR, EncodeQuality quality = ENCODE_QUALITY_BEST,
                               EncodeProfile profile = ENCODE_PROFILE_HIGH);
+
+    /**
+     * @description: 设置帧内刷新（GDR）。此调用应在对象初始化之前调用。
+     * @param {bool} intra_refresh      开机或关闭帧内刷新。
+     * @param {int} refresh_mode        刷新模式：0(按行刷新)、1(按列刷新)。
+     * @param {int} refresh_num         每次刷新多少MB行或列。
+     * @return {*}
+     */
+    void setIntraRefresh(bool intra_refresh, int refresh_mode, int refresh_num);
 
     /**
      * @description: 初始化对象。

@@ -1,12 +1,8 @@
 # vim: syntax=cmake
-# ----------------------------------------------------------------------------
-# mpp built-in unit test case
-# ----------------------------------------------------------------------------
-# macro for adding mpp sub-module unit test
+cmake_minimum_required(VERSION 3.10)
 
 project(ffmedia)
 
-cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_SYSTEM_NAME Linux)
 

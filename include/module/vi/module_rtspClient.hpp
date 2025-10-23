@@ -1,8 +1,8 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-05-29 16:32:09
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2025-08-20 16:14:45
  * @Description: 输入源组件，Rtsp客户端，支持TCP、UDP及多播协议流。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -92,7 +92,7 @@ public:
     uint32_t videoFPS();
 
     /**
-     * @description: 设置获取网络数据的超时时间。
+     * @description: 设置获取网络数据的超时时间, 默认超时时间为5秒。
      * @param {unsigned} sec    秒。
      * @param {unsigned} usec   微秒。
      * @return {*}
@@ -113,7 +113,6 @@ protected:
     virtual bool teardown() override;
     int fromRtpGetVideoParameter();
     void initMediaInfo();
-    static void closeHandlerFunc(void* arg, int err, int result);
 
 private:
     shared_ptr<RTSPClient> rtsp_client;

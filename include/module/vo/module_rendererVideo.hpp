@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-05-22 17:34:39
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-07-24 17:58:20
+ * @LastEditTime: 2025-08-20 11:32:33
  * @Description: 输出组件。视频渲染器，使用opengGles接口渲染视频到X11窗口。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -20,37 +20,6 @@ class Texture;
 class Model;
 class ModuleRendererVideo : public ModuleMedia
 {
-protected:
-    struct Region {
-        int x, y;
-        uint32_t width, height;
-        Region(int x = 0, int y = 0, uint32_t width = 0, uint32_t height = 0)
-            : x(x), y(y), width(width), height(height){};
-    };
-
-private:
-    shared_ptr<ModuleRga> rga;
-    Shader* shader;
-    Texture *tex1, *tex2;
-    Model* quadModel;
-
-    /// Display handle
-    EGLNativeDisplayType eglNativeDisplay;
-    /// Window handle
-    EGLNativeWindowType eglNativeWindow;
-    unsigned long x_wmDeleteMessage;
-    /// EGL display
-    EGLDisplay eglDisplay;
-    /// EGL context
-    EGLContext eglContext;
-    /// EGL surface
-    EGLSurface eglSurface;
-
-    Region winRegion, imageRegion;
-    bool visibility;
-
-    string title;
-
 public:
     /**
      * @description: ModuleRendererVideo 的构建函数。
@@ -96,7 +65,7 @@ public:
     int init() override;
 
     /**
-     * @description: 改变对象的输出图像分辨率。此调用应在对象停止时使用。
+     * @description: 改变对象的输出图像分辨率和清除窗口。此调用应在对象停止时使用。
      * @param {int} width   图像宽度。
      * @param {int} height  图像高度。
      * @return {*}
@@ -110,11 +79,42 @@ protected:
     void reset() override;
 
 private:
-    EGLBoolean x11WinCreate(const char* title);
+    EGLBoolean x11WinCreate();
     GLboolean userInterrupt();
-    GLboolean esCreateWindow(const char* title, GLint width, GLint height, GLuint flags);
+    GLboolean esCreateWindow(GLuint flags);
     void esInitialize();
     void resizeViewport(int width, int height);
+
+protected:
+    struct Region {
+        int x, y;
+        uint32_t width, height;
+        Region(int x = 0, int y = 0, uint32_t width = 0, uint32_t height = 0)
+            : x(x), y(y), width(width), height(height){};
+    };
+
+private:
+    shared_ptr<ModuleRga> rga;
+    Shader* shader;
+    Texture *tex1, *tex2;
+    Model* quadModel;
+
+    /// Display handle
+    EGLNativeDisplayType eglNativeDisplay;
+    /// Window handle
+    EGLNativeWindowType eglNativeWindow;
+    unsigned long x_wmDeleteMessage;
+    /// EGL display
+    EGLDisplay eglDisplay;
+    /// EGL context
+    EGLContext eglContext;
+    /// EGL surface
+    EGLSurface eglSurface;
+
+    Region winRegion, imageRegion;
+    bool visibility;
+
+    string title;
 };
 
 #endif

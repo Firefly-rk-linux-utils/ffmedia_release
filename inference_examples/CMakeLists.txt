@@ -14,9 +14,16 @@ find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(OpenCV 4 REQUIRED )
 
 include_directories(${OpenCV_INCLUDE_DIRS}/include
+                    inference_pool/include
                     tracker/bytetrack/include
                     yolov5/include
                     )
+
+add_executable(demo_multi_detector
+                yolov5/src/demo_multi_detector.cpp
+                yolov5/src/yolov5s.cpp
+                yolov5/src/postprocess.cc
+                )
 
 add_executable(demo_yolov5
                 yolov5/src/demo_yolov5.cpp
@@ -38,6 +45,7 @@ add_executable(demo_yolov5_track
                 tracker/bytetrack/src/utils.cpp
                 )
 
+target_link_libraries(demo_multi_detector ff_media ${OpenCV_LIBS} pthread)
 target_link_libraries(demo_yolov5 ff_media ${OpenCV_LIBS})
 target_link_libraries(demo_yolov5_extend ff_media ${OpenCV_LIBS})
 target_link_libraries(demo_yolov5_track ff_media ${OpenCV_LIBS} Eigen3::Eigen)

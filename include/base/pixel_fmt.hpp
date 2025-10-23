@@ -1,6 +1,7 @@
 #ifndef __PIXEL_FMT__
 #define __PIXEL_FMT__
 #include <linux/videodev2.h>
+#include <stdint.h>
 #include "ff_log.h"
 #include "ff_type.hpp"
 

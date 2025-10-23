@@ -1,9 +1,9 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 14:55:53
- * @Description: 处理组件。模型推理。
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2025-10-20 11:49:30
+ * @Description: 模型推理组件。支持图像预处理及模型推理。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
 #pragma once
@@ -19,7 +19,7 @@ public:
         NPU_CORE_AUTO = 0,
         NPU_CORE_0 = 1 << 0,
         NPU_CORE_1 = 1 << 1,
-        NPU_CORE_2 = 2 << 2,
+        NPU_CORE_2 = 1 << 2,
         NPU_CORE_0_1 = NPU_CORE_0 | NPU_CORE_1,
         NPU_CORE_0_1_2 = NPU_CORE_0_1 | NPU_CORE_2
     };
@@ -98,10 +98,10 @@ public:
 
     /**
      * @description: 推理接口。可通过该接口进行手动推理。此调用应在对象初始化之后调用。
-     * @param {shared_ptr<MediaBuffer>&} input_buffer    输入图像。要推理的图像。
+     * @param {shared_ptr<MediaBuffer>} input_buffer    输入图像。要推理的图像。
      * @return {int}                                    成功返回0，失败返回负数。
      */
-    int inference(shared_ptr<MediaBuffer>& input_buffer);
+    int inference(shared_ptr<MediaBuffer> input_buffer);
 
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
