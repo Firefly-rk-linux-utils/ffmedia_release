@@ -220,6 +220,5 @@ def inf_task(inf, media_buffer, ratio=(1.0,1.0)):
     if boxes is not None:
         draw(img, boxes, scores, classes, ratio)
 
-    vb.invalidateDrmBuf();
     return img
 

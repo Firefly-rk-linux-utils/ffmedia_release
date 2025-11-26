@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-08-20 16:14:45
+ * @LastEditTime: 2025-11-04 14:05:46
  * @Description: 输入源组件，Rtsp客户端，支持TCP、UDP及多播协议流。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -108,7 +108,7 @@ public:
 
 protected:
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
-    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer>& buffer) override;
+    virtual void bufferReleaseCallBack(const shared_ptr<MediaBuffer>& buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
     int fromRtpGetVideoParameter();

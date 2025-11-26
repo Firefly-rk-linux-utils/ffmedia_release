@@ -37,8 +37,6 @@ class Cv2Display(threading.Thread):
                         if delay > 0:
                             time.sleep(delay/1000000)
 
-                    #flush dma buf to cpu
-                    self.frame.invalidateDrmBuf();
                     data = self.frame.getActiveData()
                     img_param = self.frame.getImagePara()
                     img = np.ndarray(shape=(img_param.height, img_param.width, 3), buffer=data, dtype=np.uint8, strides=(img_param.hstride * 3, 3, 1))

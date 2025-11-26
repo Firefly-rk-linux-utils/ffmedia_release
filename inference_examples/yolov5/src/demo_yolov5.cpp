@@ -79,7 +79,6 @@ void callback_external(void* _ctx, shared_ptr<MediaBuffer> buffer)
         putText(img, text, cv::Point(x1 + 10, y1 + 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0, 0), 2);
     }
 
-    static_pointer_cast<VideoBuffer>(buffer)->invalidateDrmBuf();
 
     // cv::imshow("inference test", img);
     // cv::waitKey(1);

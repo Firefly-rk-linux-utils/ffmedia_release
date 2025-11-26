@@ -29,9 +29,6 @@ def cv2_extcall_back(obj, MediaBuffer):
         if delay > 0:
             time.sleep(delay/1000000)
 
-    # flush dma buf to cpu
-    vb.invalidateDrmBuf()
-
     # get memoryview object
     data = vb.getActiveData()
     img_param = vb.getImagePara()

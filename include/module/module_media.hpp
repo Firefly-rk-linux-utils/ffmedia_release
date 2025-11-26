@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:54
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-09-16 17:13:03
+ * @LastEditTime: 2025-11-20 09:24:04
  * @Description: 所有组件均派生自ModuleMedia类，ModuleMedia的成员中包含一个消费者队列，记录该组件的所有消费者；
  *               一个MediaBuffer队列，记录该组件所分配的buffer. MediaBuffer队列中存储当前组件的输出数据，
  *               MediaBuffer队列同时也是该组件的所有消费者的输入。
@@ -166,14 +166,14 @@ public:
      * @param {shared_ptr<MediaBuffer>} &obuf   需要持有的输出缓冲区。
      * @return {int}                            成功返回0，失败返回负数。
      */
-    int holdOutputBuffer(shared_ptr<MediaBuffer>& obuf);
+    int holdOutputBuffer(const shared_ptr<MediaBuffer>& obuf);
 
     /**
      * @description: 释放输出缓冲区。
      * @param {shared_ptr<MediaBuffer>} &obuf   需要释放的输出缓冲区。
      * @return {int}                            成功返回0，失败返回负数。
      */
-    int releaseOutputBuffer(shared_ptr<MediaBuffer>& obuf);
+    int releaseOutputBuffer(const shared_ptr<MediaBuffer>& obuf);
 
     /**
      * @description: 设置对象的输入数据的图像参数。
@@ -308,11 +308,12 @@ protected:
     int initBuffer(VideoBuffer::BUFFER_TYPE buffer_type);
 
     shared_ptr<MediaBuffer>& outputBufferQueueHead();
-    void setOutputBufferQueueHead(shared_ptr<MediaBuffer>& buffer);
+    void setOutputBufferQueueHead(const shared_ptr<MediaBuffer>& buffer);
     void fillAllOutputBufferQueue();
     void cleanInputBufferQueue();
+    void clearCacheBufferQueue();
 
-    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer>& buffer);
+    virtual void bufferReleaseCallBack(const shared_ptr<MediaBuffer>& buffer);
     std::cv_status waitForProduce(std::unique_lock<std::mutex>& lk);
     void waitAllForConsume();
     std::cv_status waitForConsume(std::unique_lock<std::mutex>& lk);
@@ -344,9 +345,8 @@ private:
     void resetModule();
     int nextBufferPos(uint16_t pos);
 
-    void produceOneBuffer(shared_ptr<MediaBuffer> buffer);
+    void produceOneBuffer(const shared_ptr<MediaBuffer>& buffer);
     void consumeOneBuffer(const shared_ptr<ModuleMedia>& pro);
-    void consumeOneBufferNoLock(const shared_ptr<ModuleMedia>& pro);
 
     shared_ptr<MediaBuffer> inputBufferQueueTail(const shared_ptr<ModuleMedia>& pro);
     bool inputBufferQueueIsFull();
@@ -413,6 +413,7 @@ protected:
 
     ModuleStatusChangeCallbackFunc moduleStatusHandler;
     void_object moduleStatusHandlerData;
+    bool is_clear_cache;
 };
 
 #endif

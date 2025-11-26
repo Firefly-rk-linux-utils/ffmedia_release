@@ -1,8 +1,8 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 10:33:12
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2025-11-19 13:52:12
  * @Description: 输入源组件, 支持MIPI CSI摄像头和USB摄像头。通过V4L2接口操作获取数据。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -21,7 +21,8 @@ private:
 protected:
     virtual bool setup() override;
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
-    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer>& buffer) override;
+    virtual void bufferReleaseCallBack(const shared_ptr<MediaBuffer>& buffer) override;
+    void clearBuffers();
 
 public:
     /**

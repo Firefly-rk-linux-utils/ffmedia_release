@@ -93,8 +93,6 @@ void callback_rga(void* _ctx, shared_ptr<MediaBuffer> buffer)
         }
     }
 
-    buf->invalidateDrmBuf();
-
     cv::imshow(ctx->module->getName(), imgBgr);
     cv::waitKey(1);
 }

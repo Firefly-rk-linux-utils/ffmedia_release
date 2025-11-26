@@ -67,7 +67,6 @@ void callback_rga(void* _ctx, shared_ptr<MediaBuffer> buffer)
 
     uint32_t width = buf->getImagePara().hstride;
     uint32_t height = buf->getImagePara().vstride;
-    buf->invalidateDrmBuf();
     cv::Mat imgBgr(cv::Size(width, height), CV_8UC3, buf->getActiveData());
     char text[256];
     for (int i = 0; i < detect_result_group.count; i++) {

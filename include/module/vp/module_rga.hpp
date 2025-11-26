@@ -1,8 +1,8 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-04-25 14:51:17
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2025-11-17 14:52:32
  * @Description: 图像处理组件，支持颜色格式转换、缩放、叠加等功能。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -22,6 +22,7 @@ private:
     RgaRotate rotate;
     callback_handler blend_callback;
     void_object blend_callback_ctx;
+    VideoBuffer::BUFFER_TYPE buffer_type;
 
 public:
     enum RGA_SCHEDULER_CORE {
@@ -60,6 +61,13 @@ public:
      * @return {int}                成功返回 0，失败返回负数。
      */
     int changeOutputPara(const ImagePara& para);
+
+    /**
+     * @description: 设置申请buffer类型。默认为DRM_BUFFER_NONCACHEABLE。
+     * @param {BUFFER_TYPE} type    buffer类型。
+     * @return {*}
+     */
+    void setBufferType(VideoBuffer::BUFFER_TYPE type);
 
     /**
      * @description: 初始化对象。

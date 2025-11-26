@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-10-20 11:28:23
+ * @LastEditTime: 2025-11-19 09:08:05
  * @Description: 视频编码组件。支持H264、H265及MJPEG编码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -11,6 +11,7 @@
 
 #include "module/module_media.hpp"
 #include "base/ff_type.hpp"
+#include <deque>
 
 class MppEncoder;
 class VideoBuffer;
@@ -22,16 +23,23 @@ private:
     shared_ptr<MppEncoder> enc;
     int64_t cur_pts;
     int64_t duration;
+    int frame_count;
+    std::deque<shared_ptr<VideoBuffer>> input_cache_deque;
+    int output_timeout;
+    int target_timeout;
+
     shared_ptr<VideoBuffer> encoderExtraData(shared_ptr<VideoBuffer>& buffer);
 
 protected:
     virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
     virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& buffer) override;
     virtual int initBuffer() override;
-    virtual void bufferReleaseCallBack(shared_ptr<MediaBuffer>& buffer) override;
+    virtual void bufferReleaseCallBack(const shared_ptr<MediaBuffer>& buffer) override;
     virtual bool setup() override;
+    virtual bool teardown() override;
     void chooseOutputParaFmt();
     void reset() override;
+    void clearInputFrames();
 
 public:
     /**
@@ -81,6 +89,13 @@ public:
      * @return {*}
      */
     void setIntraRefresh(bool intra_refresh, int refresh_mode, int refresh_num);
+
+    /**
+     * @description: 设置获取帧超时时间，默认为0。
+     * @param {int} timeout_ms  超时时间
+     * @return {*}
+     */
+    void setOutputTimeOut(int timeout_ms);
 
     /**
      * @description: 初始化对象。
