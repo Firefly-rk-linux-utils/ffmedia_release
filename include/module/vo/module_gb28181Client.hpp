@@ -1,14 +1,16 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-01-06 15:56:48
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2026-04-09 10:20:20
  * @Description: 输出组件。GB28181客户端，支持推流到GB28181服务器。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
 #pragma once
 #include "module/module_media.hpp"
 
+namespace FFMedia
+{
 class SipClient;
 class ModuleGB28181Client : public ModuleMedia
 {
@@ -74,10 +76,11 @@ public:
     int setKeepaliveDuration(int seconds);
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ConsumeResult doConsume(const std::shared_ptr<MediaBuffer>& input_buffer, std::shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
 
 private:
     SipClient* gb;
 };
+}  // namespace FFMedia

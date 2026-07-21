@@ -15,6 +15,9 @@
 
 #define LABEL_NALE_TXT_PATH "./model/coco_80_labels_list.txt"
 static char* labels[OBJ_CLASS_NUM];
+using namespace std;
+using namespace FFMedia;
+
 
 struct External_ctx {
     shared_ptr<ModuleMedia> module;
@@ -131,8 +134,12 @@ int main(int argc, char** argv)
             break;
         }
 
-        auto dec = make_shared<ModuleMppDec>();
-        dec->setProductor(source);
+        auto dec = make_shared<ModuleMppDec>(source->getOutputImagePara());
+        ret = dec->connectProducer(source);
+        if (ret < 0) {
+            ff_error("Failed to connect source to decoder, %d\n", ret);
+            break;
+        }
         ret = dec->init();
         if (ret < 0) {
             ff_error("Dec init failed\n");
@@ -140,7 +147,11 @@ int main(int argc, char** argv)
         }
 
         auto inf = make_shared<ModuleInference>();
-        inf->setProductor(dec);
+        ret = inf->connectProducer(dec);
+        if (ret < 0) {
+            ff_error("Failed to connect decoder to inference module, %d\n", ret);
+            break;
+        }
         inf->setInferenceInterval(1);
         if (inf->setModelData(argv[2], 0) < 0) {
             ff_error("inf setModelData fail!\n");
@@ -163,7 +174,11 @@ int main(int argc, char** argv)
         /*
             The producer of the rga module is the same as the inference module producer.
         */
-        rga->setProductor(dec);
+        ret = rga->connectProducer(dec);
+        if (ret < 0) {
+            ff_error("Failed to connect decoder to rga, %d\n", ret);
+            break;
+        }
         ret = rga->init();
         if (ret < 0) {
             ff_error("rga init failed\n");
@@ -184,9 +199,8 @@ int main(int argc, char** argv)
         ctx1->ratio_h = (float)inf_crop.h / output_para.height;
         ctx1->pts = -1;
 
-        rga->setOutputDataCallback(ctx1, callback_rga);
-        inf->setOutputDataCallback(ctx1, callback_inf);
-
+        rga->setMediaBufferProduceHooker(std::bind(callback_rga, ctx1, std::placeholders::_3));
+        inf->setMediaBufferProduceHooker(std::bind(callback_inf, ctx1, std::placeholders::_3));
         source->start();
         getchar();
         source->stop();

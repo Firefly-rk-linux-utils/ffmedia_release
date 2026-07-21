@@ -3,9 +3,10 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <getopt.h>
-#include <queue>
 #include <math.h>
+#include <unistd.h>
 #include <csignal>
+#include <cstring>
 
 #include "utils.hpp"
 #include "module/vi/module_cam.hpp"
@@ -42,6 +43,7 @@ struct timeval start_time;
 
 unsigned long curr, start;
 using namespace std;
+using namespace FFMedia;
 
 #define USE_COMMON_SOURCE false
 shared_ptr<ModuleMedia> common_source_module;
@@ -308,8 +310,6 @@ void add_index_to_filename(char* filename, int index)
 int start_instance(DemoData* inst, int inst_index, int inst_count)
 {
     int ret;
-    shared_ptr<MediaBuffer> video_extra_buffer;
-    shared_ptr<MediaBuffer> audio_extra_buffer;
     ImagePara productor_output_para;
     DemoConfig* inst_conf = &(inst->config);
 
@@ -387,8 +387,6 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             return ret;
         }
 
-        video_extra_buffer = ffmpeg_demux->getExtraBuffer(BUFFER_TYPE_VIDEO);
-        audio_extra_buffer = ffmpeg_demux->getExtraBuffer(BUFFER_TYPE_AUDIO);
         inst->last_module = ffmpeg_demux;
         inst->source_module = ffmpeg_demux;
         goto SOURCE_CREATED;
@@ -418,8 +416,6 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             ff_error("file reader init failed\n");
             return ret;
         }
-        video_extra_buffer = file_reader->getExtraBuffer(BUFFER_TYPE_VIDEO);
-        audio_extra_buffer = file_reader->getExtraBuffer(BUFFER_TYPE_AUDIO);
         inst->last_module = file_reader;
     } else if (inst_conf->rtsp_c_enabled) {
         shared_ptr<ModuleRtspClient> rtsp_c = make_shared<ModuleRtspClient>(inst_conf->input_source, inst_conf->rtsp_transport,
@@ -431,8 +427,6 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             ff_error("rtsp client init failed\n");
             return ret;
         }
-        video_extra_buffer = rtsp_c->getExtraBuffer(BUFFER_TYPE_VIDEO);
-        audio_extra_buffer = rtsp_c->getExtraBuffer(BUFFER_TYPE_AUDIO);
         inst->last_module = rtsp_c;
     } else if (inst_conf->rtmp_c_enabled) {
         shared_ptr<ModuleRtmpClient> rtmp_c = make_shared<ModuleRtmpClient>(inst_conf->input_source);
@@ -443,8 +437,6 @@ int start_instance(DemoData* inst, int inst_index, int inst_count)
             ff_error("rtsp client init failed\n");
             return ret;
         }
-        video_extra_buffer = rtmp_c->getExtraBuffer(BUFFER_TYPE_VIDEO);
-        audio_extra_buffer = rtmp_c->getExtraBuffer(BUFFER_TYPE_AUDIO);
         inst->last_module = rtmp_c;
     }
 
@@ -476,24 +468,19 @@ SOURCE_CREATED:
         inst->source_audio_module = capture;
         inst->last_audio_module = capture;
 
-        auto aac_enc = make_shared<ModuleAacEnc>(info);
+        auto aac_enc = make_shared<ModuleAacEnc>();
         aac_enc->setProductor(inst->last_audio_module);
         ret = aac_enc->init();
         if (ret < 0) {
             ff_error("aac_enc init failed\n");
             return ret;
         }
-        audio_extra_buffer = aac_enc->getExtraBuffer();
         inst->last_audio_module = aac_enc;
     }
 
     if (strlen(inst_conf->aplay)) {
         shared_ptr<ModuleAacDec> aac_dec;
-        if (audio_extra_buffer)
-            aac_dec = make_shared<ModuleAacDec>((uint8_t*)audio_extra_buffer->getActiveData(), audio_extra_buffer->getActiveSize(),
-                                                audio_extra_buffer->getSamplePara().sample_rate, audio_extra_buffer->getSamplePara().channels);
-        else
-            aac_dec = make_shared<ModuleAacDec>();
+        aac_dec = make_shared<ModuleAacDec>();
         aac_dec->setProductor(inst->last_audio_module ? inst->last_audio_module : inst->last_module);
         ret = aac_dec->init();
         if (ret < 0) {
@@ -591,12 +578,11 @@ SOURCE_CREATED:
     }
 
     if (inst_conf->drmdisplay_enabled) {
-        const ImagePara& input_para = inst->last_module->getOutputImagePara();
-        shared_ptr<ModuleDrmDisplay> drm_display = make_shared<ModuleDrmDisplay>(input_para);
+        shared_ptr<ModuleDrmDisplay> drm_display = make_shared<ModuleDrmDisplay>();
         drm_display->setPlanePara(V4L2_PIX_FMT_NV12, inst_conf->drm_display_plane_id,
                                   PLANE_TYPE_OVERLAY_OR_PRIMARY, inst_conf->drm_display_plane_zpos,
                                   1, inst_conf->drm_display_conn_id);
-        // inst->drm_display->setPlaneSize(0, 0, 1280, 800);
+        // drm_display->setPlaneSize(0, 0, 1280, 800);
         drm_display->setBufferCount(1);
         drm_display->setProductor(inst->last_module);
         drm_display->setSynchronize(inst->sync);
@@ -607,6 +593,7 @@ SOURCE_CREATED:
         }
 
         // drm_display->setPlaneDisplayMode(DrmDisplayPlane::SINGLE_WINDOW_DISPLAY);
+        auto input_para = drm_display->getInputImagePara();
         uint32_t t_h, t_v;
         drm_display->getPlaneSize(&t_h, &t_v);
         int hc, vc;
@@ -656,13 +643,13 @@ SOURCE_CREATED:
         shared_ptr<ModuleMppEnc> enc = make_shared<ModuleMppEnc>(inst_conf->encode_type);
         enc->setProductor(inst->last_module);
         enc->setBufferCount(8);
+        enc->setInputCachePoolSize(0);
         enc->setDuration(0);  // Use the input source timestamp
         ret = enc->init();
         if (ret < 0) {
             ff_error("Enc init failed\n");
             return ret;
         }
-        video_extra_buffer = enc->getExtraBuffer();
         inst->last_module = enc;
     }
 
@@ -675,8 +662,11 @@ SOURCE_CREATED:
                 if (inst_conf->sync_opt)
                     ffmpeg_muxer->setSynchronize(make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1)));
 
-                /* Some muxes require media extra data to be set in advance. */
-                ffmpeg_muxer->setExtraBuffer(BUFFER_TYPE_VIDEO, video_extra_buffer);
+                if (inst_conf->audio_enable) {
+                    auto audio_producer = inst->last_audio_module ? inst->last_audio_module : inst->source_module;
+                    if (audio_producer != inst->last_module)
+                        ffmpeg_muxer->setProductor(audio_producer);
+                }
                 ret = ffmpeg_muxer->init();
                 if (ret < 0) {
                     ff_error("Failed to init ffmpeg muxer\n");
@@ -687,21 +677,15 @@ SOURCE_CREATED:
 #endif
             shared_ptr<ModuleFileWriter> file_writer = make_shared<ModuleFileWriter>(inst_conf->output_filename);
             file_writer->setProductor(inst->last_module);
+            if (inst_conf->audio_enable) {
+                auto audio_producer = inst->last_audio_module ? inst->last_audio_module : inst->source_module;
+                if (audio_producer != inst->last_module)
+                    file_writer->setProductor(audio_producer);
+            }
             ret = file_writer->init();
             if (ret < 0) {
                 ff_error("ModuleFileWriter init failed\n");
                 return ret;
-            }
-
-            if (inst_conf->audio_enable) {
-                auto file_writer_a = make_shared<ModuleFileWriterExtend>(file_writer, string());
-                file_writer_a->setProductor(inst->last_audio_module ? inst->last_audio_module : inst->source_module);
-                file_writer_a->setAudioParameter(0, 0, 0, audio_extra_buffer ? audio_extra_buffer->getMediaCodec() : MEDIA_CODEC_AUDIO_AAC);
-                ret = file_writer_a->init();
-                if (ret < 0) {
-                    ff_error("audio writer init failed\n");
-                    return ret;
-                }
             }
         } while (0);
     }
@@ -727,24 +711,17 @@ SOURCE_CREATED:
             shared_ptr<ModuleRtspServer> rtsp_s = make_shared<ModuleRtspServer>(inst_conf->push_path,
                                                                                 inst_conf->push_port);
             rtsp_s->setProductor(inst->last_module);
-            rtsp_s->setBufferCount(0);
+            if (inst_conf->audio_enable) {
+                auto audio_producer = inst->last_audio_module ? inst->last_audio_module : inst->source_module;
+                if (audio_producer != inst->last_module)
+                    rtsp_s->setProductor(audio_producer);
+            }
             if (inst_conf->sync_opt)
                 rtsp_s->setSynchronize(make_shared<Synchronize>(SynchronizeType(inst_conf->sync_opt - 1)));
             ret = rtsp_s->init();
             if (ret) {
                 ff_error("rtsp server init failed\n");
                 return ret;
-            }
-            if (inst_conf->audio_enable) {
-                auto rtsp_s_a = make_shared<ModuleRtspServerExtend>(rtsp_s,
-                                                                    inst_conf->push_path, inst_conf->push_port);
-                rtsp_s_a->setProductor(inst->last_audio_module ? inst->last_audio_module : inst->source_module);
-                rtsp_s_a->setAudioParameter(audio_extra_buffer ? audio_extra_buffer->getMediaCodec() : MEDIA_CODEC_AUDIO_AAC);
-                ret = rtsp_s_a->init();
-                if (ret) {
-                    ff_error("rtsp server audio init failed\n");
-                    return ret;
-                }
             }
         }
         ff_info("\n Start push stream: %s://LocalIpAddr:%d%s\n\n",
@@ -783,7 +760,8 @@ SOURCE_CREATED:
 
     if (inst_conf->savetofile_enabled) {
         inst->file_data = fopen(inst_conf->dump_filename, "w+");
-        inst->source_module->setOutputDataCallback(inst, callback_dumpFrametofile);
+        auto dump_file_cb = std::bind(callback_dumpFrametofile, inst, std::placeholders::_3);
+        inst->source_module->setMediaBufferProduceHooker(dump_file_cb);
     }
 
     // clang-format off
@@ -1034,17 +1012,17 @@ int main(int argc, char** argv)
         static volatile sig_atomic_t wait_flag;
         auto source_module = (insts && insts->source_module) ? insts->source_module : common_source_module;
         if (source_module) {
-            source_module->setStatusChangeCallback(nullptr, [](void*, ModuleStatus status) {
-                printf("Module state has changed(%d)\n", status);
+            source_module->setMediaStatusChangeHooker([](const std::string& name, MediaStatus status) {
+                printf("%s state has changed(%d)\n", name.c_str(), static_cast<int>(status));
                 /* Exit the program after waiting for the media stream to end. */
-                if (status == STATUS_EOS) {
+                if (status == MediaStatus::EOS) {
                     /* Sleep for 1 second before exiting to give consumers time to process the remaining data. */
                     sleep(1);
                     kill(getpid(), SIGINT);
                 }
             });
 
-            if (source_module->getModuleStatus() == STATUS_STARTED)
+            if (source_module->getModuleStatus() == MediaStatus::STARTED)
                 wait_flag = 1;
         }
 
@@ -1070,8 +1048,8 @@ EXIT:
 
     if (common_source_module != NULL) {
         common_source_module->dumpPipeSummary();
-        common_source_module->stop();
-        common_source_module.reset();
+        //        common_source_module->stop();
+        //        common_source_module.reset();
     } else {
         for (int i = 0; i < instance_count; i++) {
             if (insts + i != NULL) {
@@ -1080,13 +1058,13 @@ EXIT:
 
                 if (insts[i].source_audio_module) {
                     insts[i].source_audio_module->dumpPipeSummary();
-                    insts[i].source_audio_module->stop();
-                    insts[i].source_audio_module.reset();
+                    //                    insts[i].source_audio_module->stop();
+                    //                    insts[i].source_audio_module.reset();
                 }
 
                 insts[i].source_module->dumpPipeSummary();
-                insts[i].source_module->stop();
-                insts[i].source_module.reset();
+                //                insts[i].source_module->stop();
+                //                insts[i].source_module.reset();
             }
         }
     }

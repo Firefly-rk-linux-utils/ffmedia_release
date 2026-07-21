@@ -1,15 +1,17 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-04-25 12:52:36
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-05-29 16:49:26
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2026-07-01 11:39:58
  * @Description: 输出组件。文件写入，支持裸流写入及mp4、mkv、flv、ts及ps封装格式写入。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE_FILEWRITER_HPP__
-#define __MODULE_FILEWRITER_HPP__
+#pragma once
+
 
 #include "module/module_media.hpp"
+namespace FFMedia
+{
 class generalFileWrite;
 
 class ModuleFileWriter : public ModuleMedia
@@ -17,9 +19,11 @@ class ModuleFileWriter : public ModuleMedia
     friend class ModuleFileWriterExtend;
 
 private:
-    string filepath;
-    shared_ptr<generalFileWrite> writer;
-    mutex extend_mtx;
+    std::string filepath;
+    std::shared_ptr<generalFileWrite> writer;
+    std::mutex extend_mtx;
+    bool video_parameter_set = false;
+    bool audio_parameter_set = false;
 
 public:
     /**
@@ -27,15 +31,15 @@ public:
      * @param {string} path 媒体文件路径。
      * @return {*}
      */
-    ModuleFileWriter(string path);
-    ModuleFileWriter(const ImagePara& para, string path);
+    ModuleFileWriter(const std::string& path);
+    ModuleFileWriter(const ImagePara& para, const std::string& path);
     ~ModuleFileWriter();
     /**
      * @description: 改变对象写入媒体文件名称。此调用应在对象停止时使用。
      * @param {string} file_name    媒体文件名称.
      * @return {int}                成功返回 0，失败返回负数。
      */
-    int changeFileName(string file_name);
+    int changeFileName(const std::string& file_name);
 
     /**
      * @description: 初始化对象。
@@ -59,7 +63,7 @@ public:
      * @param {shared_ptr<MediaBuffer>} extra_buffer    含有媒体附加数据的MediaBuffer。
      * @return {int}                                    >= o 为成功，< 0 为错误代码。
      */
-    int setExtraBuffer(MEDIA_BUFFER_TYPE media_type, shared_ptr<MediaBuffer> extra_buffer);
+    int setExtraBuffer(MEDIA_BUFFER_TYPE media_type, const std::shared_ptr<MediaBuffer>& extra_buffer);
 
     /**
      * @description: 设置音频参数，提前创建音频封装器，不设置则从流中实时创建封装器。如果多流混合封装则全部都要提前创建封装器。
@@ -76,36 +80,12 @@ public:
      * @param {shared_ptr<MediaBuffer>} input_buffer
      * @return {int}    成功返回0，失败返回负数。
      */
-    int setInputBuffer(shared_ptr<MediaBuffer> input_buffer);
+    int setInputBuffer(const std::shared_ptr<MediaBuffer>& input_buffer);
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
-    int restart(string file_name);
+    virtual ConsumeResult doConsume(const std::shared_ptr<MediaBuffer>& input_buffer, std::shared_ptr<MediaBuffer>& output_buffer) override;
+    int restart(const std::string& file_name);
     void makeWriter();
 };
 
-class ModuleFileWriterExtend : public ModuleMedia
-{
-    shared_ptr<ModuleFileWriter> writer;
-
-public:
-    /**
-     * @description: ModuleFileWriter 的扩展模块，可使用ModuleFileWriter来构建它，以实现多流混合封装。
-     * @param {shared_ptr<ModuleFileWriter>} module     ModuleFileWriter对象。
-     * @param {string} path                             媒体文件路径。
-     * @return {*}
-     */
-    ModuleFileWriterExtend(shared_ptr<ModuleFileWriter> module, string path);
-    ~ModuleFileWriterExtend();
-    int changeFileName(string file_name);
-    int init() override;
-    void setVideoParameter(int width, int height, media_codec_t type);
-    void setAudioParameter(int channel_count, int bit_per_sample, int sample_rate, media_codec_t type);
-    int setExtraBuffer(MEDIA_BUFFER_TYPE media_type, shared_ptr<MediaBuffer> extra_buffer);
-    int setInputBuffer(shared_ptr<MediaBuffer> input_buffer);
-
-protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
-};
-
-#endif
+}  // namespace FFMedia

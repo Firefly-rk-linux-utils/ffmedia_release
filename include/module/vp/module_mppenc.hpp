@@ -2,62 +2,77 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-11-19 09:08:05
+ * @LastEditTime: 2026-07-01 11:38:53
  * @Description: 视频编码组件。支持H264、H265及MJPEG编码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE_MPPENC_HPP__
-#define __MODULE_MPPENC_HPP__
+
+#pragma once
 
 #include "module/module_media.hpp"
 #include "base/ff_type.hpp"
 #include <deque>
 
+namespace FFMedia
+{
 class MppEncoder;
 class VideoBuffer;
 
 class ModuleMppEnc : public ModuleMedia
 {
 private:
-    EncodeType encode_type;
-    shared_ptr<MppEncoder> enc;
+    media_codec_t encode_type;
+    std::shared_ptr<MppEncoder> enc;
     int64_t cur_pts;
     int64_t duration;
-    int frame_count;
-    std::deque<shared_ptr<VideoBuffer>> input_cache_deque;
+    int cache_frame_count;
+    std::deque<std::shared_ptr<VideoBuffer>> input_cache_deque;
     int output_timeout;
     int target_timeout;
 
-    shared_ptr<VideoBuffer> encoderExtraData(shared_ptr<VideoBuffer>& buffer);
+    std::shared_ptr<VideoBuffer> encoderExtraData(std::shared_ptr<VideoBuffer>& buffer);
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& buffer) override;
+    virtual ConsumeResult doConsume(const std::shared_ptr<MediaBuffer>& input_buffer, std::shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ProduceResult doProduce(std::shared_ptr<MediaBuffer>& buffer) override;
     virtual int initBuffer() override;
-    virtual void bufferReleaseCallBack(const shared_ptr<MediaBuffer>& buffer) override;
+    virtual void bufferReleaseCallBack(const std::shared_ptr<MediaBuffer>& buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
-    void chooseOutputParaFmt();
+    void initOutputImagePara();
     void reset() override;
     void clearInputFrames();
 
 public:
     /**
      * @description:  ModuleMppEnc 的构造函数。
-     * @param {EncodeType} type         编码格式类型。
+     * @param {media_codec_t} type      编码格式类型，支持 H264、H265 和 MJPEG。
      * @param {int} fps                 编码帧率。
      * @param {int} gop                 两个关键帧之间的间隔数。
      * @param {int} bps                 编码的码率。
      * @param {EncodeRcMode} mode       码率控制模式。
-     * @param {EncodeQuality} quality   编码质量。
+     * @param {float} quality_scale     编码质量系数。范围为0.0到1.0。
      * @param {EncodeProfile} profile   编码的h264/265的profile。
      * @return {*}
      */
-    ModuleMppEnc(EncodeType type, int fps = 30, int gop = 60, int bps = 2048,
-                 EncodeRcMode mode = ENCODE_RC_MODE_CBR, EncodeQuality quality = ENCODE_QUALITY_BEST,
+    ModuleMppEnc(media_codec_t type, int fps = 30, int gop = 60, int bps = 2048,
+                 EncodeRcMode mode = ENCODE_RC_MODE_CBR, float quality_scale = 0.8f,
                  EncodeProfile profile = ENCODE_PROFILE_HIGH);
-    ModuleMppEnc(EncodeType type, const ImagePara& input_para, int fps = 30, int gop = 60, int bps = 2048,
-                 EncodeRcMode mode = ENCODE_RC_MODE_CBR, EncodeQuality quality = ENCODE_QUALITY_BEST,
+
+    /**
+     * @description:  ModuleMppEnc 的构造函数。
+     * @param {EncodeType} type         编码格式类型。
+     * @param {ImagePara} input_para    输入图像参数。
+     * @param {int} fps                 编码帧率。
+     * @param {int} gop                 两个关键帧之间的间隔数。
+     * @param {int} bps                 编码的码率。
+     * @param {EncodeRcMode} mode       码率控制模式。
+     * @param {float} quality_scale     编码质量系数。范围为0.0到1.0。
+     * @param {EncodeProfile} profile   编码的h264/265的profile。
+     * @return {*}
+     */
+    ModuleMppEnc(EncodeType type, const ImagePara& input_para = ImagePara(), int fps = 30, int gop = 60, int bps = 2048,
+                 EncodeRcMode mode = ENCODE_RC_MODE_CBR, float quality_scale = 0.8f,
                  EncodeProfile profile = ENCODE_PROFILE_HIGH);
     ~ModuleMppEnc();
     /**
@@ -68,17 +83,17 @@ public:
     void setDuration(int64_t _duration);
     /**
      * @description: 改变对象的编码参数。此调用应在对象停止时调用。
-     * @param {EncodeType} type         编码格式类型。
+     * @param {media_codec_t} type      编码格式类型，支持 H264、H265 和 MJPEG。
      * @param {int} fps                 编码帧率。
      * @param {int} gop                 两个关键帧之间的间隔数。
      * @param {int} bps                 编码的码率。
      * @param {EncodeRcMode} mode       码率控制模式。
-     * @param {EncodeQuality} quality   编码质量。
+     * @param {float} quality_scale     编码质量系数。范围为0.0到1.0。
      * @param {EncodeProfile} profile   编码的h264/265的profile。
      * @return {*}
      */
-    int changeEncodeParameter(EncodeType type, int fps = 30, int gop = 60, int bps = 2048,
-                              EncodeRcMode mode = ENCODE_RC_MODE_CBR, EncodeQuality quality = ENCODE_QUALITY_BEST,
+    int changeEncodeParameter(media_codec_t type, int fps = 30, int gop = 60, int bps = 2048,
+                              EncodeRcMode mode = ENCODE_RC_MODE_CBR, float quality_scale = 0.8f,
                               EncodeProfile profile = ENCODE_PROFILE_HIGH);
 
     /**
@@ -92,10 +107,16 @@ public:
 
     /**
      * @description: 设置获取帧超时时间，默认为0。
-     * @param {int} timeout_ms  超时时间
+     * @param {int} timeout_ms  超时时间；
      * @return {*}
      */
     void setOutputTimeOut(int timeout_ms);
+    /**
+     * @description: 设置输入缓存池大小，通过缓存输入帧以使用多核编码提高并发性能; 默认为1。
+     * @param {int} size     缓存池大小；必须小于生产者输出缓冲区数量。
+     * @return {*}
+     */
+    void setInputCachePoolSize(int size);
 
     /**
      * @description: 初始化对象。
@@ -107,6 +128,6 @@ public:
      * @description: 获取附加数据。此调用应在对象初始化之后调用。
      * @return {shared_ptr<MediaBuffer>} 成功返回含有附加数据及媒体参数的 MediaBuffer，失败返回空指针。
      */
-    shared_ptr<MediaBuffer> getExtraBuffer();
+    std::shared_ptr<MediaBuffer> getExtraBuffer();
 };
-#endif
+}  // namespace FFMedia

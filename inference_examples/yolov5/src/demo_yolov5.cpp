@@ -14,10 +14,14 @@
 #include <opencv2/highgui/highgui.hpp>
 #include "opencv2/imgproc.hpp"
 
-// #define TEST_INFERENCE_TIME
+#define TEST_INFERENCE_TIME
 
 #define LABEL_NALE_TXT_PATH "./model/coco_80_labels_list.txt"
 static char* labels[OBJ_CLASS_NUM];
+
+using namespace std;
+using namespace FFMedia;
+
 
 struct External_ctx {
     shared_ptr<ModuleInference> inf;
@@ -118,8 +122,12 @@ int main(int argc, char** argv)
         last_module = source;
         auto source_para = source->getOutputImagePara();
         if (v4l2fmtIsCompressed(source_para.v4l2Fmt)) {
-            auto dec = make_shared<ModuleMppDec>();
-            dec->setProductor(source);  // Join the source module consumer queue.
+            auto dec = make_shared<ModuleMppDec>(source_para);
+            ret = dec->connectProducer(source);
+            if (ret < 0) {
+                ff_error("Failed to connect source to decoder, %d\n", ret);
+                break;
+            }
             ret = dec->init();
             if (ret < 0) {
                 ff_error("Dec init failed\n");
@@ -138,18 +146,42 @@ int main(int argc, char** argv)
         output_para.vstride = output_para.height;
         output_para.v4l2Fmt = V4L2_PIX_FMT_BGR24;
         auto rga = make_shared<ModuleRga>(output_para, RGA_ROTATE_NONE);
-        rga->setProductor(last_module);  // Join the last module consumer queue.
+        ret = rga->connectProducer(last_module);
+        if (ret < 0) {
+            ff_error("Failed to connect video producer to rga, %d\n", ret);
+            break;
+        }
         ret = rga->init();
         if (ret < 0) {
             ff_error("rga init failed\n");
             break;
         }
 
+        // Convert the annotated BGR image to NV12 before DRM display.
+        auto display_para = rga->getOutputImagePara();
+        display_para.v4l2Fmt = V4L2_PIX_FMT_NV12;
+        ModuleRga::alignStride(display_para.v4l2Fmt,
+                               display_para.hstride, display_para.vstride);
+        auto display_rga = make_shared<ModuleRga>(display_para, RGA_ROTATE_NONE);
+        ret = display_rga->connectProducer(rga);
+        if (ret < 0) {
+            ff_error("Failed to connect bgr rga to display rga, %d\n", ret);
+            break;
+        }
+        ret = display_rga->init();
+        if (ret < 0) {
+            ff_error("display rga init failed, %d\n", ret);
+            break;
+        }
 
         // drm display
-        auto drm_display = make_shared<ModuleDrmDisplay>();
+        auto drm_display = make_shared<ModuleDrmDisplay>(display_rga->getOutputImagePara());
         drm_display->setPlanePara(V4L2_PIX_FMT_NV12);
-        drm_display->setProductor(rga);  // Join the rga module consumer queue.
+        ret = drm_display->connectProducer(display_rga);
+        if (ret < 0) {
+            ff_error("Failed to connect display rga to drm display, %d\n", ret);
+            break;
+        }
         drm_display->setSynchronize(make_shared<Synchronize>(SYNCHRONIZETYPE_VIDEO));
         ret = drm_display->init();
         if (ret < 0) {
@@ -191,7 +223,7 @@ int main(int argc, char** argv)
         ctx->ratio_w = (float)inf_crop.w / output_para.width;
         ctx->ratio_h = (float)inf_crop.h / output_para.height;
 
-        rga->setOutputDataCallback(ctx, callback_external);
+        rga->setMediaBufferProduceHooker(std::bind(callback_external, ctx, std::placeholders::_3));
 
         source->start();
         getchar();

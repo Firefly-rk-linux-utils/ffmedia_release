@@ -6,6 +6,7 @@ import re
 import os
 import stat
 import time
+from functools import partial
 cv2_enable = True
 try:
     import cv2
@@ -22,8 +23,8 @@ class Cv2Display():
 def align(x, a):
     return (x + a - 1) & ~(a - 1)
 
-def cv2_extcall_back(obj, MediaBuffer):
-    vb = m.VideoBuffer.from_base(MediaBuffer)
+def cv2_extcall_back(obj, name, queue_size, media_buffer):
+    vb = m.VideoBuffer.from_base(media_buffer)
     if obj.sync is not None:
         delay = obj.sync.updateVideo(vb.getPUstimestamp(), 0)
         if delay > 0:
@@ -40,8 +41,8 @@ def cv2_extcall_back(obj, MediaBuffer):
         cv2.imshow(obj.name + str(i), img)
     cv2.waitKey(1)
 
-def call_back(obj, MediaBuffer):
-    a = MediaBuffer.getActiveData()
+def call_back(obj, name, queue_size, media_buffer):
+    a = media_buffer.getActiveData()
     obj.write(a)
 
 def get_parameters():
@@ -69,7 +70,7 @@ def get_parameters():
     parser.add_argument("-l", "--loop", dest='loop', action='store_true', help="Loop reads the media file.")
     parser.add_argument("--gb28181_user_id", dest='gb28181_user_id', type=str, help="Enable gb28181 client, default disabled. set user id.")
     parser.add_argument("--gb28181_server_id", dest='gb28181_server_id', type=str, help="Set the server id of gb28181 client.")
-    parser.add_argument("--gb28181_server_ip", dest='gb28181_server_ip', type=str, help="Set the server ip of gb28181 client\.")
+    parser.add_argument("--gb28181_server_ip", dest='gb28181_server_ip', type=str, help="Set the server ip of gb28181 client.")
     parser.add_argument("--gb28181_server_port", dest='gb28181_server_port', type=int, default=5060, help="Set the server port of gb28181 client.")
     parser.add_argument("--use_ffmpeg_demux", dest='use_ffmpeg_demux', type=str, help="Use ffmpeg demux and specify the input format. e.g. --use_ffmpeg_demux default or --use_ffmpeg_demux kmsgrab")
     parser.add_argument("--use_ffmpeg_mux", dest='use_ffmpeg_mux', type=str, help="Use ffmpeg mux and specify the output format. e.g. --use_ffmpeg_mux mp4 or --use_ffmpeg_mux rtsp")
@@ -79,8 +80,6 @@ def get_parameters():
 def main():
 
     args = get_parameters()
-    video_extra_buffer = None
-    audio_extra_buffer = None
     last_audio_module = None
     input_audio_source = None
     input_source = None
@@ -99,8 +98,6 @@ def main():
             print("input_source init failed")
             return 1
 
-        video_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_VIDEO)
-        audio_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_AUDIO)
     elif args.input_source.startswith("rtsp://"):
         print("input source is a rtsp url")
         input_source = m.ModuleRtspClient(args.input_source, m.RTSP_STREAM_TYPE(args.rtsp_transport), True, args.audio)
@@ -108,8 +105,6 @@ def main():
         if ret < 0:
             print("input_source init failed")
             return 1
-        video_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_VIDEO)
-        audio_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_AUDIO)
     elif args.input_source.startswith("rtmp://"):
         print("input source is a rtmp url")
         input_source = m.ModuleRtmpClient(args.input_source)
@@ -117,8 +112,6 @@ def main():
         if ret < 0:
             print("input_source init failed")
             return 1
-        video_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_VIDEO)
-        audio_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_AUDIO)
     else:
         is_stat = os.stat(args.input_source)
         if stat.S_ISCHR(is_stat.st_mode):
@@ -131,13 +124,11 @@ def main():
 
         elif stat.S_ISREG(is_stat.st_mode):
             print("input source is a regular file.")
-            input_source = m.ModuleFileReader(args.input_source, args.loop);
+            input_source = m.ModuleFileReader(args.input_source, args.loop)
             ret = input_source.init()
             if ret < 0:
                 print("input_source init failed")
                 return 1
-            video_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_VIDEO)
-            audio_extra_buffer = input_source.getExtraBuffer(m.BUFFER_TYPE_AUDIO)
         else:
             print("{} is not support.".format(args.input_source))
             return 1
@@ -170,15 +161,9 @@ def main():
             print("Failed to init aac_enc")
             return ret
         last_audio_module = aac_enc
-        audio_extra_buffer = aac_enc.getExtraBuffer()
 
     if args.aplay is not None:
-        aac_dec = None
-        if audio_extra_buffer is not None:
-            s_info = audio_extra_buffer.getSamplePara()
-            aac_dec = m.ModuleAacDec(audio_extra_buffer.getActiveData(), audio_extra_buffer.getActiveSize(), s_info.sample_rate, s_info.channels)
-        else:
-            aac_dec = m.ModuleAacDec()
+        aac_dec = m.ModuleAacDec()
         if last_audio_module != None:
             aac_dec.setProductor(last_audio_module)
         else:
@@ -277,10 +262,12 @@ def main():
                 print("Output image format is not 'BGR24', Use the '-b BGR24' option to specify image format.")
                 return 1
             cv_display = Cv2Display("Cv2Display", None, sync, args.cvdisplay)
-            cv_display.module = last_module.addExternalConsumer("Cv2Display", cv_display, cv2_extcall_back)
+            cv_display.module = last_module.addExternalConsumer(
+                "Cv2Display", partial(cv2_extcall_back, cv_display))
 
     if args.encodetype != -1:
-        enc = m.ModuleMppEnc(m.EncodeType(args.encodetype))
+        enc = m.ModuleMppEnc(
+            m.EncodeType(args.encodetype), last_module.getOutputImagePara())
         enc.setProductor(last_module)
         enc.setBufferCount(8)
         enc.setDuration(0) #Use the input source timestamp
@@ -288,7 +275,6 @@ def main():
         if ret < 0:
             print("ModuleMppEnc init failed")
             return 1
-        video_extra_buffer = enc.getExtraBuffer()
         last_module = enc
 
         if args.port != 0:
@@ -298,6 +284,13 @@ def main():
             else:
                 push_s = m.ModuleRtmpServer("/live/0", args.port)
             push_s.setProductor(last_module)
+
+            if args.audio == True:
+                audio_producer = last_audio_module if last_audio_module is not None else input_source
+                ret = push_s.connectProducer(audio_producer)
+                if ret < 0:
+                    print("Failed to connect audio producer to push server", ret)
+
             push_s.setBufferCount(0)
             if args.sync != -1:
                 push_s.setSynchronize(m.Synchronize(m.SynchronizeType(args.sync)))
@@ -307,21 +300,6 @@ def main():
                 print("push server init failed")
                 return 1
 
-            if args.audio == True and args.push_type == 0:
-                push_s_a = m.ModuleRtspServerExtend(push_s, "/live/0", args.port)
-                if last_audio_module != None:
-                    push_s_a.setProductor(last_audio_module)
-                else:
-                    push_s_a.setProductor(input_source)
-
-                if audio_extra_buffer is not None:
-                    push_s_a.setAudioParameter(audio_extra_buffer.getMediaCodec())
-                else:
-                    push_s_a.setAudioParameter(m.MEDIA_CODEC_AUDIO_AAC)
-                ret = push_s_a.init()
-                if ret < 0:
-                    print("Failed to init audio push server")
-                    return 1
 
         if args.rtmp_url is not None:
             push_c = m.ModuleRtmpClient(args.rtmp_url, m.ImagePara(), 0)
@@ -350,38 +328,40 @@ def main():
 
         if args.use_ffmpeg_mux is not None:
             ffmpeg_muxer = m.ModuleFFmpegMux(args.enmux, args.use_ffmpeg_mux)
-            ffmpeg_muxer.setProductor(last_module)
+            ret = ffmpeg_muxer.connectProducer(last_module)
+            if ret < 0:
+                print("Failed to connect video producer to ModuleFFmpegMux", ret)
+                return ret
+            if args.audio:
+                audio_producer = last_audio_module if last_audio_module is not None else input_source
+                ret = ffmpeg_muxer.connectProducer(audio_producer)
+                if ret < 0:
+                    print("Failed to connect audio producer to ModuleFFmpegMux", ret)
             if args.sync != -1:
                 ffmpeg_muxer.setSynchronize(m.Synchronize(m.SynchronizeType(args.sync)))
-            # Some muxes require media extra data to be set in advance.
-            ffmpeg_muxer.setExtraBuffer(m.BUFFER_TYPE_VIDEO, video_extra_buffer)
             ret = ffmpeg_muxer.init()
             if ret < 0:
                 print("Failed to init ModuleFFmpegMux", ret)
                 return 1
         else:
             enm = m.ModuleFileWriter(args.enmux)
-            enm.setProductor(last_module)
+            ret = enm.connectProducer(last_module)
+            if ret < 0:
+                print("Failed to connect video producer to ModuleFileWriter", ret)
+                return ret
+            if args.audio:
+                audio_producer = last_audio_module if last_audio_module is not None else input_source
+                ret = enm.connectProducer(audio_producer)
+                if ret < 0:
+                    print("Failed to connect audio producer to ModuleFileWriter", ret)
             ret = enm.init()
             if ret < 0:
                 print("Failed to init ModuleFileWriter")
                 return 1
 
-            if args.audio:
-                enm_audio = m.ModuleFileWriterExtend(enm, args.enmux)
-                if last_audio_module != None:
-                    enm_audio.setProductor(last_audio_module)
-                else:
-                    enm_audio.setProductor(input_source)
-                enm_audio.setAudioParameter(0, 0, 0, m.MEDIA_CODEC_AUDIO_AAC);
-                ret = enm_audio.init()
-                if ret < 0:
-                    print("Failed to init audio writer")
-                    return 1
-
     if args.save_file is not None:
         file = open(args.save_file, "wb")
-        input_source.setOutputDataCallback(file, call_back)
+        input_source.setMediaBufferProduceHooker(partial(call_back, file))
 
     input_source.start()
     input_source.dumpPipe()
@@ -393,7 +373,7 @@ def main():
         input_audio_source.dumpPipeSummary()
         input_audio_source.stop()
     input_source.dumpPipeSummary()
-    input_source.stop()
+    #input_source.stop()
 
     if args.save_file is not None:
         file.close()

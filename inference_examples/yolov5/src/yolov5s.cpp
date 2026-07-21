@@ -9,7 +9,7 @@
 
 Yolov5s::Yolov5s()
 {
-    model = make_shared<ModuleInference>();
+    model = std::make_shared<ModuleInference>();
     box_conf_threshold = BOX_THRESH;
     nms_threshold = NMS_THRESH;
 }

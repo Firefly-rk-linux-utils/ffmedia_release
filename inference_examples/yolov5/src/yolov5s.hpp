@@ -2,6 +2,8 @@
 
 #include "module/vp/module_inference.hpp"
 
+using namespace FFMedia;
+
 class Yolov5s
 {
 private:

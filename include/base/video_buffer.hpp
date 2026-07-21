@@ -1,10 +1,10 @@
-#ifndef __VIDEO_BUFFER_HPP__
-#define __VIDEO_BUFFER_HPP__
+#pragma once
 
-#include <inttypes.h>
-#include "pixel_fmt.hpp"
+
 #include "media_buffer.hpp"
 
+namespace FFMedia
+{
 class DrmBuffer;
 typedef void* MppBuffer;
 typedef void* MppBufferGroup;
@@ -26,15 +26,22 @@ private:
     MppBuffer mpp_buf;
     BUFFER_TYPE buffer_type;
     int buf_fd;
+    void fillWithColorInternal(uint8_t r, uint8_t g, uint8_t b, uint8_t a,
+                               uint32_t x, uint32_t y, uint32_t w, uint32_t h);
 
 public:
     VideoBuffer(BUFFER_TYPE type);
-    ~VideoBuffer();
+    VideoBuffer(const VideoBuffer& other);
+    VideoBuffer& operator=(const VideoBuffer&) = delete;
+    ~VideoBuffer() override;
     void resetBuffer();
     void allocBuffer(ImagePara para);
-    void allocBuffer(size_t _size);
-    void fillWithBlack();
+    void allocBuffer(size_t _size) override;
+    void fillWithBlack() override;
+    std::shared_ptr<MediaBuffer> clone() const override;
     void fillWithBlack(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+    void fillWithColor(uint8_t r, uint8_t g, uint8_t b);
+    void fillWithColor(uint8_t r, uint8_t g, uint8_t b, uint32_t x, uint32_t y, uint32_t w, uint32_t h);
     int releaseMppBuffer();
     void initWithExternalBuffer(void* data_, size_t size_, int fd_);
     int importToMppBufferGroup(MppBufferGroup group);
@@ -58,4 +65,4 @@ public:
     void invalidateDrmBuf();
 };
 
-#endif
+}  // namespace FFMedia

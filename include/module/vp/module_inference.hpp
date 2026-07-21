@@ -2,13 +2,15 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-10-20 11:49:30
+ * @LastEditTime: 2026-05-19 15:47:24
  * @Description: 模型推理组件。支持图像预处理及模型推理。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
 #pragma once
 #include "module/module_media.hpp"
 #include <rknn_api.h>
+namespace FFMedia
+{
 class ModuleRga;
 class rknnModelInference;
 
@@ -101,17 +103,18 @@ public:
      * @param {shared_ptr<MediaBuffer>} input_buffer    输入图像。要推理的图像。
      * @return {int}                                    成功返回0，失败返回负数。
      */
-    int inference(shared_ptr<MediaBuffer> input_buffer);
+    int inference(std::shared_ptr<MediaBuffer> input_buffer);
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ConsumeResult doConsume(const std::shared_ptr<MediaBuffer>& input_buffer, std::shared_ptr<MediaBuffer>& output_buffer) override;
     void reset() override;
 
 private:
-    shared_ptr<ModuleRga> rga;
+    std::shared_ptr<ModuleRga> rga;
     rknnModelInference* rmi;
     uint32_t interval;
     uint32_t cur_frame_count;
     ImageCrop input_image_crop;
     ImageCrop output_image_crop;
 };
+}  // namespace FFMedia

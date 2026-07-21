@@ -1,12 +1,14 @@
-#ifndef __PIXEL_FMT__
-#define __PIXEL_FMT__
+#pragma once
+
 #include <linux/videodev2.h>
-#include <stdint.h>
+#include <cstdint>
 #include "ff_log.h"
 #include "ff_type.hpp"
 
 #define ALIGN(x, a) (((x) + (a)-1) & ~((a)-1))
 
+namespace FFMedia
+{
 FFMEDIA_API const char* v4l2GetFmtName(uint32_t v4l2_fmt);
 FFMEDIA_API const char* drmGetFmtName(uint32_t drm_fmt);
 
@@ -48,4 +50,4 @@ FFMEDIA_API uint32_t v4l2GetFmtByName(const char* name);
 FFMEDIA_API ImageCrop getCenterCrop(ImagePara& src_para, ImagePara& dst_para);
 FFMEDIA_API ImageCrop getLetterboxCrop(const ImagePara& src_para, const ImagePara& dst_para);
 FFMEDIA_API bool v4l2fmtIsCompressed(uint32_t v4l2_fmt);
-#endif
+}  // namespace FFMedia

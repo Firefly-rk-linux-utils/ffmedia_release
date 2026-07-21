@@ -2,7 +2,7 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-11-01 09:07:55
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-11-04 14:03:41
+ * @LastEditTime: 2026-07-01 11:40:52
  * @Description: 输入源组件, 支持文件、网络及UVC等流的读取。通过FFmpeg接口操作获取数据。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -15,6 +15,8 @@ struct AVInputFormat;
 struct AVDictionary;
 struct AVBSFContext;
 struct AVCodecParameters;
+namespace FFMedia
+{
 class ModuleFFmpegDemux : public ModuleMedia
 {
 public:
@@ -24,7 +26,7 @@ public:
      * @param {int} loop            循环读取次数。
      * @return {*}
      */
-    ModuleFFmpegDemux(const string& filename, int loop = 1);
+    ModuleFFmpegDemux(const std::string& filename, int loop = 1);
     ~ModuleFFmpegDemux();
 
     /**
@@ -33,14 +35,14 @@ public:
      * @param {int} loop            循环读取次数。
      * @return {int}            成功返回 0，失败返回负数。
      */
-    int changeSource(const string& filename, int loop = 1);
+    int changeSource(const std::string& filename, int loop = 1);
 
     /**
      * @description: 根据format使用AVinputFormat。
      * @param {const string &} format   AVinputFormat对应的短名称，为空则使用默认的AVinputFormat。
      * @return {int}            成功返回0，失败返回负数错误代码。
      */
-    int setInputFormat(const string& format);
+    int setInputFormat(const std::string& format);
 
     /**
      * @description: 设置参数选项的键值对。
@@ -49,14 +51,14 @@ public:
      * @param {int} flags               标志位。
      * @return {int}                    >= o 为成功，< 0 为错误代码。
      */
-    int setFormatOption(const string& key, const string& value, int flags);
+    int setFormatOption(const std::string& key, const std::string& value, int flags);
     /**
      * @description: 通过键获取参数选项值。
      * @param {const string &} key  键。
      * @param {int} flags   标志位。
      * @return {string}     返回键对应的值。
      */
-    string getFormatOption(const string& key, int flags);
+    std::string getFormatOption(const std::string& key, int flags);
 
     /**
      * @description: 初始化 ModuleFFmpegDemux。
@@ -89,7 +91,7 @@ public:
      * @param {MEDIA_BUFFER_TYPE} meida_type    媒体类型。
      * @return {shared_ptr<MediaBuffer>}        成功返回含有附加数据及媒体参数的MediaBuffer，失败返回空指针。
      */
-    shared_ptr<MediaBuffer> getExtraBuffer(MEDIA_BUFFER_TYPE media_type);
+    std::shared_ptr<MediaBuffer> getExtraBuffer(MEDIA_BUFFER_TYPE media_type);
 
     /**
      * @description: 获取视频格式。此调用应在对象初始化后使用。
@@ -109,8 +111,8 @@ protected:
     void cleanup();
     virtual bool teardown() override;
 
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
-    virtual void bufferReleaseCallBack(const shared_ptr<MediaBuffer>& buffer) override;
+    virtual ProduceResult doProduce(std::shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual void bufferReleaseCallBack(const std::shared_ptr<MediaBuffer>& buffer) override;
 
 private:
     AVFormatContext* pFCtx;
@@ -130,6 +132,8 @@ private:
     int loop;
     int64_t timeOutUsec;
 
-    string src;
+    std::string src;
 };
+
+}  // namespace FFMedia
 #endif  // FFMPEG_SUPPORT

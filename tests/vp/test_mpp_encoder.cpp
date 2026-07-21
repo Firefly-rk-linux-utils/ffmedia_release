@@ -1,5 +1,12 @@
 #include "module/vi/module_memReader.hpp"
 #include "module/vp/module_mppenc.hpp"
+#include "tests/media_channel_dump.hpp"
+
+#include <cerrno>
+#include <cstring>
+
+using namespace FFMedia;
+using namespace std;
 
 // #define TEST_PARALLEL_ENCODING
 
@@ -7,12 +14,13 @@
 #include "module/vp/module_rga.hpp"
 #endif
 
-void status_change_callback(void* ctx, ModuleStatus status)
+void status_change_callback(const string& name, MediaStatus status)
 {
-    ff_info("Module state has changed(%d)\n", status);
+    ff_info("%s status changed to %d\n", name.c_str(), static_cast<int>(status));
 }
 
-void output_callback(void* ctx, shared_ptr<MediaBuffer> buffer)
+void output_callback(void* ctx, const string& name, int queue_size,
+                     shared_ptr<MediaBuffer> buffer)
 {
     FILE* fp = (FILE*)ctx;
     fwrite(buffer->getActiveData(), buffer->getActiveSize(), 1, fp);
@@ -23,8 +31,9 @@ void output_callback(void* ctx, shared_ptr<MediaBuffer> buffer)
         auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::high_resolution_clock::now() - start_time)
                         .count();
-        ff_info("encode %ld frames time %ld ms fps %ld \n",
-                frame_count, diff, frame_count * 1000 / diff);
+        ff_info("%s: queue %d, encoded %ld frames, %ld ms, %ld fps\n",
+                name.c_str(), queue_size, frame_count, diff,
+                frame_count * 1000 / diff);
     }
 }
 
@@ -84,20 +93,26 @@ int main(int argc, char** argv)
 
     /* Create a memory reader module. */
     auto r_mem = make_shared<ModuleMemReader>(input_buffer->getImagePara());
-    r_mem->setStatusChangeCallback(nullptr, status_change_callback);
+    r_mem->setMediaStatusChangeHooker(status_change_callback);
     ret = r_mem->init();
     if (ret < 0) {
         ff_error("Failed to init memory reader, %d\n", ret);
         fclose(fp);
         return ret;
     }
+    dumpOutputMediaChannels(*r_mem);
     last_mod = r_mem;
 
 #ifdef TEST_PARALLEL_ENCODING
     /* Copy the data to more buffer queues to improve encoding parallelism. */
     auto rga = make_shared<ModuleRga>(last_mod->getOutputImagePara(),
                                       RGA_ROTATE_NONE);
-    rga->setProductor(last_mod);
+    ret = rga->connectProducer(last_mod);
+    if (ret < 0) {
+        ff_error("Failed to connect memory reader to rga converter, %d\n", ret);
+        fclose(fp);
+        return ret;
+    }
     /* Set the buffer queue length to 5. */
     rga->setBufferCount(5);
     ret = rga->init();
@@ -106,12 +121,18 @@ int main(int argc, char** argv)
         fclose(fp);
         return ret;
     }
+    dumpOutputMediaChannels(*rga);
     last_mod = rga;
 #endif
 
     /* Create a mpp encoder module. */
-    auto v_enc = make_shared<ModuleMppEnc>(EncodeType::ENCODE_TYPE_H265);
-    v_enc->setProductor(last_mod);
+    auto v_enc = make_shared<ModuleMppEnc>(MEDIA_CODEC_VIDEO_H265);
+    ret = v_enc->connectProducer(last_mod);
+    if (ret < 0) {
+        ff_error("Failed to connect producer to mpp encoder, %d\n", ret);
+        fclose(fp);
+        return ret;
+    }
     ret = v_enc->init();
     if (ret < 0) {
         ff_error("Failed to init mpp encoder, %d\n", ret);
@@ -119,21 +140,14 @@ int main(int argc, char** argv)
         return ret;
     }
 
-    /* Print the video stream information */
-    auto v_extra = v_enc->getExtraBuffer();
-    if (v_extra) {
-        ff_info("Video: Extra codec %d , data %p, bytes %ld\n",
-                v_extra->getMediaCodec(), v_extra->getActiveData(),
-                v_extra->getActiveSize());
-
-        auto param = v_extra->getImagePara();
-        ff_info("foramt %s, width %d, height %d\n",
-                v4l2GetFmtName(param.v4l2Fmt), param.width,
-                param.height);
-    }
+    /* Print stream information through the encoder output channels. */
+    dumpOutputMediaChannels(*v_enc);
 
     /* Set the output callback function for the encoder */
-    v_enc->setOutputDataCallback(fp, output_callback);
+    v_enc->setMediaBufferProduceHooker([fp](const string& name, int queue_size,
+                                            shared_ptr<MediaBuffer> buffer) {
+        output_callback(fp, name, queue_size, buffer);
+    });
 
     ff_info("\n========================================================\n\n");
 

@@ -6,6 +6,6 @@
 
 #include "base/video_buffer.hpp"
 
-void dump_normalbuffer_to_file(shared_ptr<VideoBuffer> buffer, FILE* fp);
-void dump_videobuffer_to_file(shared_ptr<VideoBuffer> buffer, FILE* fp);
+void dump_normalbuffer_to_file(std::shared_ptr<FFMedia::VideoBuffer> buffer, FILE* fp);
+void dump_videobuffer_to_file(std::shared_ptr<FFMedia::VideoBuffer> buffer, FILE* fp);
 #endif

@@ -1,8 +1,8 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-07-09 14:51:12
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2026-07-01 11:41:30
  * @Description: 输入源组件，音频数据通过alsa接口采集。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -11,6 +11,8 @@
 
 #if AUDIO_SUPPORT
 
+namespace FFMedia
+{
 class AlsaCapture;
 class ModuleAlsaCapture : public ModuleMedia
 {
@@ -48,7 +50,7 @@ public:
     int init() override;
 
 protected:
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ProduceResult doProduce(std::shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
 
@@ -59,4 +61,5 @@ private:
     AI_LAYOUT_E layout;
 };
 
+}  // namespace FFMedia
 #endif  // AUDIO_SUPPORT

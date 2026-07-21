@@ -2,15 +2,23 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-11-04 14:05:46
+ * @LastEditTime: 2026-07-01 11:40:18
  * @Description: 输入源组件，Rtsp客户端，支持TCP、UDP及多播协议流。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE_RTSPCLIENT_HPP__
-#define __MODULE_RTSPCLIENT_HPP__
+#pragma once
+
 
 #include "module/module_media.hpp"
+namespace FFMedia
+{
 class RTSPClient;
+
+enum RTSP_STREAM_TYPE {
+    RTSP_STREAM_TYPE_UDP,
+    RTSP_STREAM_TYPE_TCP,
+    RTSP_STREAM_TYPE_MULTICAST
+};
 
 class ModuleRtspClient : public ModuleMedia
 {
@@ -31,7 +39,7 @@ public:
      * @param {bool} enable_audio               使能接收rtsp音频流。
      * @return {*}
      */
-    ModuleRtspClient(string rtsp_url, RTSP_STREAM_TYPE _stream_type = RTSP_STREAM_TYPE_UDP,
+    ModuleRtspClient(std::string rtsp_url, RTSP_STREAM_TYPE _stream_type = RTSP_STREAM_TYPE_UDP,
                      bool enable_video = true, bool enable_audio = false);
     ~ModuleRtspClient();
 
@@ -41,7 +49,7 @@ public:
      * @param {RTSP_STREAM_TYPE} _stream_type   rtsp媒体流协议类型。
      * @return {int}                            成功返回0，失败返回负数。
      */
-    int changeSource(string rtsp_url, RTSP_STREAM_TYPE _stream_type = RTSP_STREAM_TYPE_UDP);
+    int changeSource(std::string rtsp_url, RTSP_STREAM_TYPE _stream_type = RTSP_STREAM_TYPE_UDP);
 
     /**
      * @description: 初始化 ModuleRtspClient 对象。
@@ -60,7 +68,7 @@ public:
      * @param {MEDIA_BUFFER_TYPE} meida_type    媒体类型。
      * @return {shared_ptr<MediaBuffer>}        成功返回含有附加数据及媒体参数的MediaBuffer，失败返回空指针。
      */
-    shared_ptr<MediaBuffer> getExtraBuffer(MEDIA_BUFFER_TYPE media_type);
+    std::shared_ptr<MediaBuffer> getExtraBuffer(MEDIA_BUFFER_TYPE media_type);
 
     /**
      * @description: 获取音频格式。此调用应在对象初始化后使用。
@@ -107,18 +115,18 @@ public:
     SESSION_STATUS getSessionStatus();
 
 protected:
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
-    virtual void bufferReleaseCallBack(const shared_ptr<MediaBuffer>& buffer) override;
+    virtual ProduceResult doProduce(std::shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual void bufferReleaseCallBack(const std::shared_ptr<MediaBuffer>& buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
     int fromRtpGetVideoParameter();
     void initMediaInfo();
 
 private:
-    shared_ptr<RTSPClient> rtsp_client;
+    std::shared_ptr<RTSPClient> rtsp_client;
     int64_t time_msec;
     RTSP_STREAM_TYPE stream_type;
-    string url;
+    std::string url;
     int abnormalStatusFlag;
     bool first_audio_frame;
 
@@ -129,4 +137,4 @@ private:
     bool open();
 };
 
-#endif /* ModuleRtspClient_hpp */
+}  // namespace FFMedia

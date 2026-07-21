@@ -8,11 +8,13 @@ import stat
 import cv2
 import threading
 import time
+from functools import partial
 
 class Cv2Display(threading.Thread):
     def __init__(self, name, module, sync):
         super().__init__(name=name)
         self.module = module
+        self.consumer = None
         self.sync = sync
         self.is_stop = False
         self.lock = threading.Lock()
@@ -51,26 +53,26 @@ class Cv2Display(threading.Thread):
         cv2.destroyAllWindows()
 
     def stop(self):
-        self.is_stop = True
+        with self.condition:
+            self.is_stop = True
+            self.condition.notify_all()
 
 def align(x, a):
     return (x + a - 1) & ~(a - 1)
 
-def call_back(obj, MediaBuffer):
-    a = MediaBuffer.getActiveData()
+def call_back(obj, name, queue_size, media_buffer):
+    a = media_buffer.getActiveData()
     obj.write(a)
 #    print('VideoBuffer data type: ', a.dtype)
 #    print('VideoBuffer data size: ', a.size)
 
-def cv2_call_back(obj, MediaBuffer):
+def cv2_call_back(obj, name, queue_size, media_buffer):
     with obj.condition:
         while obj.frame_complete:
             if not obj.condition.wait(timeout=1):
                 return
 
-        if obj.frame is not None:
-            obj.module.importBufferToBufferPool(obj.frame, obj.frame.getIndex())
-        obj.frame = obj.module.exportBufferFromBufferPool(MediaBuffer.getIndex())
+        obj.frame = media_buffer.clone()
         if obj.frame is not None:
             obj.frame_complete = True
         obj.condition.notify()
@@ -106,7 +108,7 @@ def main():
             input_source = m.ModuleCam(args.input_source)
         elif stat.S_ISREG(is_stat.st_mode):
             print("input source is a regular file.")
-            input_source = m.ModuleFileReader(args.input_source, 0);
+            input_source = m.ModuleFileReader(args.input_source, False)
         else:
             print("{} is not support.".format(args.input_source))
             return 1
@@ -124,13 +126,25 @@ def main():
         input_source.setSynchronize(sync)
 
     if args.aplay is not None:
-        aplay = m.ModuleAacDec()
-        aplay.setProductor(last_module)
-        aplay.setAlsaDevice(args.aplay)
+        aac_dec = m.ModuleAacDec()
+        ret = aac_dec.connectProducer(last_module)
+        if ret < 0:
+            print("Failed to connect audio source to aac decoder, ", ret)
+            return ret
+        ret = aac_dec.init()
+        if ret < 0:
+            print("aac_dec init failed")
+            return 1
+
+        aplay = m.ModuleAlsaPlayBack(args.aplay)
+        ret = aplay.connectProducer(aac_dec)
+        if ret < 0:
+            print("Failed to connect aac decoder to audio playback, ", ret)
+            return ret
         aplay.setSynchronize(sync)
         ret = aplay.init()
         if ret <0:
-            print("aac_dec init failed")
+            print("audio playback init failed")
             return 1
 
     input_para = last_module.getOutputImagePara()
@@ -204,12 +218,13 @@ def main():
             return
 
         cv_display = Cv2Display("Cv2Display", last_module, sync)
-        last_module.setOutputDataCallback(cv_display, cv2_call_back)
+        cv_display.consumer = last_module.addExternalConsumer(
+            "Cv2Display", partial(cv2_call_back, cv_display))
         cv_display.start()
 
     if args.save_file is not None:
         file = open(args.save_file, "wb")
-        input_source.setOutputDataCallback(file, call_back)
+        input_source.setMediaBufferProduceHooker(partial(call_back, file))
 
     input_source.start()
     text = input("wait...")

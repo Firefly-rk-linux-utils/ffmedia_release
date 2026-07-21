@@ -1,66 +1,74 @@
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <sys/stat.h>
+#include <cstdio>
+#include <memory>
 
 #include "module/vi/module_rtspClient.hpp"
-#include "module/vp/module_mppdec.hpp"
 #include "module/vo/module_drmDisplay.hpp"
+#include "module/vp/module_mppdec.hpp"
+
+using namespace FFMedia;
+
+namespace
+{
+
+int checkResult(const char* operation, int ret)
+{
+    if (ret < 0)
+        std::fprintf(stderr, "%s failed, ret=%d\n", operation, ret);
+    return ret;
+}
+
+}  // namespace
 
 int main(int argc, char** argv)
 {
-    int ret;
-    shared_ptr<ModuleRtspClient> rtsp_c = NULL;
-    shared_ptr<ModuleMppDec> dec = NULL;
-    shared_ptr<ModuleDrmDisplay> drm_display = NULL;
-    ImagePara input_para;
-    ImagePara output_para;
-
-    // 1. rtsp client module
-    rtsp_c = make_shared<ModuleRtspClient>("rtsp://admin:firefly123@168.168.2.96:554/av_stream");
-    ret = rtsp_c->init();
-    if (ret < 0) {
-        ff_error("rtsp client init failed\n");
-        return ret;
+    if (argc != 2) {
+        std::fprintf(stderr, "Usage: %s rtsp://user:password@host/path\n", argv[0]);
+        return 1;
     }
 
-    // 2. dec module
-    input_para = rtsp_c->getOutputImagePara();
-    dec = make_shared<ModuleMppDec>(input_para);
-    dec->setProductor(rtsp_c);
-    ret = dec->init();
-    if (ret < 0) {
-        ff_error("Dec init failed\n");
+    // 1. The source publishes every media channel found in the RTSP session.
+    auto source = std::make_shared<ModuleRtspClient>(
+        argv[1], RTSP_STREAM_TYPE_TCP, true, true);
+    int ret = source->init();
+    if (checkResult("initialize RTSP source", ret) < 0)
         return ret;
+
+    for (const auto& channel : source->getOutputMediaChannels()) {
+        std::printf("source channel=%u name=%s type=%d codec=%d\n",
+                    channel.id, channel.name.c_str(), channel.media_type,
+                    channel.codec);
     }
 
-    // 3. drm display module
-    input_para = dec->getOutputImagePara();
-    drm_display = make_shared<ModuleDrmDisplay>(input_para);
-    drm_display->setPlanePara(V4L2_PIX_FMT_NV12, 1);
-    drm_display->setProductor(dec);
-    ret = drm_display->init();
-    if (ret < 0) {
-        ff_error("drm display init failed\n");
+    // 2. ModuleMppDec accepts compressed video formats. connectProducer()
+    // automatically ignores unrelated channels such as RTSP audio.
+    auto decoder = std::make_shared<ModuleMppDec>();
+    ret = decoder->connectProducer(source);
+    if (checkResult("connect RTSP source to decoder", ret) < 0)
         return ret;
-    } else {
-        uint32_t t_w, t_h;
-        // Get the size of the plane. By default, the plane covers the entire screen.
-        drm_display->getPlaneSize(&t_w, &t_h);
-        uint32_t w = std::min(t_w, input_para.width);
-        uint32_t h = std::min(t_h, input_para.height);
-        uint32_t x = (t_w - w) / 2;
-        uint32_t y = (t_h - h) / 2;
+    ret = decoder->init();
+    if (checkResult("initialize decoder", ret) < 0)
+        return ret;
 
-        ff_info("x y w h %d %d %d %d\n", x, y, w, h);
-        // Adjust the position and size of the plane on the screen.
-        drm_display->setPlaneRect(x, y, w, h);
+    MediaInputChannel decoder_input;
+    if (decoder->getInputMediaChannel(0, decoder_input)) {
+        std::printf("decoder input <- producer=%s channel=%u\n",
+                    decoder_input.producer_name.c_str(),
+                    decoder_input.producer_channel_id);
     }
 
-    // 4. start origin producer
-    rtsp_c->start();
+    // 3. The display obtains image parameters from the decoder's matched raw
+    // video channel during init(), so no manual ImagePara copy is required.
+    auto display = std::make_shared<ModuleDrmDisplay>();
+    ret = display->connectProducer(decoder);
+    if (checkResult("connect decoder to DRM display", ret) < 0)
+        return ret;
+    ret = display->init();
+    if (checkResult("initialize DRM display", ret) < 0)
+        return ret;
 
-    getchar();
-
-    rtsp_c->stop();
+    // Starting the source starts the connected processing pipeline.
+    source->start();
+    std::printf("Pipeline started. Press Enter to stop.\n");
+    std::getchar();
+    return 0;
 }

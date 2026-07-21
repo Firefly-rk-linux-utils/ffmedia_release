@@ -2,27 +2,32 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-11-17 14:52:32
+ * @LastEditTime: 2026-07-01 11:38:38
  * @Description: 图像处理组件，支持颜色格式转换、缩放、叠加等功能。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE_RGA_HPP__
-#define __MODULE_RGA_HPP__
+
+#pragma once
 
 #include "module/module_media.hpp"
 #include "base/ff_type.hpp"
 
 
+namespace FFMedia
+{
 class FFRga;
 
 class ModuleRga : public ModuleMedia
 {
 private:
-    shared_ptr<FFRga> rga;
+    std::shared_ptr<FFRga> rga;
     RgaRotate rotate;
-    callback_handler blend_callback;
-    void_object blend_callback_ctx;
     VideoBuffer::BUFFER_TYPE buffer_type;
+    ImageCrop input_image_crop;
+    ImageCrop output_image_crop;
+
+    float zoom;
+    std::pair<int, int> zoom_center;
 
 public:
     enum RGA_SCHEDULER_CORE {
@@ -61,6 +66,46 @@ public:
      * @return {int}                成功返回 0，失败返回负数。
      */
     int changeOutputPara(const ImagePara& para);
+
+    /**
+     * @description: 设置输入图像区域，默认区域为输入图像大小。
+     * @param {ImageCrop&} corp     图像区域。
+     * @return {int}                成功返回 0，失败返回负数。
+     */
+    int setInputImageCrop(const ImageCrop& crop);
+
+    /**
+     * @description: 设置输出图像区域，默认区域为输出图像大小。
+     * @param {ImageCrop&} corp     图像区域。
+     * @return {int}                成功返回 0，失败返回负数。
+     */
+    int setOutputImageCrop(const ImageCrop& crop);
+
+    /**
+     * @description: 获取输入图像区域。
+     * @return {ImageCrop}
+     */
+    const ImageCrop& getInputImageCrop() const;
+
+    /**
+     * @description: 获取输出图像区域。
+     * @return {ImageCrop}
+     */
+    const ImageCrop& getOutputImageCrop() const;
+
+    /**
+     * @description: 设置图像放大比例。
+     * @param {float} zoom   放大比例。
+     * @return {*}
+     */
+    void setZoom(float zoom);
+    /**
+     * @description: 设置图像放大中心点。
+     * @param {int} x
+     * @param {int} y
+     * @return {*}
+     */
+    void setZoomCenter(int x, int y);
 
     /**
      * @description: 设置申请buffer类型。默认为DRM_BUFFER_NONCACHEABLE。
@@ -143,13 +188,16 @@ public:
      */
     void setPatBuffer(int fd, RGA_BLEND_MODE mode);
 
-    /**
-     * @description: 设置混合回调函数，混合前将会调用该回调。使用图像混合功能，需要更新混合的图像，可在回调中设置混合图像内存。
-     * @param {void_object} ctx             上下文。
-     * @param {callback_handler} callback   混合回调函数指针。
-     * @return {*}
-     */
-    void setBlendCallback(void_object ctx, callback_handler callback);
+    //    /**
+    //     * @description: 设置混合回调函数，混合前将会调用该回调。使用图像混合功能，需要更新混合的图像，可在回调中设置混合图像内存。
+    //     * @param {void_object} ctx             上下文。
+    //     * @param {callback_handler} callback   混合回调函数指针。
+    //     * @return {*}
+    //     */
+    //    void setBlendCallback(void_object ctx, callback_handler callback);
+    //    该接口已废弃，建议使用MediaBufferConsumeHooker代替该回调。
+    //    void setMediaBufferConsumeHooker(MediaBufferHooker hooker);
+
 
     /**
      * @description: 设置图像旋转模式
@@ -165,22 +213,6 @@ public:
      */
     void setRgaSchedulerCore(RGA_SCHEDULER_CORE core);
 
-
-    /**
-     * @description: 从缓冲池中导出指定索引值缓冲区。
-     * @param {uint16_t} index              缓冲池的索引值。
-     * @return {shared_ptr<MediaBuffer>}    返回导出的缓冲区。
-     */
-    virtual shared_ptr<MediaBuffer> exportBufferFromBufferPool(uint16_t index) override;
-
-    /**
-     * @description: 归还缓冲区到缓冲池的指定索引。
-     * @param {shared_ptr<MediaBuffer>} buffer  归还的缓冲区。
-     * @param {uint16_t} index                  缓冲池的索引值。
-     * @return {int}                            成功返回0，失败返回负数。
-     */
-    virtual int importBufferToBufferPool(shared_ptr<MediaBuffer> buffer, uint16_t index) override;
-
     int dstFillColor(int color);
 
     static void alignStride(uint32_t fmt, uint32_t& wstride, uint32_t& hstride);
@@ -192,7 +224,7 @@ public:
      * @param {shared_ptr<MediaBuffer>} output_buffer   输出的图像内存。
      * @return {ConsumeResult}                          成功返回CONSUME_SUCCESS。
      */
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ConsumeResult doConsume(const std::shared_ptr<MediaBuffer>& input_buffer, std::shared_ptr<MediaBuffer>& output_buffer) override;
 };
 
-#endif  //__MODULE_RGA_HPP__
+}  // namespace FFMedia

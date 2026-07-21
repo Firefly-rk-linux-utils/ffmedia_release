@@ -1,8 +1,8 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-07-09 14:45:40
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2026-07-01 13:59:34
  * @Description: 音频解码组件。支持aac格式解码。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
@@ -13,9 +13,10 @@
 #include "base/ff_type.hpp"
 
 #if AUDIO_SUPPORT
-
-class AlsaPlayBack;
 struct AAC_DECODER_INSTANCE;
+
+namespace FFMedia
+{
 
 class ModuleAacDec : public ModuleMedia
 {
@@ -26,7 +27,7 @@ class ModuleAacDec : public ModuleMedia
 
 public:
     ModuleAacDec();
-    ModuleAacDec(shared_ptr<MediaBuffer> extra_buffer);
+    ModuleAacDec(std::shared_ptr<MediaBuffer> extra_buffer);
 
     /**
      * @description: ModuleAacDec 的构造函数。以下参数可从aac流中获取，可不用设置。
@@ -54,12 +55,13 @@ public:
     int init() override;
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
-    virtual bool teardown() override;
+    virtual ConsumeResult doConsume(const std::shared_ptr<MediaBuffer>& input_buffer, std::shared_ptr<MediaBuffer>& output_buffer) override;
 
 private:
     int open();
     void close();
 };
+
+}  // namespace FFMedia
 
 #endif  // AUDIO_SUPPORT

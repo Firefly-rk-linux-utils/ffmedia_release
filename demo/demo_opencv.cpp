@@ -18,6 +18,8 @@
 
 #define UNUSED(x) [&x] {}()
 using namespace std;
+using namespace FFMedia;
+
 
 struct External_ctx {
     shared_ptr<ModuleMedia> module;
@@ -91,7 +93,10 @@ int main(int argc, char** argv)
 
     ctx1 = new External_ctx();
     ctx1->module = rga;
-    rga->setOutputDataCallback(ctx1, callback_external);
+    rga->setMediaBufferProduceHooker([ctx1](const std::string&, int, std::shared_ptr<MediaBuffer> buffer) {
+        callback_external(ctx1, buffer);
+    });
+
     rtsp_c->start();
 
     getchar();

@@ -1,11 +1,16 @@
-#ifndef __FF_SYNCHRONIZE_HPP__
-#define __FF_SYNCHRONIZE_HPP__
+#pragma once
 
-#include <sys/time.h>
-#include <inttypes.h>
-#include <stdlib.h>
-
+#include <cstdint>
 #include "ff_type.hpp"
+
+namespace FFMedia
+{
+
+enum SynchronizeType {
+    SYNCHRONIZETYPE_VIDEO,
+    SYNCHRONIZETYPE_AUDIO,
+    SYNCHRONIZETYPE_ABSOLUTE
+};
 
 class FFMEDIA_API Synchronize
 {
@@ -51,4 +56,4 @@ public:
 };
 
 
-#endif
+}  // namespace FFMedia

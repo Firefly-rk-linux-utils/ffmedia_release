@@ -2,10 +2,15 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <unistd.h>
+#include <cstring>
 
 #include "module/vi/module_memReader.hpp"
 #include "module/vp/module_mppdec.hpp"
 #include "module/vo/module_drmDisplay.hpp"
+
+using namespace std;
+using namespace FFMedia;
 
 
 int H264ReadFrame(FILE* fp, char* in_buf, int in_buf_size)

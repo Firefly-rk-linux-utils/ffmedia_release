@@ -1,16 +1,18 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 10:37:24
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2026-07-01 11:40:33
  * @Description: 输入源组件，支持从内存读取媒体数据。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE_MEMREADER_HPP__
-#define __MODULE_MEMREADER_HPP__
+#pragma once
+
 
 #include "module/module_media.hpp"
 
+namespace FFMedia
+{
 class ModuleMemReader : public ModuleMedia
 {
 public:
@@ -52,7 +54,7 @@ public:
      * @return {int}            成功返回0，失败返回-1。
      */
     int setInputBuffer(void* buf, size_t bytes, int buf_fd = -1, int64_t pts = 0);
-    int setInputBuffer(const shared_ptr<MediaBuffer>& buf);
+    int setInputBuffer(const std::shared_ptr<MediaBuffer>& buf);
 
     /**
      * @description: 等待对象处理输入数据。
@@ -77,17 +79,17 @@ public:
     void setBufferCount(uint16_t buffer_count) { (void)buffer_count; }
 
 protected:
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
-    virtual void bufferReleaseCallBack(const shared_ptr<MediaBuffer>& buffer) override;
+    virtual ProduceResult doProduce(std::shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual void bufferReleaseCallBack(const std::shared_ptr<MediaBuffer>& buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
 
 private:
-    shared_ptr<VideoBuffer> buffer;
-    shared_ptr<MediaBuffer> swap_buffer;
+    std::shared_ptr<VideoBuffer> buffer;
+    std::shared_ptr<MediaBuffer> swap_buffer;
     DATA_PROCESS_STATUS op_status;
     std::mutex tMutex;
     std::condition_variable tConVar;
 };
 
-#endif /* module_memReader_hpp */
+}  // namespace FFMedia

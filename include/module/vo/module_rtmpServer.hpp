@@ -1,28 +1,29 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-04-25 12:52:36
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2024-12-31 14:53:01
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2026-07-01 11:39:39
  * @Description: 输出组件。rtmp服务器。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE_RTMPSERVER_HPP__
-#define __MODULE_RTMPSERVER_HPP__
+#pragma once
 
-#include <string>
+
 #include "module/module_media.hpp"
 
 
+namespace FFMedia
+{
 class rtmpServer;
 class ModuleRtmpServer : public ModuleMedia
 {
 private:
-    shared_ptr<rtmpServer> rtmp_server;
+    std::shared_ptr<rtmpServer> rtmp_server;
     int push_port;
-    string push_path;
+    std::string push_path;
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ConsumeResult doConsume(const std::shared_ptr<MediaBuffer>& input_buffer, std::shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
 
@@ -79,4 +80,4 @@ public:
     void setTimeOutSec(int sec, int usec);
 };
 
-#endif
+}  // namespace FFMedia

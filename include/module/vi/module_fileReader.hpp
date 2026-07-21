@@ -1,24 +1,26 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-04-25 12:52:36
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-05-29 16:20:10
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2026-07-01 11:40:40
  * @Description: 输入源组件，支持裸流读取和mp4、mkv、flv、ts及ps等媒体文件解封装读取。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE_FILEREADER_HPP__
-#define __MODULE_FILEREADER_HPP__
+#pragma once
+
 
 #include "module/module_media.hpp"
+namespace FFMedia
+{
 class generalFileRead;
 
 class ModuleFileReader : public ModuleMedia
 {
 public:
 private:
-    string filepath;
+    std::string filepath;
     size_t fileSize;
-    shared_ptr<generalFileRead> reader;
+    std::shared_ptr<generalFileRead> reader;
     int videoFirstBuffer;
     int audioFirstBuffer;
 
@@ -29,7 +31,7 @@ private:
     SampleInfo audioSampleInfo;
 
 protected:
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ProduceResult doProduce(std::shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     void initMediaInfo();
 
@@ -40,7 +42,7 @@ public:
      * @param {bool} loop_play  循环读取标志。
      * @return {*}
      */
-    ModuleFileReader(string path, bool loop_play = false);
+    ModuleFileReader(std::string path, bool loop_play = false);
     ~ModuleFileReader();
 
     /**
@@ -49,7 +51,7 @@ public:
      * @param {bool} loop_play  循环读取标志.
      * @return {int}            成功返回0，失败返回负数。
      */
-    int changeSource(string path, bool loop_play = false);
+    int changeSource(std::string path, bool loop_play = false);
 
     /**
      * @description: 初始化 ModuleFileReader 对象。
@@ -74,7 +76,7 @@ public:
      * @param {MEDIA_BUFFER_TYPE} meida_type    媒体类型。
      * @return {shared_ptr<MediaBuffer>}        成功返回含有附加数据及媒体参数的MediaBuffer，失败返回空指针。
      */
-    shared_ptr<MediaBuffer> getExtraBuffer(MEDIA_BUFFER_TYPE media_type);
+    std::shared_ptr<MediaBuffer> getExtraBuffer(MEDIA_BUFFER_TYPE media_type);
 
     /**
      * @description: 获取视频格式。此调用应在对象初始化后使用。
@@ -95,4 +97,4 @@ public:
     int64_t getFileReaderMaxSeek();
 };
 
-#endif
+}  // namespace FFMedia

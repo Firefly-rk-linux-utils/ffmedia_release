@@ -3,10 +3,15 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <termios.h>
+#include <unistd.h>
 
 #include "module/vi/module_rtspClient.hpp"
 #include "module/vp/module_mppdec.hpp"
 #include "module/vo/module_drmDisplay.hpp"
+
+using namespace std;
+using namespace FFMedia;
+
 
 static int mygetch(void)
 {

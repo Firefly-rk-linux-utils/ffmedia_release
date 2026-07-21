@@ -5,7 +5,9 @@
 #include "utils.hpp"
 #include "base/ff_log.h"
 
-void dump_normalbuffer_to_file(shared_ptr<VideoBuffer> buffer, FILE* fp)
+using namespace FFMedia;
+
+void dump_normalbuffer_to_file(std::shared_ptr<VideoBuffer> buffer, FILE* fp)
 {
     if (NULL == fp || NULL == buffer)
         return;
@@ -14,7 +16,7 @@ void dump_normalbuffer_to_file(shared_ptr<VideoBuffer> buffer, FILE* fp)
     fwrite(base, 1, size, fp);
 }
 
-void dump_videobuffer_to_file(shared_ptr<VideoBuffer> buffer, FILE* fp)
+void dump_videobuffer_to_file(std::shared_ptr<VideoBuffer> buffer, FILE* fp)
 {
     uint32_t width = 0;
     uint32_t height = 0;

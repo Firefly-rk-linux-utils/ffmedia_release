@@ -10,6 +10,10 @@
 
 #include <opencv2/opencv.hpp>
 
+using namespace std;
+using namespace FFMedia;
+
+
 struct rga_blend_ctx {
     shared_ptr<ModuleRga> rga;
     shared_ptr<VideoBuffer> vb;
@@ -98,8 +102,7 @@ int main(int argc, char** argv)
         If not dynamically processed blend image.
         no need to set up blend callback processing.
     */
-    rga->setBlendCallback(&blend_ctx, callback_blend);
-
+    rga->setMediaBufferConsumeHooker(std::bind(callback_blend, &blend_ctx, std::placeholders::_3));
 
     // 5. drm display module
     drm_display = make_shared<ModuleDrmDisplay>(input_para);

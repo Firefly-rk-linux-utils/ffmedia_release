@@ -1,15 +1,17 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-04-25 12:52:36
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-05-29 16:20:15
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2026-07-01 11:40:25
  * @Description:兼容输入和输出组件。Rtmp客户端，支持推流到Rtmp服务器和从Rtmp服务器拉流。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE_RTMPCLIENT_HPP__
-#define __MODULE_RTMPCLIENT_HPP__
+#pragma once
+
 
 #include "module/module_media.hpp"
+namespace FFMedia
+{
 class rtmpClient;
 
 class ModuleRtmpClient : public ModuleMedia
@@ -22,7 +24,7 @@ public:
      * @param {int} _publish        推流和拉流标志；1为拉流，0为推流。
      * @return {*}
      */
-    ModuleRtmpClient(string rtmp_url, ImagePara para = ImagePara(), int _publish = 1);
+    ModuleRtmpClient(std::string rtmp_url, ImagePara para = ImagePara(), int _publish = 1);
     ~ModuleRtmpClient();
 
     /**
@@ -31,7 +33,7 @@ public:
      * @param {int} _publish        推流和拉流标志。
      * @return {int}                成功返回0，失败返回负数。
      */
-    int changeSource(string rtmp_url, int _publish = 1);
+    int changeSource(std::string rtmp_url, int _publish = 1);
 
     /**
      * @description: 初始化 ModuleRtmpClient 对象。
@@ -44,7 +46,7 @@ public:
      * @param {MEDIA_BUFFER_TYPE} meida_type    媒体类型。
      * @return {shared_ptr<MediaBuffer>}        成功返回含有附加数据及媒体参数的MediaBuffer，失败返回空指针。
      */
-    shared_ptr<MediaBuffer> getExtraBuffer(MEDIA_BUFFER_TYPE media_type);
+    std::shared_ptr<MediaBuffer> getExtraBuffer(MEDIA_BUFFER_TYPE media_type);
     /**
      * @description: 设置获取网络数据的超时时间。
      * @param {unsigned} sec    秒。
@@ -54,19 +56,19 @@ public:
     void setTimeOutSec(int sec, int usec);
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ConsumeResult doConsume(const std::shared_ptr<MediaBuffer>& input_buffer, std::shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ProduceResult doProduce(std::shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
-    virtual void bufferReleaseCallBack(const shared_ptr<MediaBuffer>& buffer) override;
+    virtual void bufferReleaseCallBack(const std::shared_ptr<MediaBuffer>& buffer) override;
 
 private:
-    shared_ptr<rtmpClient> rtmp_client;
-    string url;
+    std::shared_ptr<rtmpClient> rtmp_client;
+    std::string url;
     int publish;
-    shared_ptr<MediaBuffer> probe_buffer;
+    std::shared_ptr<MediaBuffer> probe_buffer;
     bool first_audio_frame;
 };
 
 
-#endif
+}  // namespace FFMedia

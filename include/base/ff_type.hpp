@@ -1,11 +1,13 @@
-#ifndef __TYPE_H__
-#define __TYPE_H__
+#pragma once
+
 
 #define FFMEDIA_API __attribute__((visibility("default")))
 
 /*
  * Decode type support
  */
+namespace FFMedia
+{
 enum DecodeType {
     DECODE_TYPE_H264 = 0,
     DECODE_TYPE_H265,
@@ -127,13 +129,6 @@ enum RgaRotate {
     RGA_ROTATE_HFLIP,  // Horizontal Mirror
 };
 
-enum yuv2RgbMode {
-    RGB_TO_RGB = 0,
-    YUV_TO_YUV = 0,
-    YUV_TO_RGB = 0x1 << 0,
-    RGB_TO_YUV = 0x2 << 4,
-};
-
 enum SampleFormat {
     SAMPLE_FMT_NONE = -1,
     SAMPLE_FMT_U8,
@@ -168,24 +163,6 @@ struct SampleInfo {
         : fmt(SAMPLE_FMT_NONE), channels(0), sample_rate(0), nb_samples(0){};
 };
 
-enum MEDIA_BUFFER_TYPE {
-    BUFFER_TYPE_VIDEO,
-    BUFFER_TYPE_AUDIO,
-    BUFFER_TYPE_ETC
-};
-
-enum SynchronizeType {
-    SYNCHRONIZETYPE_VIDEO,
-    SYNCHRONIZETYPE_AUDIO,
-    SYNCHRONIZETYPE_ABSOLUTE
-};
-
-enum RTSP_STREAM_TYPE {
-    RTSP_STREAM_TYPE_UDP,
-    RTSP_STREAM_TYPE_TCP,
-    RTSP_STREAM_TYPE_MULTICAST
-};
-
 enum SIP_TRANSPORT_TYPE {
     TRANSPORT_TYPE_TCP,
     TRANSPORT_TYPE_UDP,
@@ -193,4 +170,4 @@ enum SIP_TRANSPORT_TYPE {
     TRANSPORT_TYPE_DTLS
 };
 
-#endif
+}  // namespace FFMedia

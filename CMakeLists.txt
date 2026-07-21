@@ -16,6 +16,7 @@ SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -fPIC -s")
 
 OPTION(DEMO_OPENCV "OpencvDemo" OFF)
 OPTION(DEMO_INFERENCE "InferenceDemo" OFF)
+OPTION(ENABLE_TESTS "Build ffmedia tests" OFF)
 
 IF(DEMO_OPENCV)
 find_package(OpenCV 4 REQUIRED)
@@ -25,7 +26,6 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/inference_examples/lib/RK3588)
 
 IF(DEMO_INFERENCE)
     add_subdirectory(inference_examples)
@@ -40,10 +40,6 @@ add_executable(demo_simple
                demo/demo_simple.cpp
                )
 
-add_executable(demo_simple1
-               demo/demo_simple1.cpp
-               )
-
 add_executable(demo_memory_read
                demo/demo_memory_read.cpp
                )
@@ -56,17 +52,21 @@ add_executable(demo_multi_window
                demo/demo_multi_window.cpp
                )
 
-add_executable(demo_multi_splice
-               demo/demo_multi_splice.cpp
+add_executable(demo_video_stack
+               demo/demo_video_stack.cpp
                )
 
 target_link_libraries(demo ff_media)
 target_link_libraries(demo_simple ff_media)
-target_link_libraries(demo_simple1 ff_media)
 target_link_libraries(demo_memory_read ff_media)
 target_link_libraries(demo_multi_drmplane ff_media)
 target_link_libraries(demo_multi_window ff_media)
-target_link_libraries(demo_multi_splice ff_media)
+target_link_libraries(demo_video_stack ff_media)
+
+IF(ENABLE_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+ENDIF(ENABLE_TESTS)
 
 INCLUDE(GNUInstallDirs)
 
@@ -90,7 +90,7 @@ install(TARGETS demo_opencv demo_opencv_multi demo_rgablend
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 ENDIF(DEMO_OPENCV)
 
-install(TARGETS demo demo_simple demo_simple1 demo_memory_read demo_multi_drmplane demo_multi_window demo_multi_splice
+install(TARGETS demo demo_simple demo_memory_read demo_multi_drmplane demo_multi_window demo_video_stack
 	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 install(FILES lib/libff_media.so

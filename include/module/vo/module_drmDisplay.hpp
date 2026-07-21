@@ -2,18 +2,21 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-08-08 09:26:25
+ * @LastEditTime: 2026-07-01 13:38:51
  * @Description: 输出组件。drm显示输出。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __DRM_DISPLAY_HPP__
-#define __DRM_DISPLAY_HPP__
+#pragma once
+
 
 #include <mutex>
 #include <unordered_set>
 #include <unordered_map>
 #include "module/module_media.hpp"
 
+
+namespace FFMedia
+{
 class ModuleRga;
 struct DrmDisplayDevice;
 class ModuleDrmDisplay;
@@ -28,31 +31,31 @@ enum PLANE_TYPE {
 
 namespace FFMedia
 {
-struct Rect {
-    uint32_t x;
-    uint32_t y;
-    uint32_t w;
-    uint32_t h;
+    struct Rect {
+        uint32_t x;
+        uint32_t y;
+        uint32_t w;
+        uint32_t h;
 
-    bool operator==(const Rect& b)
-    {
-        return (this->x == b.x)
-               && (this->y == b.y)
-               && (this->w == b.w)
-               && (this->h == b.h);
+        bool operator==(const Rect& b)
+        {
+            return (this->x == b.x)
+                   && (this->y == b.y)
+                   && (this->w == b.w)
+                   && (this->h == b.h);
+        };
+        Rect()
+            : x(0), y(0), w(0), h(0){};
+        Rect(uint32_t _x, uint32_t _y, uint32_t _w, uint32_t _h)
+            : x(_x), y(_y), w(_w), h(_h){};
+        void set(uint32_t _x, uint32_t _y, uint32_t _w, uint32_t _h)
+        {
+            x = _x;
+            y = _y;
+            w = _w;
+            h = _h;
+        };
     };
-    Rect()
-        : x(0), y(0), w(0), h(0){};
-    Rect(uint32_t _x, uint32_t _y, uint32_t _w, uint32_t _h)
-        : x(_x), y(_y), w(_w), h(_h){};
-    void set(uint32_t _x, uint32_t _y, uint32_t _w, uint32_t _h)
-    {
-        x = _x;
-        y = _y;
-        w = _w;
-        h = _h;
-    };
-};
 }  // namespace FFMedia
 
 class DrmDisplayPlane : public std::enable_shared_from_this<DrmDisplayPlane>
@@ -71,8 +74,8 @@ public:
 private:
     struct PlaneBuffer {
         RWLock* lock;
-        vector<shared_ptr<VideoBuffer>> buffers;
-        vector<int> buffer_fbs;
+        std::vector<std::shared_ptr<VideoBuffer>> buffers;
+        std::vector<int> buffer_fbs;
         int free_index;
         int use_index;
         int etc_index;
@@ -156,19 +159,19 @@ public:
 private:
     bool setupDisplayDevice();
     int drmFindPlane();
-    int drmCreateFb(shared_ptr<VideoBuffer> buffer);
+    int drmCreateFb(std::shared_ptr<VideoBuffer> buffer);
 
     int addWindow(ModuleDrmDisplay* window);
     void removeWindow(ModuleDrmDisplay* window);
 
     bool checkPlaneType(uint64_t plane_drm_type);
-    bool isSamePlane(shared_ptr<DrmDisplayPlane> a, shared_ptr<DrmDisplayPlane> b);
+    bool isSamePlane(std::shared_ptr<DrmDisplayPlane> a, std::shared_ptr<DrmDisplayPlane> b);
 
     void onDisplayThreadRun();
     int drmSync();
 
 private:
-    shared_ptr<DrmDisplayDevice> display_device;
+    std::shared_ptr<DrmDisplayDevice> display_device;
     int screen_index;
     int drm_fd;
     uint32_t plane_id;
@@ -177,7 +180,7 @@ private:
     uint32_t linear;
     uint32_t zpos;
     uint32_t v4l2Fmt;
-    shared_ptr<ModuleRga> rga;
+    std::shared_ptr<ModuleRga> rga;
     PlaneBuffer pBuffer;
     FFMedia::Rect cur_rect;
     FFMedia::Rect last_rect;
@@ -191,7 +194,7 @@ private:
     bool size_seted;
     bool full_plane;       // It's a plane that fills the screen
     bool mini_size_plane;  // It's a plane that size is 0
-    unordered_set<ModuleDrmDisplay*> windows;
+    std::unordered_set<ModuleDrmDisplay*> windows;
     std::shared_ptr<std::thread> display_thread;
     bool display_thread_exit;
 };
@@ -206,8 +209,7 @@ public:
      * @param {shared_ptr<DrmDisplayPlane>} plane 设置显示使用的图层对象。
      * @return {*}
      */
-    ModuleDrmDisplay(shared_ptr<DrmDisplayPlane> plane = nullptr);
-    ModuleDrmDisplay(const ImagePara& input_para, shared_ptr<DrmDisplayPlane> plane = nullptr);
+    ModuleDrmDisplay(const ImagePara& input_para = ImagePara(), std::shared_ptr<DrmDisplayPlane> plane = nullptr);
     ~ModuleDrmDisplay();
 
 
@@ -316,17 +318,17 @@ public:
     [[deprecated]] bool setWindowSize(uint32_t x, uint32_t y, uint32_t w, uint32_t h);
 
 private:
-    shared_ptr<ModuleRga> rga;
-    std::unordered_map<shared_ptr<MediaBuffer>, int> drmfbs;
+    std::shared_ptr<ModuleRga> rga;
+    std::unordered_map<std::shared_ptr<MediaBuffer>, int> drmfbs;
     FFMedia::Rect image_rect;
-    shared_ptr<MediaBuffer> last_buffer;
+    std::shared_ptr<MediaBuffer> last_buffer;
     int last_fb_id;
 
     int skip_buffer_max;
     int skip_buffer_count;
 
 private:
-    shared_ptr<DrmDisplayPlane> plane_device;
+    std::shared_ptr<DrmDisplayPlane> plane_device;
     FFMedia::Rect absolute_rect;  // absolute rect
     FFMedia::Rect last_absolute_rect;
     FFMedia::Rect relative_rect;  // relative rect
@@ -343,9 +345,9 @@ private:
     bool setupWindow();
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ConsumeResult doConsume(const std::shared_ptr<MediaBuffer>& input_buffer, std::shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
 };
 
-#endif
+}  // namespace FFMedia

@@ -2,28 +2,13 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:54
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-11-20 09:24:04
+ * @LastEditTime: 2026-07-01 11:35:40
  * @Description: 所有组件均派生自ModuleMedia类，ModuleMedia的成员中包含一个消费者队列，记录该组件的所有消费者；
  *               一个MediaBuffer队列，记录该组件所分配的buffer. MediaBuffer队列中存储当前组件的输出数据，
  *               MediaBuffer队列同时也是该组件的所有消费者的输入。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE_MEDIA_HPP__
-#define __MODULE_MEDIA_HPP__
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <strings.h>
-#include <inttypes.h>
-#include <sys/mman.h>
-#include <fcntl.h>
-#include <assert.h>
-#include <ctype.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <errno.h>
+#pragma once
 
 #include <queue>
 #include <mutex>
@@ -32,6 +17,9 @@
 #include <functional>
 #include <thread>
 
+#include "ff_media_producer.hpp"
+#include "ff_media_hookable.hpp"
+
 #include "base/pixel_fmt.hpp"
 #include "base/video_buffer.hpp"
 #include "base/ff_synchronize.hpp"
@@ -39,27 +27,18 @@
 #include "base/ff_log.h"
 #include "base_config.h"
 
-enum ModuleStatus {
-    STATUS_CREATED = 0,  // 创建状态
-    STATUS_STARTED,      // 运行状态
-    STATUS_EOS,          // 流结束状态
-    STATUS_STOPED,       // 停止状态
-    STATUS_ABNORMAL,     // 运行异常状态
+namespace FFMedia
+{
+
+enum class ModuleType {
+    SRC,  // 源组件
+    PRC,  // 处理组件
 };
 
-using namespace std;
-#ifdef PYBIND11_MODULE
-#include <pybind11/pybind11.h>
-using void_object = pybind11::object;
-using callback_handler = std::function<void(void_object, shared_ptr<MediaBuffer>)>;
-using ModuleStatusChangeCallbackFunc = std::function<void(void_object, ModuleStatus)>;
-#else
-using void_object = void*;
-typedef void (*callback_handler)(void_object arg, shared_ptr<MediaBuffer> buffer);
-typedef void (*ModuleStatusChangeCallbackFunc)(void_object ctx, ModuleStatus status);
-#endif
-
-class ModuleMedia : public std::enable_shared_from_this<ModuleMedia>
+class ModuleMedia : public MediaProducer,
+                    public MediaConsumer,
+                    public MediaHookable,
+                    public std::enable_shared_from_this<ModuleMedia>
 {
 public:
     /**
@@ -67,7 +46,7 @@ public:
      * @param {char*} name_ 组件名称。
      * @return {*}
      */
-    ModuleMedia(const char* name_ = NULL);
+    ModuleMedia(const std::string& name_ = "");
     virtual ~ModuleMedia();
 
     /**
@@ -92,40 +71,26 @@ public:
      * @param {shared_ptr<ModuleMedia>} module 生产者组件。
      * @return {*}
      */
-    void setProductor(shared_ptr<ModuleMedia> module);
-    /**
-     * @description: 获取组件的生产者。
-     * @return {shared_ptr<ModuleMedia>} 返回组件的生产者。
-     */
-    shared_ptr<ModuleMedia> getProductor();
+    void setProductor(std::shared_ptr<ModuleMedia> module);
 
     /**
-     * @description: 添加消费者组件到对象的消费队列中。被添加的组件应处于停止状态。
-     * @param {shared_ptr<ModuleMedia>} consumer 消费者组件。
+     * Connect a producer and select its output channels. Empty selection means
+     * all channels. The connection is rejected when none of the selected
+     * channels satisfies this module's input requirements, or when a matched
+     * input with allow_multiple=false is already used by another producer.
+     */
+    int setProductor(std::shared_ptr<ModuleMedia> module,
+                     const MediaChannelSelection& selection);
+    int connectProducer(std::shared_ptr<ModuleMedia> module,
+                        const MediaChannelSelection& selection = MediaChannelSelection());
+    /**
+     * @description: 移除组件的生产者。
+     * @param {shared_ptr<ModuleMedia>} module 生产者组件。如果为空则移除所有生产者。
      * @return {*}
      */
-    void addConsumer(shared_ptr<ModuleMedia> consumer);
+    void removeProductor(std::shared_ptr<ModuleMedia> module);
 
-    /**
-     * @description: 从对象的消费队列中移除该消费者组件。被移除的组件应处于停止状态。
-     * @param {shared_ptr<ModuleMedia>} consumer 消费者组件。
-     * @return {*}
-     */
-    void removeConsumer(shared_ptr<ModuleMedia> consumer);
-
-    /**
-     * @description: 从对象的消费队列中获取索引值对应消费者组件。
-     * @param {uint16_t} index              索引值。
-     * @return {shared_ptr<ModuleMedia>&}   返回消费者组件。
-     */
-    shared_ptr<ModuleMedia>& getConsumer(uint16_t index);
-
-    /**
-     * @description: 获取对象的消费队列长度。
-     * @return {uint16_t}   返回消费队列长度。
-     */
-    uint16_t getConsumersCount() const { return consumers_count; }
-
+public:
     /**
      * @description: 设置对象的缓冲区数量。
      * @param {uint16_t} bufferCount    缓冲区数量。
@@ -140,123 +105,6 @@ public:
     uint16_t getBufferCount() const { return buffer_count; }
 
     /**
-     * @description: 获取对象指定索引值的缓冲区。
-     * @param {uint16_t} index              缓冲区索引值。
-     * @return {shared_ptr<MediaBuffer>}    返回缓冲区。
-     */
-    shared_ptr<MediaBuffer> getBufferFromIndex(uint16_t index);
-
-    /**
-     * @description: 从缓冲池中导出指定索引值缓冲区。
-     * @param {uint16_t} index              缓冲池的索引值。
-     * @return {shared_ptr<MediaBuffer>}    返回导出的缓冲区。
-     */
-    virtual shared_ptr<MediaBuffer> exportBufferFromBufferPool(uint16_t index);
-
-    /**
-     * @description: 归还缓冲区到缓冲池的指定索引。
-     * @param {shared_ptr<MediaBuffer>} buffer  归还的缓冲区。
-     * @param {uint16_t} index                  缓冲池的索引值。
-     * @return {int}                            成功返回0，失败返回负数。
-     */
-    virtual int importBufferToBufferPool(shared_ptr<MediaBuffer> buffer, uint16_t index);
-
-    /**
-     * @description: 持有输出缓冲区，对象在使用该缓冲区时会等待它释放再使用。
-     * @param {shared_ptr<MediaBuffer>} &obuf   需要持有的输出缓冲区。
-     * @return {int}                            成功返回0，失败返回负数。
-     */
-    int holdOutputBuffer(const shared_ptr<MediaBuffer>& obuf);
-
-    /**
-     * @description: 释放输出缓冲区。
-     * @param {shared_ptr<MediaBuffer>} &obuf   需要释放的输出缓冲区。
-     * @return {int}                            成功返回0，失败返回负数。
-     */
-    int releaseOutputBuffer(const shared_ptr<MediaBuffer>& obuf);
-
-    /**
-     * @description: 设置对象的输入数据的图像参数。
-     * @param {ImagePara&} inputPara 图像参数。
-     * @return {*}
-     */
-    void setInputImagePara(const ImagePara& inputPara) { input_para = inputPara; }
-    /**
-     * @description: 获取对象的输入数据的图像参数。
-     * @return {ImagePara}  返回对象的输出数据的图像参数。
-     */
-    ImagePara getInputImagePara() const { return input_para; }
-
-
-    /**
-     * @description: 设置对象的输出数据的图像参数。
-     * @param {ImagePara&} outputPara   图像参数。
-     * @return {*}
-     */
-    void setOutputImagePara(const ImagePara& outputPara) { output_para = outputPara; }
-    /**
-     * @description: 获取对象的输出数据的图像参数。
-     * @return {ImagePara}  返回对象的输出数据的图像参数。
-     */
-    ImagePara getOutputImagePara() const { return output_para; }
-
-    /**
-     * @description: 获取对象名称。
-     * @return {const char*}    返回对象名称字符串。
-     */
-    const char* getName() const { return name; }
-
-    /**
-     * @description: 获取对象在其生产者的消费者队列的索引值。
-     * @return {int} 返回索引值。没有生产者则小于0。
-     */
-    int getIndex() const { return index; }
-
-    /**
-     * @description: 获取对象当前的工作状态。
-     * @return {ModuleStatus} 返回对象状态。
-     */
-    ModuleStatus getModuleStatus() const { return module_status; }
-    /**
-     * @description: 获取对象输入数据的媒体类型。
-     * @return {MEDIA_BUFFER_TYPE}
-     */
-    MEDIA_BUFFER_TYPE getMediaType() const { return media_type; }
-
-    /**
-     * @description: 设置音视频同步组件。
-     * @param {shared_ptr<Synchronize>} syn
-     * @return {*}
-     */
-    void setSynchronize(shared_ptr<Synchronize> syn) { sync = syn; }
-
-    /**
-     * @description: 添加对象状态改变回调函数。
-     * @param {void_object} ctx             回调函数上下文。
-     * @param {callback_handler} callback   回调函数。
-     * @return {*}
-     */
-    void setStatusChangeCallback(void_object ctx, ModuleStatusChangeCallbackFunc callback);
-
-    /**
-     * @description: 为对象添加回调函数，处理对象的输出数据，每次生产数据后，均会被调用。
-     * @param {void_object} ctx             回调函数上下文。
-     * @param {callback_handler} callback   回调函数。
-     * @return {*}
-     */
-    void setOutputDataCallback(void_object ctx, callback_handler callback);
-    /**
-     * @description: 为组件添加一个外部的消费者。其功能与添加回调相似，两者区别在于组件可以添加多个外部消费者，但是只能添加一个回调函数。
-     * @param {const char*} name            外部消费者名称
-     * @param {void_object} ctx             外部消费者上下文。
-     * @param {callback_handler} callback   外部消费者数据处理函数。
-     * @return {shared_ptr<ModuleMedia>}    返回外部组件。
-     */
-    shared_ptr<ModuleMedia> addExternalConsumer(const char* name,
-                                                void_object external_consume_ctx,
-                                                callback_handler external_consume);
-
-    /**
      * @description: 设置对象单个缓冲区的大小。从InputImagePara计算缓冲区大小不满足时，可通过该接口手动设置。此调用应在对象初始化之前设置。
      * @param {size_t&} bufferSize  缓冲区大小。
      * @return {*}
@@ -269,7 +117,108 @@ public:
     size_t getBufferSize() const;
 
     /**
-     * @description: 打印出以当前组件为输入源的整个Pipe结构。
+     * @description: 获取对象指定索引值的缓冲区。
+     * @param {uint16_t} index              缓冲区索引值。
+     * @return {shared_ptr<MediaBuffer>}    返回缓冲区。
+     */
+    std::shared_ptr<MediaBuffer> getBufferFromIndex(uint16_t index);
+
+    /**
+     * @description: 持有输出缓冲区，成功持有后，对象不会使用该缓冲区。
+     * @param {shared_ptr<MediaBuffer>} &obuf   需要持有的输出缓冲区。
+     * @return {int}                            成功返回0，失败返回负数。
+     */
+    static int holdOutputBuffer(const std::shared_ptr<MediaBuffer>& obuf);
+
+    /**
+     * @description: 释放输出缓冲区。
+     * @param {shared_ptr<MediaBuffer>} &obuf   需要释放的输出缓冲区。
+     * @return {int}                            成功返回0，失败返回负数。
+     */
+    static int releaseOutputBuffer(const std::shared_ptr<MediaBuffer>& obuf);
+
+    /**
+     * @description: 设置对象的输入数据的图像参数。
+     * @param {ImagePara&} inputPara 图像参数。
+     * @return {*}
+     */
+    void setInputImagePara(const ImagePara& inputPara) { input_para = inputPara; }
+    /**
+     * @description: 获取对象的输入数据的图像参数。
+     * @return {ImagePara}  返回对象的输出数据的图像参数。
+     */
+    const ImagePara& getInputImagePara() const { return input_para; }
+
+    /**
+     * @description: 设置对象的输出数据的图像参数。
+     * @param {ImagePara&} outputPara   图像参数。
+     * @return {*}
+     */
+    void setOutputImagePara(const ImagePara& outputPara);
+    /**
+     * @description: 获取对象的输出数据的图像参数。
+     * @return {ImagePara}  返回对象的输出数据的图像参数。
+     */
+    const ImagePara& getOutputImagePara() const { return output_para; }
+
+    /** Replace or query the media channels published by this module. */
+    void setOutputMediaChannels(const std::vector<MediaChannelInfo>& channels);
+    void addOutputMediaChannel(const MediaChannelInfo& channel);
+    void clearOutputMediaChannels();
+    std::vector<MediaChannelInfo> getOutputMediaChannels() const;
+    bool getOutputMediaChannel(MediaChannelId id, MediaChannelInfo& channel) const;
+
+    /** Describe accepted input formats before connecting producers. */
+    void setInputMediaChannelRequirements(
+        const std::vector<MediaChannelRequirement>& requirements);
+    void addInputMediaChannelRequirement(const MediaChannelRequirement& requirement);
+    const std::vector<MediaChannelRequirement>& getInputMediaChannelRequirements() const
+    {
+        return input_channel_requirements;
+    }
+
+    /** Matched producer channels available to init(). */
+    const std::vector<MediaInputChannel>& getInputMediaChannels() const
+    {
+        return input_channels;
+    }
+    bool getInputMediaChannel(MediaChannelId input_id, MediaInputChannel& channel) const;
+
+    /**
+     * @description: 获取对象名称。
+     * @return {const std::string&}    返回对象名称字符串。
+     */
+    const std::string& getName() const { return name; }
+
+    /**
+     * @description: 获取对象当前的工作状态。
+     * @return {MediaStatus} 返回对象状态。
+     */
+    MediaStatus getModuleStatus() const { return module_status; }
+    /**
+     * @description: 获取对象输入数据的媒体类型。
+     * @return {MEDIA_BUFFER_TYPE}
+     */
+    MEDIA_BUFFER_TYPE getMediaType() const { return media_type; }
+
+    /**
+     * @description: 设置音视频同步组件。
+     * @param {shared_ptr<Synchronize>} syn
+     * @return {*}
+     */
+    void setSynchronize(std::shared_ptr<Synchronize> syn) { sync = syn; }
+
+    /**
+     * @description: 为组件添加一个外部的消费者。其功能与添加回调相似，两者区别在于组件可以添加多个外部消费者，但是只能添加一个回调函数。
+     * @param {const std::string&} name     外部消费者名称
+     * @param {MediaBufferHooker} callback   外部消费者数据处理函数。
+     * @return {shared_ptr<ModuleMedia>}    返回外部组件。
+     */
+    std::shared_ptr<ModuleMedia> addExternalConsumer(const std::string& name,
+                                                     MediaBufferHooker external_cb);
+
+    /**
+     * @description: 打印出以当前组件为输入源的整个Pipe结构
      * @return {*}
      */
     void dumpPipe();
@@ -278,6 +227,26 @@ public:
      * @return {*}
      */
     void dumpPipeSummary();
+
+    /**
+     * @description: 压入MediaBuffer到输入队列，并通知模块消费处理。
+     * @param {shared_ptr<MediaBuffer>} buffer  接收的MediaBuffer。
+     * @return {*}
+     */
+    void receiveMediaBuffer(const std::shared_ptr<MediaBuffer>& buffer);
+    void receiveMediaBuffer(const MediaBufferContext& context) override;
+    /**
+     * @description: 清理模块没有消费的输入MediaBuffer。
+     * @return {*}
+     */
+    void clearInputBufferQueue();
+    /**
+     * @description: 设置输入队列的大小,默认为1024，当队列满时，新来的MediaBuffer会被丢弃。
+     * @param {size_t} size
+     * @return {*}
+     */
+    void setInputBufferQueueSize(size_t size);
+    size_t getInputBufferQueueSize() const;
 
 protected:
     enum ConsumeResult {
@@ -301,32 +270,33 @@ protected:
     };
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer);
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& buffer);
+    virtual ConsumeResult doConsume(const std::shared_ptr<MediaBuffer>& input_buffer, std::shared_ptr<MediaBuffer>& output_buffer);
+    virtual ConsumeResult doConsume(const MediaBufferContext& input,
+                                    std::shared_ptr<MediaBuffer>& output_buffer);
+    virtual ProduceResult doProduce(std::shared_ptr<MediaBuffer>& buffer);
 
     virtual int initBuffer();
     int initBuffer(VideoBuffer::BUFFER_TYPE buffer_type);
+    void setupBufferQueueCallbacks();
+    void resetBufferQueueCallbacks();
 
-    shared_ptr<MediaBuffer>& outputBufferQueueHead();
-    void setOutputBufferQueueHead(const shared_ptr<MediaBuffer>& buffer);
-    void fillAllOutputBufferQueue();
-    void cleanInputBufferQueue();
+    std::shared_ptr<MediaBuffer>& outputBufferQueueHead();
+    void setOutputBufferQueueHead(const std::shared_ptr<MediaBuffer>& buffer);
     void clearCacheBufferQueue();
 
-    virtual void bufferReleaseCallBack(const shared_ptr<MediaBuffer>& buffer);
-    std::cv_status waitForProduce(std::unique_lock<std::mutex>& lk);
-    void waitAllForConsume();
-    std::cv_status waitForConsume(std::unique_lock<std::mutex>& lk);
+    void bufferRefZeroCallBack(const std::shared_ptr<MediaBuffer>& buffer);
+    virtual void bufferReleaseCallBack(const std::shared_ptr<MediaBuffer>& buffer);
 
+    std::shared_ptr<MediaBuffer>& waitProduceBuffer();
     void notifyProduce();
     void notifyConsume();
 
-    inline void setModuleStatus(const ModuleStatus& moduleStatus);
+    inline void setModuleStatus(const MediaStatus& status);
 
     void work();
-    void _dumpPipe(int depth, std::function<void(ModuleMedia*)> func);
-    static void printOutputPara(ModuleMedia* module);
-    static void printSummary(ModuleMedia* module);
+    void _dumpPipe(int depth, std::function<void(ModuleMedia*, int)> func);
+    static void printChannelPara(ModuleMedia* module, int depth);
+    static void printSummary(ModuleMedia* module, int depth);
     virtual bool setup()
     {
         return true;
@@ -337,83 +307,62 @@ protected:
         return true;
     }
 
-    int checkInputPara();
     virtual void reset();
 
 
 private:
     void resetModule();
-    int nextBufferPos(uint16_t pos);
 
-    void produceOneBuffer(const shared_ptr<MediaBuffer>& buffer);
-    void consumeOneBuffer(const shared_ptr<ModuleMedia>& pro);
-
-    shared_ptr<MediaBuffer> inputBufferQueueTail(const shared_ptr<ModuleMedia>& pro);
-    bool inputBufferQueueIsFull();
-    bool inputBufferQueueIsEmpty();
+    void produceOneBuffer(const std::shared_ptr<MediaBuffer>& buffer);
+    void consumeOneBuffer(const std::shared_ptr<MediaBuffer>& buffer);
 
 private:
     bool work_flag;
-    thread* work_thread;
-
-    // to be a consumer
-    // each consumer has a buffer queue tail
-    // point to the productor's buffer_ptr_queue
-    // record the position of the buffer the current consumer consume
-    uint16_t input_buffer_queue_tail;
+    std::thread* work_thread;
 
     // to be a producer
     // record the head in ring queue buffer_ptr_queue
     uint16_t output_buffer_queue_head;
 
-    bool input_buffer_queue_empty;
-    bool input_buffer_queue_full;
+    std::vector<std::weak_ptr<ModuleMedia>> producers;
 
-    weak_ptr<ModuleMedia> productor;
-    vector<shared_ptr<ModuleMedia>> consumers;
-    uint16_t consumers_count;
-
-    ModuleStatus module_status;
-
-    void_object external_consume_ctx;
-    callback_handler external_consume;
-
-    // as a consumer, sequence number in productor's consumer queue
-    int index;
+    MediaStatus module_status;
+    MediaBufferHooker external_cb;
 
     uint64_t blocked_as_consumer;
     uint64_t blocked_as_porductor;
 
 protected:
-    const char* name;
+    ModuleType module_type;
+    std::string name;
     uint16_t buffer_count;
     size_t buffer_size;
-    vector<shared_ptr<MediaBuffer>> buffer_pool;
+    std::vector<std::shared_ptr<MediaBuffer>> buffer_pool;
 
     // ring queue, point to buffer_pool
-    vector<shared_ptr<MediaBuffer>> buffer_ptr_queue;
+    std::vector<std::shared_ptr<MediaBuffer>> buffer_ptr_queue;
+
+    std::queue<MediaBufferContext> input_buffer_queue;
+    size_t input_buffer_queue_size;
+    std::mutex in_queue_mtx;
 
     ImagePara input_para = {0, 0, 0, 0, 0};
     ImagePara output_para = {0, 0, 0, 0, 0};
 
-    void_object callback_ctx;
-    callback_handler output_data_callback;
+    std::vector<MediaChannelInfo> output_channels;
+    std::vector<MediaChannelRequirement> input_channel_requirements;
+    std::vector<MediaInputChannel> input_channels;
 
-    bool mppModule = false;
-
-    mutex mtx;
-    shared_timed_mutex productor_mtx;
-    condition_variable produce, consume;
+    std::mutex mtx;
+    std::condition_variable produce, consume;
 
     MEDIA_BUFFER_TYPE media_type;
-    shared_ptr<Synchronize> sync;
+    std::shared_ptr<Synchronize> sync;
     bool initialize;
     const uint32_t produce_timeout = 5000;
     const uint32_t consume_timeout = 5000;
 
-    ModuleStatusChangeCallbackFunc moduleStatusHandler;
-    void_object moduleStatusHandlerData;
     bool is_clear_cache;
 };
 
-#endif
+}  // namespace FFMedia

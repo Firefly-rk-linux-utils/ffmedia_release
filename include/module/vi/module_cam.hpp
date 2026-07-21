@@ -2,26 +2,28 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-08-27 09:07:55
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-11-19 13:52:12
+ * @LastEditTime: 2026-07-01 11:41:17
  * @Description: 输入源组件, 支持MIPI CSI摄像头和USB摄像头。通过V4L2接口操作获取数据。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE_CAM_HPP__
-#define __MODULE_CAM_HPP__
+#pragma once
+
 
 #include "module/module_media.hpp"
+namespace FFMedia
+{
 class v4l2Cam;
 
 class ModuleCam : public ModuleMedia
 {
 private:
-    string dev;
-    shared_ptr<v4l2Cam> cam;
+    std::string dev;
+    std::shared_ptr<v4l2Cam> cam;
 
 protected:
     virtual bool setup() override;
-    virtual ProduceResult doProduce(shared_ptr<MediaBuffer>& output_buffer) override;
-    virtual void bufferReleaseCallBack(const shared_ptr<MediaBuffer>& buffer) override;
+    virtual ProduceResult doProduce(std::shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual void bufferReleaseCallBack(const std::shared_ptr<MediaBuffer>& buffer) override;
     void clearBuffers();
 
 public:
@@ -30,7 +32,7 @@ public:
      * @param {string} vdev     视频设备路径.
      * @return {*}
      */
-    ModuleCam(string vdev);
+    ModuleCam(std::string vdev);
     ~ModuleCam();
 
     /**
@@ -38,7 +40,7 @@ public:
      * @param {string} vdev     视频设备路径。
      * @return {int}            成功返回 0，失败返回负数。
      */
-    int changeSource(string vdev);
+    int changeSource(std::string vdev);
 
     /**
      * @description: 系统调用操纵视频设备的底层设备参数。此调用应在对象初始化后使用。
@@ -62,4 +64,4 @@ public:
      */
     int init() override;
 };
-#endif
+}  // namespace FFMedia

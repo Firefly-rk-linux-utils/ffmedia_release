@@ -2,18 +2,20 @@
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2024-05-22 17:34:39
  * @LastEditors: Kaison Deng dkx@t-chip.com.cn
- * @LastEditTime: 2025-08-20 11:32:33
+ * @LastEditTime: 2026-07-01 11:39:45
  * @Description: 输出组件。视频渲染器，使用opengGles接口渲染视频到X11窗口。
  * Copyright (c) 2024-present The ffmedia project authors, All Rights Reserved.
  */
-#ifndef __MODULE_RENDERERVIDEO_HPP__
-#define __MODULE_RENDERERVIDEO_HPP__
+#pragma once
+
 
 #include "module/module_media.hpp"
 #include <GLES3/gl3.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
+namespace FFMedia
+{
 class ModuleRga;
 class Shader;
 class Texture;
@@ -26,10 +28,7 @@ public:
      * @param {string} title   创建的X11窗口标题名称。
      * @return {*}
      */
-    ModuleRendererVideo(string title);
-    ModuleRendererVideo(const ImagePara para, string title);
-    ModuleRendererVideo(const ImagePara para = ImagePara());
-
+    ModuleRendererVideo(const ImagePara para = ImagePara(), const std::string& title = "");
     ~ModuleRendererVideo();
 
     /**
@@ -73,7 +72,7 @@ public:
     int changeOutputResolution(int width, int height);
 
 protected:
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ConsumeResult doConsume(const std::shared_ptr<MediaBuffer>& input_buffer, std::shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool setup() override;
     virtual bool teardown() override;
     void reset() override;
@@ -94,7 +93,7 @@ protected:
     };
 
 private:
-    shared_ptr<ModuleRga> rga;
+    std::shared_ptr<ModuleRga> rga;
     Shader* shader;
     Texture *tex1, *tex2;
     Model* quadModel;
@@ -114,7 +113,7 @@ private:
     Region winRegion, imageRegion;
     bool visibility;
 
-    string title;
+    std::string title;
 };
 
-#endif
+}  // namespace FFMedia

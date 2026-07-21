@@ -2,6 +2,7 @@ import cv2
 import time
 import numpy as np
 import ff_pymedia as m
+from functools import partial
 from yolov5 import inf_task
 
 video_path = "./sample_720p.mp4"
@@ -16,8 +17,8 @@ class inferenceObj():
         self.ratio_h = 1.0
 
 
-def call_back_func(obj, media_Buffer):
-    img = inf_task(obj.inf_module, media_Buffer, (obj.ratio_w, obj.ratio_h))
+def call_back_func(obj, name, queue_size, media_buffer):
+    img = inf_task(obj.inf_module, media_buffer, (obj.ratio_w, obj.ratio_h))
 
     cv2.imshow(obj.name, img)
     cv2.waitKey(1)
@@ -31,8 +32,11 @@ def main():
         return 1
     
     # Create the decoder module
-    dec_module = m.ModuleMppDec()
-    dec_module.setProductor(input_source) # Join the source module consumer queue.
+    dec_module = m.ModuleMppDec(input_source.getOutputImagePara())
+    ret = dec_module.connectProducer(input_source)
+    if ret < 0:
+        print("Failed to connect file reader to decoder, ", ret)
+        return ret
     ret = dec_module.init()
     if ret < 0:
         print("Failed to init decoder")
@@ -42,7 +46,10 @@ def main():
     output_image_param = dec_module.getOutputImagePara()
     output_image_param.v4l2Fmt = m.v4l2GetFmtByName("BGR24")
     rga_modele = m.ModuleRga(output_image_param, m.RgaRotate.RGA_ROTATE_NONE)
-    rga_modele.setProductor(dec_module) # Join the decoder module consumer queue.
+    ret = rga_modele.connectProducer(dec_module)
+    if ret < 0:
+        print("Failed to connect decoder to rga, ", ret)
+        return ret
     rga_modele.setBufferCount(2)
     ret = rga_modele.init()
     if ret < 0:
@@ -54,7 +61,10 @@ def main():
     inf_input_image_param = rga_modele.getOutputImagePara()
     inf_obj = inferenceObj("inference test", None)
     inf_obj.inf_module = m.ModuleInference(inf_input_image_param)
-    inf_obj.inf_module.setModelData(model_path, 0) # Set the model file
+    ret = inf_obj.inf_module.setModelData(model_path, 0) # Set the model file
+    if ret < 0:
+        print("Failed to set inference model, ", ret)
+        return ret
     ret = inf_obj.inf_module.init()
     if ret < 0:
         print("Failed to init inferencer module")
@@ -62,11 +72,14 @@ def main():
     
     inf_obj.ratio_w = inf_obj.inf_module.getOutputImageCrop().w / inf_input_image_param.width
     inf_obj.ratio_h = inf_obj.inf_module.getOutputImageCrop().h / inf_input_image_param.height
-    rga_modele.setOutputDataCallback(inf_obj, call_back_func)
+    rga_modele.setMediaBufferProduceHooker(partial(call_back_func, inf_obj))
     
     # Create the encoder module
-    enc_module = m.ModuleMppEnc(m.EncodeType.ENCODE_TYPE_H264)
-    enc_module.setProductor(rga_modele) # Join the rga module consumer queue.
+    enc_module = m.ModuleMppEnc(m.MEDIA_CODEC_VIDEO_H264)
+    ret = enc_module.connectProducer(rga_modele)
+    if ret < 0:
+        print("Failed to connect rga to encoder, ", ret)
+        return ret
     ret = enc_module.init()
     if ret < 0:
         print("Failed to init encoder")
@@ -74,7 +87,10 @@ def main():
     
     # Create the file writer module
     file_writer = m.ModuleFileWriter(output_path)
-    file_writer.setProductor(enc_module) # Join the encoder module consumer queue.
+    ret = file_writer.connectProducer(enc_module)
+    if ret < 0:
+        print("Failed to connect encoder to file writer, ", ret)
+        return ret
     ret = file_writer.init()
     if ret < 0:
         print("Failed to init file writer")

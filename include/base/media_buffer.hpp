@@ -1,44 +1,40 @@
-#ifndef __MEDIA_BUFFER_HPP__
-#define __MEDIA_BUFFER_HPP__
+#pragma once
 
-#include <inttypes.h>
+
 #include <atomic>
 #include <mutex>
 #include <memory>
+#include <functional>
 #include "ff_type.hpp"
 #include "pixel_fmt.hpp"
 
-using namespace std;
+namespace FFMedia
+{
+
+enum MEDIA_BUFFER_TYPE {
+    BUFFER_TYPE_VIDEO,
+    BUFFER_TYPE_AUDIO,
+    BUFFER_TYPE_ETC
+};
+
 class FFMEDIA_API MediaBuffer
 {
-protected:
-    uint16_t index;
-    void* data;
-    size_t size;
-    void* active_data;
-    size_t active_size;
-    int64_t p_ustimestamp;
-    int64_t d_ustimestamp;
-    bool eos;
-    int flags;
-    void* private_data;
-    shared_ptr<MediaBuffer> extra_data;
-    MEDIA_BUFFER_TYPE media_type;
-    std::atomic_bool status;
-    std::atomic_uint16_t ref_count;
-    mutex mtx;
-
-    union {
-        SampleInfo a;
-        ImagePara v;
-    } mediaPara;
-    media_codec_t media_codec;
-
 public:
+    using onRefZeroCB = std::function<void(const std::shared_ptr<MediaBuffer>&)>;
+
     MediaBuffer(size_t _size = 0);
+    MediaBuffer(const MediaBuffer& other);
+    MediaBuffer& operator=(const MediaBuffer&) = delete;
     virtual ~MediaBuffer();
     virtual void allocBuffer(size_t _size);
     virtual void fillWithBlack();
+
+    /**
+     * Create a deep copy through the dynamic type's copy constructor.
+     * Derived classes should override this and return
+     * std::make_shared<Derived>(*this).
+     */
+    virtual std::shared_ptr<MediaBuffer> clone() const;
 
 public:
     static const bool STATUS_CLEAN = true;
@@ -69,8 +65,8 @@ public:
     void* getPrivateData() const { return private_data; }
     void setPrivateData(void* privateData) { private_data = privateData; }
 
-    shared_ptr<MediaBuffer> getExtraData() const { return extra_data; }
-    void setExtraData(shared_ptr<MediaBuffer> extraData) { extra_data = extraData; }
+    std::shared_ptr<MediaBuffer> getExtraData() const { return extra_data; }
+    void setExtraData(std::shared_ptr<MediaBuffer> extraData) { extra_data = extraData; }
 
     bool getEos() const { return eos; }
     void setEos(const bool& eos_) { eos = eos_; }
@@ -85,15 +81,49 @@ public:
     uint16_t decreaseRefCount();
     uint16_t getRefCount();
     void setRefCount(uint16_t refCount);
+    void setOnRefZeroCallback(void* owner, onRefZeroCB cb);
+    void onRefZero(const std::shared_ptr<MediaBuffer>&);
+
     MEDIA_BUFFER_TYPE getMediaBufferType() { return media_type; }
     void setMediaBufferType(MEDIA_BUFFER_TYPE _media_type) { media_type = _media_type; }
 
-    ImagePara getImagePara() const { return mediaPara.v; }
+    const ImagePara& getImagePara() const { return mediaPara.v; }
     void setImagePara(const ImagePara& para) { mediaPara.v = para; }
-    SampleInfo getSamplePara() const { return mediaPara.a; }
+    const SampleInfo& getSamplePara() const { return mediaPara.a; }
     void setSamplePara(const SampleInfo& para) { mediaPara.a = para; }
     media_codec_t getMediaCodec() const { return media_codec; }
     void setMediaCodec(media_codec_t codec) { media_codec = codec; }
+
+    /** Producer-local output channel carrying this buffer. */
+    uint32_t getMediaChannelId() const { return media_channel_id; }
+    void setMediaChannelId(uint32_t channel_id) { media_channel_id = channel_id; }
+
+protected:
+    uint16_t index;
+    void* data;
+    size_t size;
+    void* active_data;
+    size_t active_size;
+    int64_t p_ustimestamp;
+    int64_t d_ustimestamp;
+    bool eos;
+    int flags;
+    void* private_data;
+    std::shared_ptr<MediaBuffer> extra_data;
+    MEDIA_BUFFER_TYPE media_type;
+    bool status;
+    std::atomic_uint16_t ref_count;
+    std::mutex mtx;
+
+    union {
+        SampleInfo a;
+        ImagePara v;
+    } mediaPara;
+    media_codec_t media_codec;
+    uint32_t media_channel_id;
+
+    void* owner;
+    onRefZeroCB on_ref_zero_cb;
 };
 
-#endif
+}  // namespace FFMedia

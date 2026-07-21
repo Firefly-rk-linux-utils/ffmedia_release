@@ -14,6 +14,7 @@
 #include "module/vo/module_rendererVideo.hpp"
 #include "module/vo/module_drmDisplay.hpp"
 
+using namespace std;
 
 class MultiDetectorDemo
 {
@@ -23,6 +24,7 @@ private:
     int _detector_num;
     InferencePool<Yolov5s, std::shared_ptr<VideoBuffer>, std::shared_ptr<VideoBuffer>> _detect_pool;
     std::shared_ptr<ModuleMemReader> _dst;
+    ImagePara _output_para;
 
     int64_t _frames;
     std::chrono::_V2::system_clock::time_point _before_time;
@@ -114,8 +116,12 @@ int MultiDetectorDemo::inputModuleLinkCreate(const std::string media_path)
     // Create the video decoder
     auto source_para = source->getOutputImagePara();
     if (v4l2fmtIsCompressed(source_para.v4l2Fmt)) {
-        auto dec = make_shared<ModuleMppDec>();
-        dec->setProductor(source);  // Join the source module consumer queue.
+        auto dec = make_shared<ModuleMppDec>(source_para);
+        ret = dec->connectProducer(source);
+        if (ret < 0) {
+            ff_error("Failed to connect source to decoder, %d\n", ret);
+            return ret;
+        }
         ret = dec->init();
         if (ret < 0) {
             ff_error("Dec init failed\n");
@@ -129,7 +135,11 @@ int MultiDetectorDemo::inputModuleLinkCreate(const std::string media_path)
     auto output_para = input_para;
     output_para.v4l2Fmt = V4L2_PIX_FMT_BGR24;
     auto rga = make_shared<ModuleRga>(output_para, RGA_ROTATE_NONE);
-    rga->setProductor(last_module);  // Join the last module consumer queue.
+    ret = rga->connectProducer(last_module);
+    if (ret < 0) {
+        ff_error("Failed to connect video producer to rga, %d\n", ret);
+        return ret;
+    }
     rga->setBufferCount(_detector_num + 1);
     ret = rga->init();
     if (ret < 0) {
@@ -138,8 +148,10 @@ int MultiDetectorDemo::inputModuleLinkCreate(const std::string media_path)
     }
 
     // Set the output callback function to perform inference processing on the converted image.
-    rga->setOutputDataCallback(this, MultiDetectorDemo::inputHanderCallback);
+    rga->setMediaBufferProduceHooker(std::bind(MultiDetectorDemo::inputHanderCallback, this, std::placeholders::_3));
+
     _src = source;
+    _output_para = rga->getOutputImagePara();
     _frames = 0;
     return ret;
 }
@@ -148,17 +160,38 @@ int MultiDetectorDemo::outputModuleLinkCreate()
 {
     int ret;
     // Create a memory reader to receive images after inference post-processing.
-    ImagePara input_image(1920, 1080, 1920, 1080, V4L2_PIX_FMT_BGR24);
-    auto mem_r = make_shared<ModuleMemReader>(input_image);
+    auto mem_r = make_shared<ModuleMemReader>(_output_para);
     ret = mem_r->init();
     if (ret < 0) {
         ff_error_m("Failed to init memreader\n");
         return ret;
     }
 
-    // Create a renderer to render and display images from memory readers.
-    auto display = make_shared<ModuleDrmDisplay>();
-    display->setProductor(mem_r);
+    // Convert the annotated BGR image to NV12 before DRM display.
+    auto display_para = _output_para;
+    display_para.v4l2Fmt = V4L2_PIX_FMT_NV12;
+    ModuleRga::alignStride(display_para.v4l2Fmt,
+                           display_para.hstride, display_para.vstride);
+    auto display_rga = make_shared<ModuleRga>(display_para, RGA_ROTATE_NONE);
+    ret = display_rga->connectProducer(mem_r);
+    if (ret < 0) {
+        ff_error_m("Failed to connect memory reader to display rga, %d\n", ret);
+        return ret;
+    }
+    ret = display_rga->init();
+    if (ret < 0) {
+        ff_error_m("Failed to init display rga, %d\n", ret);
+        return ret;
+    }
+
+    // Create a DRM display for the converted NV12 images.
+    auto display = make_shared<ModuleDrmDisplay>(display_rga->getOutputImagePara());
+    display->setPlanePara(V4L2_PIX_FMT_NV12);
+    ret = display->connectProducer(display_rga);
+    if (ret < 0) {
+        ff_error_m("Failed to connect display rga to drm display, %d\n", ret);
+        return ret;
+    }
     ret = display->init();
     if (ret < 0) {
         ff_error_m("Failde to init renderer\n");

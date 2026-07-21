@@ -1,8 +1,8 @@
 /*
  * @Author: dengkx dkx@t-chip.com.cn
  * @Date: 2025-05-21 15:33:04
- * @LastEditors: dengkx dkx@t-chip.com.cn
- * @LastEditTime: 2025-07-08 17:38:01
+ * @LastEditors: Kaison Deng dkx@t-chip.com.cn
+ * @LastEditTime: 2026-07-01 14:10:02
  * @Description: 输出组件，支持文件，网络等流输出。通过FFmpeg接口输出数据。
  * Copyright (c) 2025-present The ffmedia project authors, All Rights Reserved.
  */
@@ -16,11 +16,13 @@ struct AVDictionary;
 struct AVCodecParameters;
 struct AVStream;
 struct AVPacket;
+namespace FFMedia
+{
 
 class ModuleFFmpegMux : public ModuleMedia
 {
 public:
-    ModuleFFmpegMux(const string& uri, const string& format);
+    ModuleFFmpegMux(const std::string& uri, const std::string& format);
     ~ModuleFFmpegMux();
 
     /**
@@ -29,7 +31,7 @@ public:
      * @param {string&} format  输出源格式。
      * @return {int}            成功返回 0，失败返回负数。
      */
-    int changeSource(const string& uri, const string& format);
+    int changeSource(const std::string& uri, const std::string& format);
 
     /**
      * @description: 设置参数选项的键值对。
@@ -38,7 +40,7 @@ public:
      * @param {int} flags               标志位。
      * @return {int}                    >= o 为成功，< 0 为错误代码。
      */
-    int setFormatOption(const string& key, const string& value, int flags);
+    int setFormatOption(const std::string& key, const std::string& value, int flags);
 
     /**
      * @description: 通过键获取参数选项值。
@@ -46,7 +48,7 @@ public:
      * @param {int} flags           标志位。
      * @return {string}             返回键对应的值。
      */
-    string getFormatOption(const string& key, int flags);
+    std::string getFormatOption(const std::string& key, int flags);
     /**
      * @description: 设置视频参数，不设置则从生产者获取，应在对象初始化之前调用。
      * @param {int} width           图像宽度。
@@ -57,12 +59,11 @@ public:
     int setVideoParameter(int width, int height, media_codec_t type, uint32_t v4l2_fmt = 0);
 
     /**
-     * @description: 设置媒体附件数据，应在对象初始化之前调用。
-     * @param {MEDIA_BUFFER_TYPE} media_type            媒体流类型。
-     * @param {shared_ptr<MediaBuffer>} extra_buffer    含有媒体附加数据的MediaBuffer。
+     * @description: 设置媒体参数及附件数据，应在对象初始化之前调用。
+     * @param {shared_ptr<MediaBuffer>} extra_buffer    含有媒体参数和附加数据的MediaBuffer。
      * @return {int}                                    >= o 为成功，< 0 为错误代码。
      */
-    int setExtraBuffer(MEDIA_BUFFER_TYPE media_type, shared_ptr<MediaBuffer> extra_buffer);
+    int setExtraBuffer(const std::shared_ptr<MediaBuffer>& extra_buffer);
 
     /**
      * @description: 设置音频参数，应在对象初始化之前调用。
@@ -86,7 +87,7 @@ public:
      * @param {shared_ptr<MediaBuffer>} input_buffer    含有媒体数据的MediaBuffer。
      * @return {int}                                    >= o 为成功，< 0 为错误代码。
      */
-    int setInputBuffer(shared_ptr<MediaBuffer> input_buffer);
+    int setInputBuffer(const std::shared_ptr<MediaBuffer>& input_buffer);
 
 protected:
     struct OutPutStream {
@@ -98,12 +99,12 @@ protected:
     void cleanup();
     int addStream(OutPutStream* stream);
 
-    virtual ConsumeResult doConsume(shared_ptr<MediaBuffer>& input_buffer, shared_ptr<MediaBuffer>& output_buffer) override;
+    virtual ConsumeResult doConsume(const std::shared_ptr<MediaBuffer>& input_buffer, std::shared_ptr<MediaBuffer>& output_buffer) override;
     virtual bool teardown() override;
 
 private:
-    string _uri;
-    string _format;
+    std::string _uri;
+    std::string _format;
     AVFormatContext* _ctx;
     AVDictionary* _opts;
 
@@ -112,4 +113,5 @@ private:
     bool _header_written;
 };
 
+}  // namespace FFMedia
 #endif  // FFMPEG_SUPPORT

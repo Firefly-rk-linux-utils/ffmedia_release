@@ -1,5 +1,5 @@
-#ifndef __FF_LOG_HPP__
-#define __FF_LOG_HPP__
+#pragma once
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,5 +55,4 @@ void _ff_log(const char* prefix, const char* tag, const char* fname, const char*
 
 #ifdef __cplusplus
 }
-#endif
 #endif
