@@ -142,6 +142,11 @@ setInputMediaChannelRequirements({input});
 - 生产者弱引用及名称；
 - 被匹配输出通道的完整 `MediaChannelInfo`。
 
+因此生产者发布在 `MediaChannelInfo::extra_data` 中的 SPS/PPS、AAC config 等附加数据，也会
+随通道匹配结果保存在 `MediaInputChannel::media.extra_data`。消费者可在 `init()` 中直接从
+`getInputMediaChannels()` 或 `getInputMediaChannel()` 读取，无需再次调用生产者的
+`getExtraBuffer()`。
+
 `MediaChannelRoute` 是 `MediaProducer` 分发 Buffer 时使用的轻量路由：
 
 ```text
@@ -257,7 +262,7 @@ pushMediaBuffer(buffer, producer_channel_id);
 | API | 调用位置 |
 | --- | --- |
 | `setMediaBufferConsumeHooker()` | 工作线程取出输入 Buffer 后、调用 `doConsume()` 前。 |
-| `setMediaBufferProduceHooker()` | `doProduce()` 完成后、Buffer 正式标脏并分发前。 |
+| `setMediaBufferProduceHooker()` | `doProduce()` 完成且 Buffer 已标记为 `DIRTY`、初始引用计数设为 `1` 后，向下游分发前。 |
 | `setMediaStatusChangeHooker()` | `MediaStatus` 发生变化时。 |
 
 Buffer 钩子类型为：
@@ -278,9 +283,9 @@ using MediaBufferHooker = std::function<void(
 钩子在模块工作线程内同步执行，并且调用期间持有对应的 hook mutex。钩子应尽量短小，
 不要在钩子内部重新设置同类钩子，也不要执行可能等待当前管线的阻塞操作。
 
-生产钩子的调用时机早于 `produceOneBuffer()` 设置初始 FFMedia 引用计数，因此它更适合
-做同步观察、日志或数据落盘。需要异步持有 Buffer 时，优先使用外部消费者，并在回调返回
-前调用 `holdOutputBuffer()`，使用完成后调用 `releaseOutputBuffer()`。
+生产钩子执行时 Buffer 已具有生产者的初始 FFMedia 引用，因此可以在回调返回前调用
+`holdOutputBuffer()`。钩子仍运行在模块工作线程中，更适合做同步观察、日志或轻量数据处理；
+耗时任务优先使用外部消费者，异步使用完成后调用 `releaseOutputBuffer()`。
 
 ## 6. `ModuleMedia`
 
@@ -320,7 +325,7 @@ auto module = std::make_shared<MyModule>();
 6. 重复连接后续节点。
 7. 从源节点调用 `start()`，递归启动整条下游管线。
 8. 从源节点调用 `stop()`，递归停止整条下游管线。
-9. 释放对象前确保线程已经停止。
+9. 释放模块对象。
 
 ```text
 producer.init()
@@ -335,7 +340,15 @@ source.stop()   --->  递归停止下游
 ```
 
 `start()` 本身具有线程存在检查，同一节点被共享管线多次递归访问时不会重复创建工作线程。
-析构函数不负责替调用方执行完整的 `stop()`，因此不应在工作线程仍运行时销毁模块。
+
+当前 `module/vi`、`module/vp`、`module/vo` 中的具体 `ModuleMedia` 派生类都会在析构函数入口
+调用 `stop()`，确保释放设备、编解码器、显示器等派生成员前，模块工作线程已经退出。
+这是一层异常路径保护，正常流程仍应从源节点显式调用 `stop()`，以确定顺序递归停止整条
+下游管线并及时观察停止错误或状态变化。
+
+`ModuleMedia` 基类析构函数本身只重置缓冲回调，不调用 `stop()`。新增自定义派生类时，也应
+在派生类析构函数的第一步调用 `stop()`；如果等到基类析构阶段，虚函数分派已经无法安全调用
+派生类的 `teardown()`。
 
 ### 6.3 连接与通道匹配
 
@@ -359,6 +372,9 @@ int ret = consumer->connectProducer(producer, MediaChannelSelection({4, 8}));
 6. 生成 `MediaChannelRoute` 和 `MediaInputChannel`。
 7. 把消费者和路由注册到生产者，并记录消费者侧的生产者弱引用。
 8. 若兼容字段 `input_para` 尚未完整配置，用首个匹配视频输入的参数补齐。
+
+匹配结果复制完整的 `MediaChannelInfo`，包括 `image_para`、`sample_info` 和 `extra_data`。
+解码、封装、文件写入和流媒体输出模块可据此自动配置媒体参数与附加数据。
 
 返回值：
 
@@ -416,7 +432,7 @@ waitProduceBuffer()
    |
 doProduce(output)
    |
-produceOneBuffer() -> hook -> 标脏/设引用 -> pushMediaBuffer()
+produceOneBuffer() -> 标脏/设引用 -> produce hook -> pushMediaBuffer()
    |
 循环，直至 stop()
    |
@@ -548,7 +564,12 @@ if (ModuleMedia::holdOutputBuffer(buffer) == 0) {
 - `holdOutputBuffer()` 只接受当前 FFMedia 引用计数大于 0 的 Buffer。
 - 每次成功 hold 必须且只能对应一次 release。
 - 只保存一份 `shared_ptr` 并不能阻止缓冲池复用，必须操作 FFMedia 引用计数。
-- 重复 release、未 hold 直接 release  会导致计数错误、数据覆盖。
+- 重复 release、未 hold 直接 release 或长期不 release 会导致计数错误、数据覆盖或生产阻塞。
+
+旧的 `exportBufferFromBufferPool()` 和 `importBufferToBufferPool()` 已从 `ModuleMedia` 及相关
+派生模块移除。外部代码不应直接改变模块缓冲池成员关系；需要独立拥有载荷时使用
+`MediaBuffer::clone()`，需要零拷贝短期持有池内 Buffer 时使用 `holdOutputBuffer()` /
+`releaseOutputBuffer()`。
 
 ### 6.8 外部消费者
 
@@ -705,7 +726,7 @@ setInputMediaChannelRequirements({video, audio});
 | API | 建议时机 | 说明 |
 | --- | --- | --- |
 | `init()` | 启动前 | 派生模块初始化资源。 |
-| `start()` / `stop()` | 管线配置完成后 | 递归启停当前节点及下游。 |
+| `start()` / `stop()` | 管线配置完成后 | 递归启停当前节点及下游；具体派生模块析构时会自动调用 `stop()`。 |
 | `setBufferCount()` / `setBufferSize()` | init 前 | 配置输出缓冲池。 |
 | `getBufferCount()` / `getBufferSize()` | init 后 | 查询缓冲数量和单个缓冲大小。 |
 | `getBufferFromIndex()` | init 后 | 查询池内 Buffer。 |
@@ -757,6 +778,7 @@ setInputMediaChannelRequirements({video, audio});
 
 使用 `dumpPipeSummary()` 检查 `Out Full`。常见原因包括：
 
+- 外部代码 hold 后没有 release。
 - 某个消费者阻塞或没有完成输入引用释放。
 - 输出缓冲池太小，不足以覆盖下游处理延迟。
 
@@ -769,6 +791,7 @@ setInputMediaChannelRequirements({video, audio});
 
 - 新代码优先使用 `connectProducer()` 和多通道接口。
 - 在生产者 `init()` 后、消费者 `init()` 前建立连接。
+- 正常退出时仍从源节点显式调用 `stop()`；派生析构中的自动停止只作为安全兜底。
 - 用 `MediaBufferContext::input_id` 区分消费者输入，不要改写共享 Buffer 来表达消费者路由。
 - Hook 用于轻量同步观察；耗时处理使用正式下游模块或外部消费者。
 - 所有成功的 hold 都必须有明确、唯一的 release 路径。

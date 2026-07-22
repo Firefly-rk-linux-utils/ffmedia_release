@@ -97,7 +97,13 @@ setInputMediaChannelRequirements({input});
 | `setMediaBufferProduceHooker(MediaBufferHooker hooker)` | 设置输出缓冲生产后回调。 |
 | `setMediaStatusChangeHooker(MediaStatusHooker hooker)` | 设置状态变化回调。 |
 
-`MediaBufferHooker` 形态为 `void(const std::string& name, int queue_size, std::shared_ptr<MediaBuffer> buffer)`。
+`MediaBufferHooker` 形态为 `void(const std::string& name, int value, std::shared_ptr<MediaBuffer> buffer)`；
+`MediaStatusHooker` 形态为 `void(const std::string& name, MediaStatus status)`。
+
+第二个整数参数取决于回调位置：消费 Hook 和外部消费者回调传入当前输入队列长度；生产
+Hook 传入前移后的输出环形队列头索引。生产 Hook 调用时 Buffer 已标记为 `DIRTY` 且初始
+FFMedia 引用计数为 `1`，随后才向下游分发。Hook 在模块工作线程中同步执行，不适合执行
+长时间阻塞任务。
 
 ### ModuleMedia
 
@@ -108,7 +114,7 @@ setInputMediaChannelRequirements({input});
 | API | 调用时机 | 说明 |
 | --- | --- | --- |
 | `init()` | 启动前 | 初始化模块资源，成功返回 `0`。 |
-| `start()` / `stop()` | 初始化后 / 结束时 | 启停模块工作线程。 |
+| `start()` / `stop()` | 初始化后 / 结束时 | 启停当前模块工作线程，并递归启停下游模块。 |
 | `setProductor(std::shared_ptr<ModuleMedia> module)` | 初始化前 | 兼容接口，连接上游生产者的匹配通道；无法向调用方返回连接错误。新代码推荐使用 `connectProducer()`。 |
 | `setProductor(std::shared_ptr<ModuleMedia> module, const MediaChannelSelection& selection)` | 初始化前 | 选择生产者输出通道并建立连接，返回连接结果。 |
 | `connectProducer(std::shared_ptr<ModuleMedia> module, const MediaChannelSelection& selection = {})` | 初始化前 | 按消费者格式要求匹配并连接通道；空 selection 表示生产者全部输出通道。匹配到已被其他生产者占用的单路输入时返回 `-EBUSY`。 |
@@ -132,7 +138,7 @@ setInputMediaChannelRequirements({input});
 | `getInputMediaChannel(MediaChannelId input_id, MediaInputChannel& channel)` | 连接成功后/消费时 | 按消费者逻辑输入 ID 查询来源生产者、生产者输出通道及媒体参数。 |
 | `getName()` | 任意 | 获取模块名。 |
 | `getModuleStatus()` | 任意 | 获取模块运行状态。 |
-| `getMediaType()` | 初始化后 | 获取模块输入媒体类型。 |
+| `getMediaType()` | 初始化后 | 获取模块的兼容媒体类型字段。 |
 | `setSynchronize(std::shared_ptr<Synchronize> syn)` | 任意 | 设置音视频同步对象。 |
 | `addExternalConsumer(const std::string& name, MediaBufferHooker cb)` | 任意 | 添加外部消费者回调，返回一个外部消费模块。 |
 | `dumpPipe()` / `dumpPipeSummary()` | 调试 | `dumpPipe()` 打印管线结构及各节点的输入通道、输入要求和输出通道完整参数；`dumpPipeSummary()` 打印运行统计信息。 |
@@ -140,6 +146,11 @@ setInputMediaChannelRequirements({input});
 | `receiveMediaBuffer(const MediaBufferContext& context)` | 内部/手动输入 | 向模块输入队列压入带逻辑输入 ID 的缓冲。 |
 | `clearInputBufferQueue()` | 停止或重置时 | 清理未消费输入缓冲。 |
 | `setInputBufferQueueSize(size_t size)` / `getInputBufferQueueSize()` | 任意 | 设置/获取输入队列容量，默认 `1024`，满队列时新缓冲会被丢弃。 |
+
+当前 `module/vi`、`module/vp`、`module/vo` 下的具体派生模块都会在析构函数入口调用
+`stop()`，使工作线程在派生成员资源释放前退出。正常流程仍应显式从源节点调用 `stop()`；
+自动停止用于异常返回或遗漏清理时兜底。自定义 `ModuleMedia` 派生类也应遵循相同规则，
+因为 `ModuleMedia` 基类析构函数本身不会调用 `stop()`。
 
 派生模块如果需要在消费处理中区分逻辑输入，应覆盖：
 
@@ -170,10 +181,10 @@ ConsumeResult doConsume(const MediaBufferContext& input,
 | API | 说明 |
 | --- | --- |
 | `MediaBuffer(size_t size = 0)` | 构造基础缓冲，可指定初始申请大小。 |
-| `MediaBuffer(const MediaBuffer& other)` | 只复制媒体元数据，不申请或复制载荷内存。 |
+| `MediaBuffer(const MediaBuffer& other)` | 复制索引、时间戳、EOS、flags、媒体类型、图像/采样参数、codec 和通道 ID；不复制载荷、私有数据、附加数据、引用计数和回调。 |
 | `allocBuffer(size_t size)` | 申请或重新申请内部数据缓冲。 |
 | `fillWithBlack()` | 将缓冲填充为黑色或静默数据，具体行为由实现决定。 |
-| `clone()` | 通过拷贝构造创建同类型对象，再按 `active_size` 分配内存并复制 `active_data`。 |
+| `clone()` | 通过虚函数创建同动态类型对象；基础实现按 `active_size` 分配独立内存并复制 `active_data`。 |
 | `STATUS_CLEAN` / `STATUS_DIRTY` | 缓冲状态常量，表示空闲/脏数据状态。 |
 
 基础内存和有效数据区域：
@@ -223,8 +234,13 @@ ConsumeResult doConsume(const MediaBufferContext& input,
 - `data/size` 表示缓冲总内存，`active_data/active_size` 表示当前有效载荷。
 - 派生类应实现自己的拷贝构造函数并 override `clone()`，返回 `std::make_shared<Derived>(*this)`。
 - 普通浅拷贝直接复制 `std::shared_ptr<MediaBuffer>`；拷贝构造只复制元数据，`clone()` 执行载荷深拷贝。
-- 附加数据通常也用 `MediaBuffer` 表示，并通过 `setExtraData()` 或模块级 `setExtraBuffer()` 传递。
+- `clone()` 不复制 `private_data`、`extra_data`、缓冲池引用计数或引用归零回调；调用方如需这些关联信息应显式重新设置。
+- 流初始化附加数据通常也用 `MediaBuffer` 表示，并发布到 `MediaChannelInfo::extra_data`；
+  `connectProducer()` 会将其复制到消费者的 `MediaInputChannel::media.extra_data`。
+- `MediaBuffer::setExtraData()` 用于随具体数据包携带动态附加数据；模块级 `setExtraBuffer()`
+  主要用于手动输入、未建立通道连接或覆盖自动配置的场景。
 - 引用计数及状态用于模块间零拷贝和缓冲池复用；外部长期持有输出缓冲时，优先使用 `ModuleMedia::holdOutputBuffer()` 和 `ModuleMedia::releaseOutputBuffer()`。
+- `ModuleMedia` 不再提供 `exportBufferFromBufferPool()` / `importBufferToBufferPool()`；需要独立载荷使用 `clone()`，需要短期零拷贝持有则使用 `holdOutputBuffer()` / `releaseOutputBuffer()`。
 
 ### VideoBuffer
 
@@ -248,7 +264,7 @@ ConsumeResult doConsume(const MediaBufferContext& input,
 | `resetBuffer()` | 重置缓冲内部状态和资源引用。 |
 | `allocBuffer(ImagePara para)` | 按图像参数申请视频缓冲，并记录图像参数。 |
 | `allocBuffer(size_t size)` | 按字节大小申请视频缓冲。 |
-| `clone()` | override 基类接口，通过 `VideoBuffer` 拷贝构造函数创建深拷贝。 |
+| `clone()` | override 基类接口；有效图像参数存在时按 `ImagePara` 申请独立视频缓冲，否则按 `active_size` 申请，并复制有效载荷。 |
 | `fillWithBlack()` | 填充整帧为黑色。 |
 | `fillWithBlack(uint32_t x, uint32_t y, uint32_t w, uint32_t h)` | 填充指定矩形区域为黑色。 |
 | `initWithExternalBuffer(void* data, size_t size, int fd)` | 使用外部内存和 fd 初始化缓冲。 |
@@ -812,6 +828,42 @@ RTSP 服务器扩展轨道，可复用 `ModuleRtspServer` 实现音视频同时�
 
 别名：`ModuleRtspServerAudioTrack`。
 
+## Python 绑定注意事项
+
+Python 绑定由 `module/pymodule.cpp` 提供，名称通常与 C++ API 一致，但应注意：
+
+- 数据 Hook 使用 `setMediaBufferConsumeHooker()` / `setMediaBufferProduceHooker()`，Python
+  回调签名为 `(module_name, queue_size_or_index, media_buffer)`。
+- 状态 Hook 使用 `setMediaStatusChangeHooker()`，回调签名为 `(module_name, status)`。
+- `setOutputDataCallback()`、`setStatusChangeCallback()` 已不再导出。
+- `addExternalConsumer(name, callback)` 只接收名称和一个三参数媒体回调，并返回外部消费模块。
+- `setProductor()` 仍是兼容接口但不返回连接结果；新代码使用 `connectProducer()`。
+- `ModuleMppDec()` 默认使用空 `ImagePara`；`ModuleMppEnc(EncodeType)` 的 `input_para` 也有
+  `ImagePara()` 默认值。两者都可在 `connectProducer()` 成功后从输入通道自动配置参数。
+- `MediaBuffer.clone()` 返回独立载荷副本，适合在回调返回后继续使用；Python 不再提供缓冲池
+  export/import 接口。
+
+示例：
+
+```python
+import ff_pymedia as ff
+
+def on_buffer(name, value, buffer):
+    owned = buffer.clone()
+    if owned is not None:
+        print(name, owned.getActiveSize())
+
+source = ff.ModuleFileReader("input.mp4", False)
+if source.init() < 0:
+    raise RuntimeError("failed to initialize source")
+
+decoder = ff.ModuleMppDec()
+if decoder.connectProducer(source) < 0:
+    raise RuntimeError("failed to connect decoder")
+
+decoder.setMediaBufferProduceHooker(on_buffer)
+```
+
 ## 常见接入模式
 
 ### 源到处理到输出
@@ -824,7 +876,7 @@ cam->setOutputImagePara(
     ImagePara{1920, 1080, 1920, 1080, V4L2_PIX_FMT_NV12});
 cam->init();
 
-auto enc = std::make_shared<ModuleMppEnc>(ENCODE_TYPE_H264);
+auto enc = std::make_shared<ModuleMppEnc>(MEDIA_CODEC_VIDEO_H264);
 if (enc->connectProducer(cam) < 0)
     return -1;
 enc->init();
@@ -836,6 +888,8 @@ if (writer->connectProducer(enc, MediaChannelSelection({0})) < 0)
 writer->init();
 
 cam->start();
+std::getchar();
+cam->stop();
 ```
 
 ### 手动注入内存帧
@@ -858,6 +912,8 @@ mem->start();
 
 mem->setInputBuffer(frame_ptr, frame_size, frame_fd, pts_us);
 mem->waitProcess(1000);
+mem->setProcessStatus(ModuleMemReader::PROCESS_STATUS_EXIT);
+mem->stop();
 ```
 
 ### 多通道源自动选择视频解码输入
@@ -885,22 +941,40 @@ if (decoder->getInputMediaChannel(0, input)) {
 }
 
 source->start();
+std::getchar();
+source->stop();
 ```
 
 ### 附加数据传递
 
-编码、封装、RTSP/RTMP 等模块常需要 SPS/PPS、AAC config 等附加数据。新接口将附加数据保存在 `MediaChannelInfo::extra_data`：
+编码、封装、RTSP/RTMP 等模块常需要 SPS/PPS、AAC config 等附加数据。生产者初始化输出
+通道时会将附加数据保存在 `MediaChannelInfo::extra_data`；`connectProducer()` 保存完整通道
+描述，消费者可在 `MediaInputChannel::media.extra_data` 中自动获取。
 
 ```cpp
-MediaChannelInfo video;
-if (encoder->getOutputMediaChannel(0, video))
-    muxer->setExtraBuffer(video.extra_data);
+auto encoder = std::make_shared<ModuleMppEnc>(MEDIA_CODEC_VIDEO_H264);
+if (encoder->connectProducer(raw_source) < 0 || encoder->init() < 0)
+    return -1;
+
+auto muxer = std::make_shared<ModuleFFmpegMux>("output.mp4", "mp4");
+if (muxer->connectProducer(encoder) < 0)
+    return -1;
+
+// init() 从已匹配输入通道读取 codec、图像参数和 extra_data。
+if (muxer->init() < 0)
+    return -1;
 ```
 
-兼容接口仍可直接获取附加数据：
+当前会自动读取输入通道附加数据的模块包括 `ModuleAacDec`、`ModuleFFmpegMux`、
+`ModuleFileWriter`、`ModuleRtspServer` 和 `ModuleRtspServerExtend`。其中封装和输出模块还会
+结合输入通道的 `image_para` 或 `sample_info` 自动创建媒体轨道。
+
+兼容和手动配置接口仍然保留：
 
 - 输入解封装模块：`ModuleFileReader::getExtraBuffer()`、`ModuleFFmpegDemux::getExtraBuffer()`、`ModuleRtspClient::getExtraBuffer()`。
 - 编码模块：`ModuleMppEnc::getExtraBuffer()`、`ModuleAacEnc::getExtraBuffer()`。
 - 输出模块：`ModuleFileWriter::setExtraBuffer()`、`ModuleFFmpegMux::setExtraBuffer()`、`ModuleRtspServer::setExtraBuffer()`。
 
-通常应在输出模块 `init()` 前设置附加数据；如果模块注释标明“初始化后调用”，以具体模块说明为准。
+正常管线无需手动转发附加数据。只有没有通过 `connectProducer()` 建立通道、手动调用
+`setInputBuffer()`，或需要覆盖通道自动配置时，才应在输出模块 `init()` 前调用
+`setExtraBuffer()`。
