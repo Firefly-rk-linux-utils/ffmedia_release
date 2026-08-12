@@ -1,0 +1,180 @@
+#pragma once
+
+#include <cstdint>
+
+#if defined(__GNUC__) || defined(__clang__)
+#define FFMEDIA_API   __attribute__((visibility("default")))
+#define FFMEDIA_LOCAL __attribute__((visibility("hidden")))
+#else
+#define FFMEDIA_API
+#define FFMEDIA_LOCAL
+#endif
+
+/*
+ * Decode type support
+ */
+namespace FFMedia
+{
+enum DecodeType : int32_t {
+    DECODE_TYPE_H264 = 0,
+    DECODE_TYPE_H265,
+    DECODE_TYPE_MJPEG,
+    DECODE_TYPE_VP8,
+    DECODE_TYPE_VP9,
+    DECODE_TYPE_MPEG1,
+    DECODE_TYPE_MPEG2,
+    DECODE_TYPE_MPEG4,
+    DECODE_TYPE_MAX,
+};
+
+/*
+ * Encode type support
+ */
+enum EncodeType : int32_t {
+    ENCODE_TYPE_H264 = 0,
+    ENCODE_TYPE_H265,
+    ENCODE_TYPE_MJPEG,
+    ENCODE_TYPE_MAX,
+};
+
+enum media_codec_t : int32_t {
+    MEDIA_CODEC_UNKNOWN = 0,
+    MEDIA_CODEC_VIDEO_VCM,
+    MEDIA_CODEC_VIDEO_MPEG4,
+    MEDIA_CODEC_VIDEO_MPEG1,
+    MEDIA_CODEC_VIDEO_MPEG2,
+    MEDIA_CODEC_VIDEO_H264,
+    MEDIA_CODEC_VIDEO_H265,
+    MEDIA_CODEC_VIDEO_VP8,
+    MEDIA_CODEC_VIDEO_VP9,
+    MEDIA_CODEC_VIDEO_AV1,
+    MEDIA_CODEC_VIDEO_MJPEG,
+    MEDIA_CODEC_VIDEO_H266,
+    MEDIA_CODEC_VIDEO_RAW,
+
+    MEDIA_CODEC_AUDIO_MP3 = 0x1000,
+    MEDIA_CODEC_AUDIO_MP2,
+    MEDIA_CODEC_AUDIO_MP1,
+    MEDIA_CODEC_AUDIO_PCM_BE,
+    MEDIA_CODEC_AUDIO_PCM_LE,
+    MEDIA_CODEC_AUDIO_PCM_FLOAT,
+    MEDIA_CODEC_AUDIO_MPC,
+    MEDIA_CODEC_AUDIO_AC3,
+    MEDIA_CODEC_AUDIO_ACM,
+    MEDIA_CODEC_AUDIO_AAC,
+    MEDIA_CODEC_AUDIO_PCM_A,  // ALAW
+    MEDIA_CODEC_AUDIO_PCM_U,  // MULAW
+    MEDIA_CODEC_AUDIO_PCM_S8,
+    MEDIA_CODEC_AUDIO_PCM_U8,
+    MEDIA_CODEC_AUDIO_PCM_S16,
+    MEDIA_CODEC_AUDIO_PCM_U16,
+    MEDIA_CODEC_AUDIO_PCM_S24,
+    MEDIA_CODEC_AUDIO_PCM_U24,
+    MEDIA_CODEC_AUDIO_PCM_S32,
+    MEDIA_CODEC_AUDIO_PCM_U32,
+    MEDIA_CODEC_AUDIO_PCM_S8_P,
+    MEDIA_CODEC_AUDIO_PCM_S16_P,
+    MEDIA_CODEC_AUDIO_PCM_S24_P,
+    MEDIA_CODEC_AUDIO_PCM_S32_P,
+    MEDIA_CODEC_AUDIO_OPUS,
+
+
+    MEDIA_CODEC_SUBTITLE_TEXT = 0x2000,
+    MEDIA_CODEC_SUBTITLE_SSA,
+    MEDIA_CODEC_SUBTITLE_ASS,
+    MEDIA_CODEC_SUBTITLE_USF,
+};
+
+/*
+ * RcMode - rate control mode
+ * 0 - cbr mode, Constant bit rate
+ * 1 - vbr mode, variable bit rate
+ */
+enum EncodeRcMode : int32_t {
+    ENCODE_RC_MODE_CBR = 0,
+    ENCODE_RC_MODE_VBR,
+    ENCODE_RC_MODE_FIXQP,
+    ENCODE_RC_MODE_AVBR,
+};
+
+/*
+ * H.264 profile_idc parameter
+ * 66  - Baseline profile
+ * 77  - Main profile
+ * 100 - High profile
+ */
+enum EncodeProfile : int32_t {
+    ENCODE_PROFILE_BASELINE = 0,
+    ENCODE_PROFILE_MAIN,
+    ENCODE_PROFILE_HIGH,
+};
+
+/*
+ * Quality - quality parameter
+ * mpp does not give the direct parameter in different protocol.
+ * mpp provide total 5 quality level 1 ~ 5
+ * 0 - worst
+ * 1 - worse
+ * 2 - medium
+ * 3 - better
+ * 4 - best
+ */
+enum EncodeQuality : int32_t {
+    ENCODE_QUALITY_WORST = 0,
+    ENCODE_QUALITY_WORSE,
+    ENCODE_QUALITY_MEDIUM,
+    ENCODE_QUALITY_BETTER,
+    ENCODE_QUALITY_BEST,
+};
+
+enum RgaRotate : int32_t {
+    RGA_ROTATE_NONE = 0,
+    RGA_ROTATE_90,
+    RGA_ROTATE_180,
+    RGA_ROTATE_270,
+    RGA_ROTATE_VFLIP,  // Vertical Mirror
+    RGA_ROTATE_HFLIP,  // Horizontal Mirror
+};
+
+enum SampleFormat : int32_t {
+    SAMPLE_FMT_NONE = -1,
+    SAMPLE_FMT_U8,
+    SAMPLE_FMT_S16,
+    SAMPLE_FMT_S32,
+    SAMPLE_FMT_FLT,
+    SAMPLE_FMT_U8P,
+    SAMPLE_FMT_S16P,
+    SAMPLE_FMT_S32P,
+    SAMPLE_FMT_FLTP,
+    SAMPLE_FMT_G711A,
+    SAMPLE_FMT_G711U,
+    SAMPLE_FMT_NB
+};
+
+enum AI_LAYOUT_E : int32_t {
+    AI_LAYOUT_NORMAL = 0,    /* Normal      */
+    AI_LAYOUT_MIC_REF,       /* MIC + REF, do clear ref*/
+    AI_LAYOUT_REF_MIC,       /* REF + MIC, do clear ref*/
+    AI_LAYOUT_2MIC_REF_NONE, /* MIC0 + MIC1 + REF0 + NONE, do clear ref*/
+    AI_LAYOUT_2MIC_NONE_REF, /* MIC0 + MIC1 + NONE + REF1, do clear ref*/
+    AI_LAYOUT_2MIC_2REF,     /* MIC0 + MIC1 + REF0 + REF1, do clear ref*/
+    AI_LAYOUT_BUTT
+};
+
+struct SampleInfo {
+    SampleFormat fmt;
+    int channels;
+    int sample_rate;
+    int nb_samples;
+    SampleInfo()
+        : fmt(SAMPLE_FMT_NONE), channels(0), sample_rate(0), nb_samples(0){};
+};
+
+enum SIP_TRANSPORT_TYPE : int32_t {
+    TRANSPORT_TYPE_TCP,
+    TRANSPORT_TYPE_UDP,
+    TRANSPORT_TYPE_TLS,
+    TRANSPORT_TYPE_DTLS
+};
+
+}  // namespace FFMedia

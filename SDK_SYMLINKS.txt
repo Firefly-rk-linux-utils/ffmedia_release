@@ -1,0 +1,2 @@
+./lib/libff_media.so -> libff_media.so.1
+./lib/libff_media.so.1 -> libff_media.so.2.6.0

@@ -1,97 +1,82 @@
 # vim: syntax=cmake
 cmake_minimum_required(VERSION 3.10)
 
-project(ffmedia)
+project(ffmedia_release_examples LANGUAGES CXX)
 
+include(GNUInstallDirs)
 
-set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS ON)
 
-set(CMAKE_INSTALL_PREFIX /usr)
+find_package(Threads REQUIRED)
+find_package(FFMedia REQUIRED CONFIG
+             PATHS "${CMAKE_CURRENT_SOURCE_DIR}/lib/cmake/FFMedia"
+             NO_DEFAULT_PATH)
 
-SET(CMAKE_BUILD_TYPE "Release")
-SET(CMAKE_C_FLAGS_DEBUG "$ENV{CFLAGS} -O0 -Wall -fPIC -g2 -ggdb")
-SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -fPIC -g2 -ggdb")
-SET(CMAKE_C_FLAGS_RELEASE "$ENV{CFLAGS} -O3 -Wall -fPIC -s")
-SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall -fPIC -s")
+option(DEMO_OPENCV "Build OpenCV demos" OFF)
+option(ENABLE_TESTS "Build FFMedia tests" ON)
+option(ENABLE_INFERENCE_EXAMPLES "Build inference examples" OFF)
 
-OPTION(DEMO_OPENCV "OpencvDemo" OFF)
-OPTION(DEMO_INFERENCE "InferenceDemo" OFF)
-OPTION(ENABLE_TESTS "Build ffmedia tests" OFF)
+include_directories(
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/examples")
 
-IF(DEMO_OPENCV)
-find_package(OpenCV 4 REQUIRED)
-ENDIF(DEMO_OPENCV)
+function(add_ffmedia_demo target)
+    add_executable(${target} ${ARGN})
+    target_link_libraries(${target}
+        PRIVATE FFMedia::FFMedia Threads::Threads)
+endfunction()
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+add_ffmedia_demo(demo
+    examples/demo/demo.cpp
+    examples/demo/utils.cpp)
+add_ffmedia_demo(demo_simple
+    examples/demo/demo_simple.cpp)
+add_ffmedia_demo(demo_memory_read
+    examples/demo/demo_memory_read.cpp)
+add_ffmedia_demo(demo_multi_drmplane
+    examples/demo/demo_multi_drmplane.cpp)
+add_ffmedia_demo(demo_multi_window
+    examples/demo/demo_multi_window.cpp)
+add_ffmedia_demo(demo_video_stack
+    examples/demo/demo_video_stack.cpp)
 
-link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
+set(FFMEDIA_DEMO_TARGETS
+    demo
+    demo_simple
+    demo_memory_read
+    demo_multi_drmplane
+    demo_multi_window
+    demo_video_stack)
 
-IF(DEMO_INFERENCE)
-    add_subdirectory(inference_examples)
-ENDIF(DEMO_INFERENCE)
+add_ffmedia_demo(ffmedia examples/demo/ffmedia.cpp)
+target_compile_definitions(ffmedia PRIVATE
+    FFMEDIA_CLI_INFERENCE=$<BOOL:${FFMedia_WITH_INFERENCE}>)
+list(APPEND FFMEDIA_DEMO_TARGETS ffmedia)
 
-add_executable(demo
-               demo/demo.cpp
-               demo/utils.cpp
-               )
+if(DEMO_OPENCV)
+    find_package(OpenCV 4 REQUIRED)
 
-add_executable(demo_simple
-               demo/demo_simple.cpp
-               )
+    add_ffmedia_demo(demo_opencv examples/demo/demo_opencv.cpp)
+    add_ffmedia_demo(demo_opencv_multi examples/demo/demo_opencv_multi.cpp)
+    add_ffmedia_demo(demo_rgablend examples/demo/demo_rgablend.cpp)
 
-add_executable(demo_memory_read
-               demo/demo_memory_read.cpp
-               )
+    target_link_libraries(demo_opencv PRIVATE ${OpenCV_LIBS})
+    target_link_libraries(demo_opencv_multi PRIVATE ${OpenCV_LIBS})
+    target_link_libraries(demo_rgablend PRIVATE ${OpenCV_LIBS})
+    list(APPEND FFMEDIA_DEMO_TARGETS
+        demo_opencv demo_opencv_multi demo_rgablend)
+endif()
 
-add_executable(demo_multi_drmplane
-               demo/demo_multi_drmplane.cpp
-               )
-
-add_executable(demo_multi_window
-               demo/demo_multi_window.cpp
-               )
-
-add_executable(demo_video_stack
-               demo/demo_video_stack.cpp
-               )
-
-target_link_libraries(demo ff_media)
-target_link_libraries(demo_simple ff_media)
-target_link_libraries(demo_memory_read ff_media)
-target_link_libraries(demo_multi_drmplane ff_media)
-target_link_libraries(demo_multi_window ff_media)
-target_link_libraries(demo_video_stack ff_media)
-
-IF(ENABLE_TESTS)
+if(ENABLE_TESTS)
     enable_testing()
-    add_subdirectory(tests)
-ENDIF(ENABLE_TESTS)
+    add_subdirectory(examples/tests)
+endif()
 
-INCLUDE(GNUInstallDirs)
+if(ENABLE_INFERENCE_EXAMPLES)
+    add_subdirectory(examples/inference_examples)
+endif()
 
-IF(DEMO_OPENCV)
-add_executable(demo_opencv
-               demo/demo_opencv.cpp
-               )
-
-add_executable(demo_opencv_multi
-               demo/demo_opencv_multi.cpp
-               )
-
-add_executable(demo_rgablend
-                demo/demo_rgablend.cpp
-                )
-
-target_link_libraries(demo_opencv ff_media ${OpenCV_LIBS})
-target_link_libraries(demo_opencv_multi ff_media ${OpenCV_LIBS})
-target_link_libraries(demo_rgablend ff_media ${OpenCV_LIBS})
-install(TARGETS demo_opencv demo_opencv_multi demo_rgablend
-	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-ENDIF(DEMO_OPENCV)
-
-install(TARGETS demo demo_simple demo_memory_read demo_multi_drmplane demo_multi_window demo_video_stack
-	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-
-install(FILES lib/libff_media.so
-	DESTINATION ${CMAKE_INSTALL_LIBDIR})
+install(TARGETS ${FFMEDIA_DEMO_TARGETS}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

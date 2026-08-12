@@ -1,14 +1,38 @@
 # FFMedia API 介绍
 
-本文档按 `module/` 目录下的模块职责整理公开 API。所有类均位于 `FFMedia` 命名空间，除特别说明外，模块都继承自 `ModuleMedia`，通过 `MediaBuffer` 在管线中传递数据。
+本文档按已发布 SDK 中的模块职责整理公开 API。所有类均位于 `FFMedia` 命名空间，除特别
+说明外，模块都继承自 `ModuleMedia`，通过 `MediaBuffer` 在管线中传递数据。稳定公开面以
+SDK `include/ffmedia/` 实际安装的头文件为准；源码树中未安装的头、私有成员和动态库中偶然
+可见但未声明的符号不属于兼容承诺。
+
+## SDK 接入与兼容性
+
+推荐通过 CMake imported target 使用 SDK：
+
+```cmake
+find_package(FFMedia REQUIRED CONFIG COMPONENTS core)
+target_link_libraries(my_app PRIVATE FFMedia::FFMedia)
+```
+
+常用模块可统一包含：
+
+```cpp
+#include <ffmedia/ffmedia.hpp>
+```
+
+`FFMedia::ff_media` 以及 `<module/...>`、`<base/...>` include 形式作为兼容入口继续保留。
+
+编译和部署时必须同时匹配 `FFMEDIA_MODULE_ABI_VERSION`、运行期
+`ffmedia_module_abi_version()`、`libff_media.so.<abi>` SONAME，以及
+`FFMEDIA_GLIBCXX_USE_CXX11_ABI`。不要混用不同 SDK 包中的头文件、CMake 元数据和动态库。
 
 ## 目录结构
 
-- `module/`：模块公共基类、生产/消费接口、多媒体通道描述、状态和回调。
-- `base/`：媒体基础数据结构和通用类型，例如 `MediaBuffer`、`VideoBuffer`、`ImagePara`、`SampleInfo`。
-- `module/vi/`：输入源模块，负责采集、读取或拉取媒体数据。
-- `module/vp/`：处理模块，负责编解码、图像处理、推理等。
-- `module/vo/`：输出模块，负责播放、显示、封装写入或网络推流。
+- `include/ffmedia/module/`：模块公共基类、生产/消费接口、多媒体通道描述、状态和回调。
+- `include/ffmedia/base/`：媒体基础数据结构和通用类型，例如 `MediaBuffer`、`VideoBuffer`、`ImagePara`、`SampleInfo`。
+- `include/ffmedia/module/vi/`：输入源模块，负责采集、读取或拉取媒体数据。
+- `include/ffmedia/module/vp/`：处理模块，负责编解码、图像处理、推理等。
+- `include/ffmedia/module/vo/`：输出模块，负责播放、显示、封装写入或网络推流。
 
 ## 公共管线接口
 
@@ -93,37 +117,41 @@ setInputMediaChannelRequirements({input});
 
 | API | 说明 |
 | --- | --- |
-| `setMediaBufferConsumeHooker(MediaBufferHooker hooker)` | 设置输入缓冲消费前回调。 |
-| `setMediaBufferProduceHooker(MediaBufferHooker hooker)` | 设置输出缓冲生产后回调。 |
-| `setMediaStatusChangeHooker(MediaStatusHooker hooker)` | 设置状态变化回调。 |
+| `bool setMediaBufferConsumeHooker(MediaBufferHooker hooker)` | 在启动前设置输入缓冲消费前回调。 |
+| `bool setMediaBufferProduceHooker(MediaBufferHooker hooker)` | 在启动前设置输出缓冲生产后回调。 |
+| `bool setMediaStatusChangeHooker(MediaStatusHooker hooker)` | 在启动前设置状态变化回调。 |
 
-`MediaBufferHooker` 形态为 `void(const std::string& name, int value, std::shared_ptr<MediaBuffer> buffer)`；
+`MediaBufferHooker` 形态为 `void(const std::string& name, int value, const std::shared_ptr<MediaBuffer>& buffer)`；
 `MediaStatusHooker` 形态为 `void(const std::string& name, MediaStatus status)`。
 
 第二个整数参数取决于回调位置：消费 Hook 和外部消费者回调传入当前输入队列长度；生产
-Hook 传入前移后的输出环形队列头索引。生产 Hook 调用时 Buffer 已标记为 `DIRTY` 且初始
-FFMedia 引用计数为 `1`，随后才向下游分发。Hook 在模块工作线程中同步执行，不适合执行
-长时间阻塞任务。
+Hook 传入当前输出 slot 索引。生产 Hook 调用时已经创建该帧 flight `shared_ptr`，随后才向
+下游分发。Hook 在模块工作线程中同步执行，不适合执行长时间阻塞任务。
+
+Hook 只能在模块 `start()` 前配置。设置成功返回 `true`；模块运行期间配置被冻结，设置接口
+返回 `false` 并保留原 Hook。`stop()` 完整结束管线后会重新允许配置，可在下一次 `start()`
+前替换或清除 Hook。运行时调用 Hook 不加锁，也不复制回调快照。
 
 ### ModuleMedia
 
 头文件：`module/module_media.hpp`
 
-模块统一基类。所有组件均可作为生产者或消费者接入管线。推荐流程为：初始化生产者并获得输出通道描述，构造消费者，调用 `connectProducer()` 完成通道匹配，再初始化消费者；整条管线配置完成后调用源模块 `start()`，结束时调用 `stop()`。
+模块统一基类。`ModuleMedia` 继承 `MediaParameter`，所有组件均可作为生产者或消费者接入管线。推荐流程为：初始化生产者并获得输出通道描述，构造消费者，调用 `connectProducer()` 完成通道匹配，再初始化消费者；整条管线配置完成后调用源模块 `start()`，结束时调用 `stop()`。
 
 | API | 调用时机 | 说明 |
 | --- | --- | --- |
 | `init()` | 启动前 | 初始化模块资源，成功返回 `0`。 |
 | `start()` / `stop()` | 初始化后 / 结束时 | 启停当前模块工作线程，并递归启停下游模块。 |
+| `makeMediaModule<T>(args...)` | 构造时 | 推荐的外部派生模块工厂；删除对象前先调用 `stop()`，保证派生资源释放前工作线程已退出。 |
 | `setProductor(std::shared_ptr<ModuleMedia> module)` | 初始化前 | 兼容接口，连接上游生产者的匹配通道；无法向调用方返回连接错误。新代码推荐使用 `connectProducer()`。 |
 | `setProductor(std::shared_ptr<ModuleMedia> module, const MediaChannelSelection& selection)` | 初始化前 | 选择生产者输出通道并建立连接，返回连接结果。 |
 | `connectProducer(std::shared_ptr<ModuleMedia> module, const MediaChannelSelection& selection = {})` | 初始化前 | 按消费者格式要求匹配并连接通道；空 selection 表示生产者全部输出通道。匹配到已被其他生产者占用的单路输入时返回 `-EBUSY`。 |
 | `removeProductor(std::shared_ptr<ModuleMedia> module)` | 停止或重配置时 | 移除指定上游；传空指针表示移除所有上游。 |
 | `setBufferCount(uint16_t count)` / `getBufferCount()` | 初始化前 | 设置/获取输出缓冲池数量。 |
-| `setBufferSize(const size_t& size)` / `getBufferSize()` | 初始化前 | 设置/获取单个缓冲区大小。 |
-| `getBufferFromIndex(uint16_t index)` | 初始化后 | 获取指定索引缓冲。 |
-| `holdOutputBuffer(const std::shared_ptr<MediaBuffer>& obuf)` | 使用输出缓冲时 | 持有输出缓冲，避免模块复用。 |
-| `releaseOutputBuffer(const std::shared_ptr<MediaBuffer>& obuf)` | 使用完成后 | 释放已持有的输出缓冲。 |
+| `setBufferSize(const size_t& size)` / `getBufferSize()` | 初始化前/任意查询 | 设置配置大小；查询已发布池的实际大小，池尚未发布或已失效时返回配置值。 |
+| `getBufferFromIndex(uint16_t index)` | 初始化后 | 从原子池快照获取指定索引缓冲；并发重建不会使已返回的 `shared_ptr` 失效。 |
+| `holdOutputBuffer(const std::shared_ptr<MediaBuffer>& obuf)` | 不建议使用 | Deprecated no-op，始终返回 `0`，不保存引用。 |
+| `releaseOutputBuffer(const std::shared_ptr<MediaBuffer>& obuf)` | 不建议使用 | Deprecated no-op，始终返回 `0`，不释放引用。 |
 | `setInputImagePara(const ImagePara& para)` / `getInputImagePara()` | 初始化前/查询 | 单视频输入兼容接口。连接成功后首个匹配视频通道会自动更新输入图像参数。 |
 | `setOutputImagePara(const ImagePara& para)` / `getOutputImagePara()` | 初始化前/查询 | 单视频输出兼容接口。设置时会同步发布 ID 为 `0` 的视频输出通道。 |
 | `setOutputMediaChannels(const std::vector<MediaChannelInfo>& channels)` | 生产者初始化期间 | 替换生产者发布的全部输出通道。 |
@@ -143,9 +171,277 @@ FFMedia 引用计数为 `1`，随后才向下游分发。Hook 在模块工作线
 | `addExternalConsumer(const std::string& name, MediaBufferHooker cb)` | 任意 | 添加外部消费者回调，返回一个外部消费模块。 |
 | `dumpPipe()` / `dumpPipeSummary()` | 调试 | `dumpPipe()` 打印管线结构及各节点的输入通道、输入要求和输出通道完整参数；`dumpPipeSummary()` 打印运行统计信息。 |
 | `receiveMediaBuffer(const std::shared_ptr<MediaBuffer>& buffer)` | 内部/手动输入 | 向模块输入队列压入缓冲。 |
-| `receiveMediaBuffer(const MediaBufferContext& context)` | 内部/手动输入 | 向模块输入队列压入带逻辑输入 ID 的缓冲。 |
+| `receiveMediaBuffer(MediaBufferContext&& context)` | 内部/手动输入 | `final` 接收入口；向模块输入队列 move 一个带逻辑输入 ID 的上下文。派生类覆盖 `doConsume()`，不得覆盖此入口。 |
 | `clearInputBufferQueue()` | 停止或重置时 | 清理未消费输入缓冲。 |
 | `setInputBufferQueueSize(size_t size)` / `getInputBufferQueueSize()` | 任意 | 设置/获取输入队列容量，默认 `1024`，满队列时新缓冲会被丢弃。 |
+
+#### 派生类开发与输出池提交
+
+`ModuleMedia` 的输出池、轮转队列、初始化标志、模块类型、同步器和配置锁均为私有状态。
+派生类不得直接依赖这些成员的名称、布局或容器实现，应只通过 public/protected 接口读写。
+常用替代接口如下：
+
+| 需求 | 派生类接口 |
+| --- | --- |
+| 设置/查询模块角色 | `setModuleType()` / `getModuleType()` |
+| 设置兼容媒体类型 | `setMediaType()`；查询使用 public `getMediaType()` |
+| 查询/切换模块状态 | public `getModuleStatus()` / protected `setModuleStatus()` |
+| 查询配置的 Buffer 大小 | `getConfiguredBufferSize()`；`getBufferSize()` 查询当前池实际大小 |
+| 查询/更新初始化状态 | `isInitialized()` / `setInitialized()` |
+| 使用同步器 | `synchronizer()` |
+| 设置回收前清 Cache 策略 | `setClearCachePolicy()` |
+| 串行化初始化和重配置 | `lockConfiguration()` |
+| 只读检查当前输出池 | `outputBufferPoolSize()` / `outputBufferAt()` |
+| 发布或清空输出池 | `commitOutputBufferPool()` / `clearOutputBufferPool()` |
+
+`lockConfiguration()` 用于低频的初始化、停止态重配置和资源切换，不应放入逐帧
+`doConsume()` / `doProduce()` 热路径。修改配置或替换输出池时，派生类应在同一个配置锁
+临界区内完成底层资源准备和池提交；成功提交后再调用 `setInitialized()`。
+
+普通内存池可直接调用 `ModuleMedia::initBuffer()` 或
+`ModuleMedia::initBuffer(buffer_type)`。需要自定义 Buffer、DMA/MPP 导入或外部资源的
+派生类，应先在局部 `OutputBufferPool` 中完成全部分配、导入和校验，最后一次性发布：
+
+```cpp
+int ModuleExample::initBuffer()
+{
+    auto generation = createDeviceGeneration();
+    if (!generation)
+        return -ENOMEM;
+
+    OutputBufferPool next;
+    next.buffers.reserve(getBufferCount());
+    next.rotation_buffers.reserve(getBufferCount());
+
+    for (uint16_t i = 0; i < getBufferCount(); ++i) {
+        auto buffer = createAndImportBuffer(generation, i);
+        if (!buffer)
+            return -ENOMEM;
+
+        next.buffers.push_back(buffer);
+        next.rotation_buffers.push_back(std::move(buffer));
+    }
+
+    next.recycle_handler =
+        [generation](const std::shared_ptr<MediaBuffer>& buffer) {
+            generation->release(buffer);
+        };
+    return commitOutputBufferPool(std::move(next));
+}
+```
+
+`buffers` 是池所有者和索引查询视图，`rotation_buffers` 是轮转槽位视图。后者为空时
+`commitOutputBufferPool()` 会从 `buffers` 补齐；对自定义池同时预留并填充两个 vector，
+可避免提交阶段额外复制一遍 `shared_ptr`。epoch 会同时持有两个视图，因此 MPP 等模块使用
+独立轮转 wrapper 时，底层 owner Buffer 也会存活到该代最后一个 flight 释放。提交会拒绝
+空指针和超过 16 位槽位上限的池；
+校验或内部分配失败时返回负 errno，当前活动池保持不变。
+
+每次成功提交都会创建新的输出池 epoch。`recycle_handler` 保存在对应 epoch 中，旧池仍在
+flight 的 Buffer 会继续调用旧 handler，最后一个 flight 释放后旧 epoch 才退出。因此处理器
+应捕获该次建池所使用的 `shared_ptr` 资源代次，不应捕获 `this` 后再访问可能已被重配置替换的
+当前设备、encoder、decoder、client 或 camera。
+
+`recycle_handler` 由 ModuleMedia owner 线程在位图 drain 阶段调用，不在最后一个消费者线程
+中执行；handler 应只处理对应资源代次的轻量回收，不应反向触发模块重配置。
+
+优先在局部池的 `recycle_handler` 中完成代次绑定。只有复用基类 `initBuffer()` 建池、无法在
+提交参数中直接设置 handler 的模块，才需要紧接着调用
+`bindOutputBufferRecycleHandler()`；该接口要求池已经存在且尚无已预留或在途 Buffer，否则
+分别返回 `-ENOENT` 或 `-EBUSY`。`bufferReleaseCallBack()` 只是在 epoch 未设置 handler 时使用
+的兼容回退，不适合释放可能跨重配置代次的资源。停止或受控重配时可调用
+`clearOutputBufferPool()` 发布空池；不要直接修改池容器，也不要依赖 `MediaBuffer` 的自定义
+引用计数、状态位或引用归零回调完成轮转。
+
+### MediaParameter
+
+头文件：\`module/ff_media_parameter.hpp\`
+
+\`MediaParameter\` 参考 GStreamer property、GstChildProxy 和 FFmpeg AVOption，使用一棵强类型参数树统一描述普通参数、结构化配置和原子事务：
+
+- \`ParameterSchema\` 是模块类型共享的不可变参数树；实例只保存 binding、当前值和 revision。
+- \`ParameterInfo\` 同时描述叶子参数和 \`OBJECT\` 节点，包含类型、说明、单位、默认值、范围、枚举、读写权限、可写状态及应用方式。
+- 路径是唯一寻址方式，使用 \`/\` 分隔，例如 \`bitrate\`、\`sample/channels\`、\`crop/region/x\`。
+- \`OBJECT\` 节点替代旧的 target/group 概念；\`atomic=true\` 表示该对象及任意后代的修改都必须合并后一次提交。
+- \`ParameterValue\` 支持 \`BOOLEAN\`、\`INTEGER\`、\`DOUBLE\`、\`STRING\` 和递归 \`OBJECT\`。
+- \`ParameterObject\` 既可表示完整对象，也可表示部分 patch；未出现的成员保持当前值。
+- 注册和运行时都会校验名称、类型、范围、枚举、权限及状态，失败返回标准负 errno。
+- \`parameterRevision()\` 是实例级单调递增版本，每次成功写入增加一次。
+- binding getter/setter 在参数树锁之外执行，可以在 callback 内查询或读取其他参数；
+  callback 内嵌套写入返回 \`-EDEADLK\`。标量写入会直接校验新值并调用 setter，
+  不会为了设置参数而隐式调用 getter。同一实例已有 callback 执行时，其他线程的
+  参数读写立即返回 \`-EAGAIN\`，调用方可稍后重试，元数据查询不受影响；getter
+  循环依赖返回 \`-ELOOP\`。
+
+\`ModuleMedia\` 默认注册以下通用参数：
+
+| 路径 | 类型 | 默认值 | 范围 | 应用方式 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| \`buffer-count\` | INTEGER | \`0\` | \`0..65535\` | \`IMMEDIATE\` | 输出池配置数量；框架不施加模块级数量上限，调用方应在初始化或受控重配置前设置。 |
+| \`buffer-size\` | INTEGER | \`0\` | \`0..INT64_MAX\` | \`IMMEDIATE\` | 单 Buffer 配置大小，单位字节；调用方负责与模块生命周期同步。 |
+| \`input-queue-size\` | INTEGER | \`1024\` | \`1..INT64_MAX\` | \`IMMEDIATE\` | 输入队列最大缓冲数量；建议在启动前设置。C++ 直接接口允许传 \`0\`，表示丢弃全部新输入。 |
+
+查询与设置统一使用路径：
+
+\`\`\`cpp
+std::shared_ptr<ModuleMedia> module = makeMediaModule<ModuleRga>();
+
+for (const auto& info : module->queryParameters())
+    std::cout << info.name << ": " << info.description << std::endl;
+
+module->setParameter("buffer-count", 4);
+
+uint16_t count = 0;
+module->getParameter("buffer-count", count);
+
+// 类似 AVOption 的字符串入口。
+module->setParameterFromString("input-queue-size", "256");
+\`\`\`
+
+\`getParameter()\`、\`setParameter()\`、\`ParameterObject::getMember()\` 和数值型
+\`setMember()\` 支持窄整数、无符号整数、浮点数和 enum。类型不匹配返回
+\`-EINVAL\`，负数转无符号或数值越界返回 \`-ERANGE\`；转换失败时不会修改输出变量。
+
+派生模块直接声明根节点，不再创建空名字 group。schema 与实例 binding 分离：
+
+\`\`\`cpp
+#include "module/ff_media_parameter_helpers.hpp"
+
+class ModuleExample : public ModuleMedia
+{
+public:
+    ModuleExample() : ModuleMedia("ModuleExample"), bitrate_(4000000)
+    {
+        static const auto schema = makeParameterSchema({
+            integerParameter("bitrate", 4000000, 1, 100000000,
+                             "Target bitrate", "bit/s"),
+        });
+
+        installParameterSchema(
+            schema, {bindParameter("bitrate", bitrate_)});
+    }
+
+private:
+    int64_t bitrate_;
+};
+\`\`\`
+
+需要加锁、跨字段校验或重建底层资源时，使用 typed getter/setter。参数核心会先完成
+\`ParameterValue\` 到 C++ 类型的转换和 schema 校验；setter 返回负 errno 即可拒绝提交：
+
+\`\`\`cpp
+bindParameter(
+    "bitrate",
+    [this]() { return bitrate_; },
+    [this](int64_t value) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (running_)
+            return -EBUSY;
+        bitrate_ = value;
+        recreateEncoder();
+        return 0;
+    });
+\`\`\`
+
+\`ParameterInfo::writable_states\` 由参数核心检查，\`ParameterApplyMode\` 描述立即应用、
+重配置、下次启动生效或仅构造期可写。涉及模块状态的 setter 仍应在模块锁内再次确认状态，
+避免状态检查与提交之间的竞态。
+
+#### 结构化与原子参数
+
+对象通过 \`objectParameter()\` 直接加入参数树，成员可以继续递归包含对象：
+
+\`\`\`cpp
+ParameterInfo crop = objectParameter(
+    "crop",
+    {
+        integerParameter("x", 0, 0, 8192),
+        integerParameter("y", 0, 0, 8192),
+        integerParameter("width", 1920, 1, 8192),
+        integerParameter("height", 1080, 1, 8192),
+        objectParameter(
+            "region",
+            {
+                integerParameter("x", 0, 0, 8192),
+                integerParameter("y", 0, 0, 8192),
+            }),
+    },
+    "Visible image rectangle",
+    PARAMETER_FLAG_READABLE | PARAMETER_FLAG_WRITABLE,
+    true);  // atomic
+
+static const auto schema = makeParameterSchema({crop});
+\`\`\`
+
+对象和任意后代都通过同一套路径 API 访问：
+
+\`\`\`cpp
+module->setParameter("crop/x", 120);
+module->setParameterFromString("crop/y", "32");
+
+int64_t x = 0;
+module->getParameter("crop/x", x);
+
+// 部分 patch：未列出的 width/height/region 保持当前值。
+module->setParameter(
+    "crop",
+    ParameterObject({
+        {"x", 100},
+        {"region", {{"x", 20}}},
+    }));
+\`\`\`
+
+\`queryParameters()\` 枚举根节点，\`queryParameters("crop")\` 枚举对象的直接子节点；
+\`queryParameter("crop/region/x", info)\` 查询任意深度节点。查询返回沿父路径组合后的有效
+metadata：读写权限和可写状态取交集，runtime/deprecated 标志向下继承，apply mode 取最严格值；
+OBJECT 的 \`object_members\` 也会递归应用相同规则。OBJECT 默认值由各子节点默认值递归生成。
+binding 注册同样按父链组合后的有效读写权限校验：有效只读节点只要求 getter，有效只写节点
+只要求 setter，避免局部 flags 与运行时权限不一致。
+
+原子对象使用 \`bindParameterObject()\` 绑定完整 getter/setter。参数核心先读取当前完整对象，
+递归合并 patch，完成所有 schema 校验，再调用一次 setter。setter 可追加跨字段约束；
+失败时对象不变。object getter 必须返回 schema 中的全部成员（包括嵌套成员），缺字段不会再用
+默认值静默补齐。原子对象下禁止再绑定独立叶子 setter：
+
+\`\`\`cpp
+installParameterSchema(
+    schema, {},
+    {bindParameterObject(
+        "crop",
+        [this](ParameterObject& value) {
+            value = ParameterObject({
+                {"x", crop_.x},
+                {"y", crop_.y},
+                {"width", crop_.width},
+                {"height", crop_.height},
+            });
+            return 0;
+        },
+        [this](const ParameterObject& value) {
+            Crop next;
+            if (value.getMember("x", next.x) < 0
+                || value.getMember("y", next.y) < 0
+                || value.getMember("width", next.width) < 0
+                || value.getMember("height", next.height) < 0) {
+                return -EINVAL;
+            }
+            if (next.x + next.width > input_width_)
+                return -ERANGE;
+            crop_ = next;
+            return 0;
+        })});
+\`\`\`
+
+未绑定的参数由参数系统保存；绑定参数以 getter/setter 为数据源。安装 schema 时会读取并校验
+getter 当前值。callback 可重入查询或读取当前实例的其他参数，但不能嵌套写入；跨线程冲突
+不会阻塞等待，调用方收到 `-EAGAIN` 后可重试。
+
+非原子 OBJECT 的一次 patch 如果涉及两个及以上绑定 setter，参数核心会在调用任何 setter 前
+返回 `-ENOTSUP`，避免前一成员已经生效、后一成员失败造成部分提交。需要跨多个 setter 的配置
+应声明为 atomic OBJECT 并使用一个 object setter。纯内部存储 patch 或只涉及一个 setter 的
+patch 仍可正常提交；非原子父对象中的子级 object binding 会作为一个完整提交动作执行。
+整对象 patch 会递归检查实际出现的每个子项权限和可写状态，不能借父对象绕过只读或生命周期
+门禁；读取整对象时若子树含不可读成员则返回 `-EACCES`，仍可单独读取其中允许访问的路径。
 
 当前 `module/vi`、`module/vp`、`module/vo` 下的具体派生模块都会在析构函数入口调用
 `stop()`，使工作线程在派生成员资源释放前退出。正常流程仍应显式从源节点调用 `stop()`；
@@ -168,7 +464,8 @@ ConsumeResult doConsume(const MediaBufferContext& input,
 }
 ```
 
-只覆盖旧版 `doConsume(const std::shared_ptr<MediaBuffer>&, ...)` 的模块仍可继续工作，基类会自动转发 `MediaBufferContext::buffer`。
+派生消费者只覆盖该 `MediaBufferContext` 版本。`ModuleRga` 和
+`ModuleImageProcessor` 保留的 `shared_ptr` 重载仅用于手动处理，不属于基类虚接口。
 
 ## 公共数据缓冲
 
@@ -212,12 +509,11 @@ ConsumeResult doConsume(const MediaBufferContext& input,
 
 | API | 说明 |
 | --- | --- |
-| `getStatus()` / `setStatus(bool status)` | 获取/设置缓冲状态，配合缓冲池复用。 |
-| `increaseRefCount()` | 引用计数加一，返回新计数。 |
-| `decreaseRefCount()` | 引用计数减一，返回新计数；减到零时可触发回调。 |
-| `getRefCount()` / `setRefCount(uint16_t count)` | 获取/设置引用计数。 |
-| `setOnRefZeroCallback(void* owner, onRefZeroCB cb)` | 设置引用计数归零回调及拥有者。 |
-| `onRefZero(const std::shared_ptr<MediaBuffer>& buffer)` | 手动触发引用归零处理，通常由内部调用。 |
+| `getStatus()` / `setStatus(bool status)` | Deprecated 兼容状态；`ModuleMedia` 轮转不使用。 |
+| `increaseRefCount()` / `decreaseRefCount()` | Deprecated 兼容计数；`ModuleMedia` 轮转不使用。 |
+| `getRefCount()` / `setRefCount(uint16_t count)` | Deprecated 兼容计数查询/设置。 |
+| `setOnRefZeroCallback(void* owner, onRefZeroCB cb)` | Deprecated 兼容归零回调。 |
+| `onRefZero(const std::shared_ptr<MediaBuffer>& buffer)` | Deprecated 手动兼容入口。 |
 
 媒体类型和媒体参数：
 
@@ -239,8 +535,8 @@ ConsumeResult doConsume(const MediaBufferContext& input,
   `connectProducer()` 会将其复制到消费者的 `MediaInputChannel::media.extra_data`。
 - `MediaBuffer::setExtraData()` 用于随具体数据包携带动态附加数据；模块级 `setExtraBuffer()`
   主要用于手动输入、未建立通道连接或覆盖自动配置的场景。
-- 引用计数及状态用于模块间零拷贝和缓冲池复用；外部长期持有输出缓冲时，优先使用 `ModuleMedia::holdOutputBuffer()` 和 `ModuleMedia::releaseOutputBuffer()`。
-- `ModuleMedia` 不再提供 `exportBufferFromBufferPool()` / `importBufferToBufferPool()`；需要独立载荷使用 `clone()`，需要短期零拷贝持有则使用 `holdOutputBuffer()` / `releaseOutputBuffer()`。
+- 模块间零拷贝生命周期只由 flight `shared_ptr` 控制块决定；外部异步使用时直接保存回调收到的 `shared_ptr`。
+- `ModuleMedia` 不再提供 `exportBufferFromBufferPool()` / `importBufferToBufferPool()`；需要独立载荷使用 `clone()`，需要短期零拷贝持有则保存 flight `shared_ptr`。
 
 ### VideoBuffer
 
@@ -260,28 +556,26 @@ ConsumeResult doConsume(const MediaBufferContext& input,
 | API | 说明 |
 | --- | --- |
 | `VideoBuffer(BUFFER_TYPE type)` | 按指定类型构造视频缓冲。 |
-| `VideoBuffer(const VideoBuffer& other)` | 只复制媒体元数据和缓冲类型，不复用源 DRM/MPP 句柄。 |
+| `VideoBuffer(const VideoBuffer& other)` | 只复制媒体元数据和缓冲类型，不复用源 DRM 或其他硬件后端句柄。 |
 | `resetBuffer()` | 重置缓冲内部状态和资源引用。 |
-| `allocBuffer(ImagePara para)` | 按图像参数申请视频缓冲，并记录图像参数。 |
-| `allocBuffer(size_t size)` | 按字节大小申请视频缓冲。 |
-| `clone()` | override 基类接口；有效图像参数存在时按 `ImagePara` 申请独立视频缓冲，否则按 `active_size` 申请，并复制有效载荷。 |
+| `allocBuffer(ImagePara para)` | 按图像参数重新申请视频缓冲并更新图像参数；保留时间戳、EOS、flags、通道、附加数据等现有帧元数据。 |
+| `allocBuffer(size_t size)` | 按字节大小重新申请视频缓冲，并保留现有帧元数据。 |
+| `clone()` | override 基类接口；有效图像参数存在时按 `ImagePara` 申请独立视频缓冲，否则按 `active_size` 申请，复制有效载荷并保留帧元数据和有效载荷大小。 |
 | `fillWithBlack()` | 填充整帧为黑色。 |
 | `fillWithBlack(uint32_t x, uint32_t y, uint32_t w, uint32_t h)` | 填充指定矩形区域为黑色。 |
 | `initWithExternalBuffer(void* data, size_t size, int fd)` | 使用外部内存和 fd 初始化缓冲。 |
 
-DRM/MPP 资源接口：
+DRM 与 DMA-BUF 资源接口：
 
 | API | 说明 |
 | --- | --- |
-| `getMppBuf()` / `setMppBuf(MppBuffer buffer)` | 获取/设置关联 MPP buffer。 |
-| `releaseMppBuffer()` | 释放关联 MPP buffer。 |
-| `importToMppBufferGroup(MppBufferGroup group)` | 将缓冲导入 MPP buffer group。 |
-| `importToMppBufferGroupUsed(MppBufferGroup group)` | 以 used 方式导入 MPP buffer group。 |
-| `importToMppBufferGroupExtra(MppBufferGroup group, bool used)` | 按 `used` 参数控制导入方式。 |
 | `getDrmBuf()` / `setDrmBuf(DrmBuffer* buffer)` | 获取/设置关联 DRM buffer。 |
 | `getBufFd()` / `setBufFd(int fd)` | 获取/设置缓冲 fd，供零拷贝传递。 |
 | `flushDrmBuf()` | 刷新 DRM 缓冲 cache，通常在 CPU 写入后给硬件读取前调用。 |
 | `invalidateDrmBuf()` | 使 DRM 缓冲 cache 失效，通常在硬件写入后 CPU 读取前调用。 |
+
+MPP buffer 的导入、引用和释放由 MPP 编解码模块在库内部管理，不属于公开
+`VideoBuffer` API。外部模块只需提供有效的 DMA-BUF fd、容量和图像参数。
 
 缓冲类型查询：
 
@@ -341,7 +635,7 @@ ALSA 音频采集源。
 | `setInputFormat(const std::string& format)` | 指定 `AVInputFormat` 短名称，空字符串表示自动探测。 |
 | `setFormatOption(const std::string& key, const std::string& value, int flags)` | 设置 FFmpeg format option；`key` 为空时清空全部选项。 |
 | `getFormatOption(const std::string& key, int flags)` | 查询 format option。 |
-| `setFileSeek(int64_t ts, int flags)` | 初始化后设置读取位置。 |
+| `setFileSeek(int64_t ts, int flags)` | 初始化后设置读取位置；运行期调用会与 `av_read_frame()` 串行，并刷新 bitstream filter 与首包状态。 |
 | `getAudioCodec()` / `getVideoCodec()` | 初始化后获取音频/视频编码类型。 |
 | `getAudioSampleInfo()` | 初始化后获取音频采样信息。 |
 | `getExtraBuffer(MEDIA_BUFFER_TYPE media_type)` | 初始化后获取指定媒体类型的附加数据。 |
@@ -363,8 +657,8 @@ ALSA 音频采集源。
 | `getAudioCodec()` / `getVideoCodec()` | 初始化后获取音频/视频编码类型。 |
 | `getAudioSampleInfo()` | 初始化后获取音频采样信息。 |
 | `getExtraBuffer(MEDIA_BUFFER_TYPE media_type)` | 初始化后获取媒体附加数据。 |
-| `setFileReaderSeek(int64_t ms_time)` | 初始化后设置读取点；媒体文件按毫秒，裸流按文件偏移量。 |
-| `getFileReaderMaxSeek()` | 初始化后获取最大时长或最大偏移量。 |
+| `setFileReaderSeek(int64_t ms_time)` | 初始化后设置读取点；媒体文件按毫秒，裸流按文件偏移量；运行期调用与当前 `decode()` 串行。 |
+| `getFileReaderMaxSeek()` | 初始化后获取最大时长或最大偏移量；查询与读取/seek 使用同一锁。 |
 | `init()` | 初始化文件读取器。 |
 
 角色：源组件，输出文件中的音视频数据；视频通道 ID 为 `0`，音频通道 ID 为 `1`。
@@ -393,6 +687,48 @@ ALSA 音频采集源。
 | `init()` | 初始化内存源。 |
 
 注意：该类重载 `setBufferCount(uint16_t)` 为空实现，缓冲数量不由外部设置。
+
+### ModuleAppSource / ModuleAppProcessor
+
+头文件：`module/module_app.hpp`
+
+`ModuleAppSource` 是面向应用的通用输入源。应用可以提交外部内存、DMA-BUF 或
+`MediaBuffer`，并通过 `MediaChannelInfo` 声明视频、音频或其他输出通道。模块支持阻塞、
+丢弃最新帧和丢弃最旧帧三种队列策略。
+
+仅使用 FFMedia 头文件和 `libff_media.so` 的完整可运行示例见：
+
+- `tests/test_module_app_source.cpp`：单/多媒体通道、三种内存生命周期、DMA-BUF、已有
+  `MediaBuffer`、ticket/wait、EOS、flush、队列策略、普通模块连接和外部消费者；
+- `tests/test_module_app_processor.cpp`：FORWARD、REPLACE、DROP、ERROR、异常处理、自动输出
+  通道、多通道路由、替换内存生命周期和外部消费者。
+
+`AppMemoryMode` 定义外部内存的生命周期：
+
+- `BORROW`：调用方持有内存，必须获取 ticket 并等待 `wait()` 完成后才能释放或复用。
+- `HOLD_OWNER`：模块持有 `AppFrame::owner`，直到所有下游释放该帧。
+- `COPY`：提交时复制载荷，`submit()` 返回后调用方即可释放输入。
+
+提交已有 `MediaBuffer` 时，`HeldFrame::frame.buffer` 会直接保存该 `shared_ptr`，直到该帧完成或被丢弃。
+
+| API | 说明 |
+| --- | --- |
+| `ModuleAppSource(channels, options)` | 创建应用输入源并发布一个或多个媒体通道。 |
+| `submit(frame, timeout_ms, ticket)` | 提交外部帧；成功接收返回 0。 |
+| `submit(buffer, channel_id, timeout_ms, ticket)` | 提交已有 `MediaBuffer`。 |
+| `wait(ticket, timeout_ms)` | 等待该帧被全部下游释放。 |
+| `sendEos(channel_id, ...)` | 向指定通道发送 EOS，随后该通道不再接受普通帧。 |
+| `flush(discard_pending, timeout_ms)` | 丢弃待发送帧或等待待发送及在途帧全部完成。 |
+
+`ModuleAppProcessor` 是同步回调处理节点。回调在模块自己的工作线程中执行，可以返回：
+
+- `FORWARD`：零拷贝转发当前 FFMedia Buffer；
+- `REPLACE`：用应用提供的 `AppFrame` 或 `MediaBuffer` 替换输入；
+- `DROP`：丢弃当前输入；
+- `ERROR`：将模块切换为异常状态。
+
+输入 Buffer 默认只读。由于输入可能同时发送给多个下游，应用不应在回调中原地修改共享
+载荷。需要修改数据时应返回 `REPLACE`；外部替换载荷必须使用 `HOLD_OWNER` 或 `COPY`。
 
 ### ModuleRtmpClient
 
@@ -440,19 +776,17 @@ RTSP 客户端输入源，支持 UDP、TCP、多播。
 
 ### ModuleVideoStack
 
-头文件：`module/vi/module_videoStack.hpp`
+头文件：`module/vp/module_videoStack.hpp`
 
-视频拼接源，将多个输入模块的视频帧按指定区域合成为一路视频流。
+视频拼接处理模块，将多个输入通道的视频帧按指定区域合成为一路视频流。
 
 | API | 说明 |
 | --- | --- |
 | `ModuleVideoStack(const std::string& module_name, int width, int height, float fps)` | 构造指定输出尺寸和帧率的视频拼接模块。 |
-| `addInputModule(const std::string& id, std::shared_ptr<ModuleMedia> module, const ImageCrop& stack_params)` | 添加一路输入模块及其拼接区域。 |
-| `removeInputModule(const std::string& id)` | 移除指定输入模块。 |
-| `setModuleStackParams(const std::string& id, const ImageCrop& stack_params)` | 修改指定输入的拼接参数。 |
+| `setModuleStackParams(MediaChannelId input_id, const ImageCrop& stack_params)` | 按输入通道 ID 设置拼接区域，并在内部创建或更新对应的 `MediaChannelRequirement`；宽或高为 `0` 时禁用该通道并将其上一次有效区域恢复为背景色。 |
 | `init()` | 初始化拼接输出缓冲。 |
 
-角色：组合型源组件，内部使用 RGA 完成拼接。
+输入通道由 `setModuleStackParams()` 根据 `input_id` 自动创建或更新 requirement，使用标准 `connectProducer()` 和 `removeProductor()` 管理连接。角色：多输入处理组件，内部使用线程池和 RGA 更新拼接缓存；每个启用通道只保留一个在途处理任务，忙碌时跳过新帧。定时线程通过 Clock Buffer 传递单调时钟 PTS，`doConsume()` 收到时钟后直接生成并输出快照。`frame-rate` 使用原子间隔，可在模块运行期间修改，并从下一轮定时调度开始生效。
 
 ## vp 处理模块
 
@@ -460,7 +794,7 @@ RTSP 客户端输入源，支持 UDP、TCP、多播。
 
 头文件：`module/vp/module_aacdec.hpp`
 
-AAC 音频解码模块，受 `AUDIO_SUPPORT` 控制。
+AAC 音频解码模块。
 
 | API | 说明 |
 | --- | --- |
@@ -478,7 +812,7 @@ AAC 音频解码模块，受 `AUDIO_SUPPORT` 控制。
 
 头文件：`module/vp/module_aacenc.hpp`
 
-AAC 音频编码模块，受 `AUDIO_SUPPORT` 控制。
+AAC 音频编码模块。
 
 | API | 说明 |
 | --- | --- |
@@ -506,15 +840,24 @@ MPP 视频解码模块，支持 MPEG1、MPEG2、MPEG4、H264、H265、MJPEG、VP
 | API | 说明 |
 | --- | --- |
 | `ModuleMppDec(const ImagePara& input_para = ImagePara())` | 根据输入图像参数构造；默认空参数时由匹配输入通道自动配置。 |
-| `ModuleMppDec(const ImagePara& input_para, DecodeType type)` | 显式指定解码类型。 |
-| `setNeedSplit(uint32_t split)` | 设置内部分帧模式，`0` 关闭、`1` 开启，默认 `0`。 |
-| `setFastMode(uint32_t fast)` | 设置快速解析模式，`0` 关闭、`1` 开启，默认 `1`。 |
-| `setDeinterlace(uint32_t deinterlace)` | 设置去隔行，`0` 关闭、`1` 开启，默认 `1`。 |
+| `ModuleMppDec(const ImagePara& input_para, DecodeType type)` | 保留的兼容接口；输入 fourcc 无法派生类型时使用显式类型。 |
+| `setNeedSplit(uint32_t split)` | 在 `CREATED` 或 `STOPPED` 状态设置内部分帧模式，`0` 关闭、`1` 开启，默认 `0`。 |
+| `setFastMode(uint32_t fast)` | 在 `CREATED` 或 `STOPPED` 状态设置快速解析模式，`0` 关闭、`1` 开启，默认 `1`。 |
+| `setDeinterlace(uint32_t deinterlace)` | 在 `CREATED` 或 `STOPPED` 状态设置去隔行，`0` 关闭、`1` 开启，默认 `1`。 |
 | `setOutputTimeOut(int timeout_ms)` | 设置取帧超时时间，默认 `0`。 |
-| `setBufferType(VideoBuffer::BUFFER_TYPE type)` | 设置输出缓冲类型，默认 `DRM_BUFFER_NONCACHEABLE`。 |
+| `setBufferType(VideoBuffer::BUFFER_TYPE type)` | 在 `CREATED` 或 `STOPPED` 状态设置输出缓冲类型，默认 `DRM_BUFFER_NONCACHEABLE`。 |
 | `init()` | 初始化 MPP 解码器。 |
 
 角色：处理组件，输入压缩视频码流，输出解码后的图像帧。
+
+输出 buffer 数量由调用方在 `init()` 前通过继承的 `setBufferCount()` 配置。框架不会根据
+H.264/H.265 类型自动提升数量或设置 codec 专用下限；调用方应结合码流参考帧需求、下游
+持有时长和 fanout 选择池大小。
+
+参数 `decode-type` 是只读派生值：优先由 `input/format` 的 fourcc 决定，不再接受会在
+`init()` 时被覆盖的独立参数写入。`output/format` 从构造完成起即为有效默认值
+`V4L2_PIX_FMT_NV12`。普通解码配置的参数 getter、`init()` 与旧公开 setter 使用同一模块锁，
+因此停止态重配置与并发参数查询不会读取到撕裂配置；运行期 timeout 仍使用原子快照。
 
 输入要求会自动匹配 MPEG1、MPEG2、MPEG4、H264、H265、VP8、VP9、MJPEG 压缩视频通道，不会连接同一生产者的音频通道。输出通道为 ID `0` 的 RAW 视频。
 
@@ -527,15 +870,23 @@ MPP 视频编码模块，支持 H264、H265、MJPEG。
 | API | 说明 |
 | --- | --- |
 | `ModuleMppEnc(media_codec_t type, int fps = 30, ...)` / `ModuleMppEnc(EncodeType type, const ImagePara& input_para = ImagePara(), ...)` | 构造视频编码器；支持 H264、H265、MJPEG，推荐使用 `media_codec_t`，并保留 `EncodeType` 兼容接口。`media_codec_t` 接口的输入图像参数由匹配输入通道自动配置。 |
-| `setDuration(int64_t duration)` | 设置输出时间戳间隔，单位微秒；为 `0` 时使用输入时间戳。 |
+| `setDuration(int64_t duration)` | 设置输出时间戳间隔，单位微秒；小于等于 `0` 时使用输入时间戳。默认 30 fps 实例为 `33333` 微秒。 |
 | `changeEncodeParameter(media_codec_t type, ...)` | 停止状态下修改编码类型、帧率、GOP、码率、码控模式、质量系数和 profile。调用后需重新初始化模块。 |
-| `setIntraRefresh(bool intra_refresh, int refresh_mode, int refresh_num)` | 初始化前设置帧内刷新；`refresh_mode` 为 `0` 行刷新、`1` 列刷新。 |
+| `setIntraRefresh(bool intra_refresh, int refresh_mode, int refresh_num)` | 设置帧内刷新；`refresh_mode` 为 `0` 行刷新、`1` 列刷新。活动编码器存在时立即下发。 |
 | `setOutputTimeOut(int timeout_ms)` | 设置取编码输出超时时间。 |
 | `setInputCachePoolSize(int size)` | 设置输入缓存池大小，必须小于生产者输出缓冲区数量，默认 `1`。 |
 | `getExtraBuffer()` | 初始化后获取编码附加数据。 |
 | `init()` | 初始化 MPP 编码器。 |
 
 角色：处理组件，输入原始图像帧，输出压缩视频码流。
+
+参数路径 `intra-refresh`、`duration-usec`、`output-timeout-ms` 和
+`input-cache-pool-size` 均为运行期参数；`intra-refresh` 在编码器已创建时立即下发，
+否则会在后续 MPP 初始化时应用。
+
+`duration-usec` 从 `0` 在运行期切换为正值时，下一帧会以 MPP 返回的当前输入 PTS 重基，
+之后再按配置间隔递增，不会重新从 `0` 开始。编码配置 OBJECT 的 getter、`init()` 和
+停止态旧公开重配置接口统一由模块锁保护；timestamp 重基只持有独立的短临界区。
 
 输入要求为 RAW 视频。输出通道 ID 为 `0`，编码格式由 `media_codec_t`（或兼容接口的 `EncodeType`）决定，初始化后通道描述包含可用的 SPS/PPS 等附加数据。
 
@@ -588,6 +939,84 @@ RGA 图像处理模块，支持格式转换、缩放、裁剪、旋转、翻转�
 
 自动连接时仅匹配 RAW 视频通道；`ModuleRga(output_para, rotate)` 可只指定输出参数，输入参数由连接结果配置。
 
+### ModuleImageProcessor
+
+头文件：`module/vp/module_imageProcessor.hpp`
+
+图像处理模块，支持 RGB/YUV 格式转换、缩放、裁剪、旋转、镜像和 cover。
+
+裁剪、旋转、镜像、翻转、Cover 和输出配置均通过 `MediaParameter` 路径访问，不新增
+独立的 Cover C++ 接口或 Python 类型。
+
+| 参数路径 | 类型 | 说明 |
+| --- | --- | --- |
+| `transform/crop/x`、`transform/crop/y` | INTEGER | 输入裁剪起点。 |
+| `transform/crop/width`、`transform/crop/height` | INTEGER | 输入裁剪尺寸；宽高均为 `0` 表示完整输入。 |
+| `transform/rotation` | INTEGER，单位 degree | 顺时针角度；当前支持 `0`、`90`、`180`、`270`，不是枚举值。 |
+| `transform/mirror`、`transform/flip` | BOOLEAN | 水平镜像和垂直翻转。 |
+| `cover/index` | INTEGER | Cover 槽位，范围 `0..15`。 |
+| `cover/crop/x`、`cover/crop/y` | INTEGER | Cover 在输出图像中的起点。 |
+| `cover/crop/width`、`cover/crop/height` | INTEGER | Cover 尺寸；宽高均为 `0` 表示关闭 Cover。 |
+| `cover/color` | INTEGER | `0xAARRGGBB` 颜色，默认不透明黑色。 |
+| `output/width`、`output/height` | INTEGER | 输出可见尺寸。 |
+| `output/hstride`、`output/vstride` | INTEGER | 输出 stride；`0` 表示自动计算。 |
+| `output/format` | INTEGER | V4L2 pixel format fourcc。 |
+| `output/compression` | INTEGER enum | `linear` 或 `afbc-16x16`。 |
+| `buffer-type` | INTEGER enum | `drm-noncached`、`drm-cached` 及对应 DMA32 类型。 |
+
+`transform` 和 `cover` 是运行时可写原子对象；`output` 是停止状态下可写的重配置原子对象：
+
+这里的停止状态明确指 `CREATED` 或 `stop()` 完成后的 `STOPPED`。`EOS`、`ABNORMAL`
+状态下工作线程仍可能存在，必须先调用 `stop()` 再重配置输出或 Buffer 类型。
+
+```cpp
+processor->setParameter(
+    "transform",
+    ParameterObject({
+        {"crop", {{"x", 100}, {"y", 50},
+                  {"width", 1280}, {"height", 720}}},
+        {"rotation", 90},
+        {"mirror", true},
+        {"flip", false},
+    }));
+
+processor->setParameter("buffer-type",
+                        VideoBuffer::DRM_BUFFER_CACHEABLE);
+
+processor->setParameter(
+    "cover",
+    ParameterObject({
+        {"index", 0},
+        {"crop", {
+            {"x", 100},
+            {"y", 80},
+            {"width", 320},
+            {"height", 180},
+        }},
+        {"color", static_cast<int64_t>(0x80ff0000U)},
+    }));
+
+processor->setParameter(
+    "cover",
+    ParameterObject({
+        {"index", 1},
+        {"crop", {
+            {"x", 500},
+            {"y", 200},
+            {"width", 160},
+            {"height", 90},
+        }},
+        {"color", static_cast<int64_t>(0xff00ff00U)},
+    }));
+```
+
+最多可同时配置 16 个 Cover。`cover` getter 返回最近一次写入的槽位；切换 `index` 写入时
+应提交包含 `index/crop/color` 的完整对象。Cover 在输出坐标系中绘制，可在模块运行期间更新。
+将指定槽位的 `crop/width` 和 `crop/height` 同时设为 `0` 可关闭该 Cover；两者只有一个为 `0`
+时返回 `-EINVAL`，矩形超出输出图像时返回 `-ERANGE`。
+
+角色：处理组件，输入和输出均为 RAW 视频。
+
 ### ModuleInference
 
 头文件：`module/vp/module_inference.hpp`
@@ -626,7 +1055,7 @@ NPU 调度核心 `NPU_SCHEDULER_CORE`：
 
 头文件：`module/vo/module_alsaPlayBack.hpp`
 
-ALSA 音频播放输出，受 `AUDIO_SUPPORT` 控制。
+ALSA 音频播放输出。
 
 | API | 说明 |
 | --- | --- |
@@ -706,7 +1135,7 @@ DRM 显示输出模块。
 
 头文件：`module/vo/module_ffmpegMux.hpp`
 
-基于 FFmpeg 的输出封装模块，支持文件、网络等输出，受 `FFMPEG_SUPPORT` 控制。
+基于 FFmpeg 的输出封装模块，支持文件、网络等输出。
 
 | API | 说明 |
 | --- | --- |
@@ -721,6 +1150,10 @@ DRM 显示输出模块。
 | `init()` | 初始化输出封装器并准备写入；未手动配置的音视频轨道从输入通道读取参数和附加数据。 |
 
 角色：输出消费者，输入编码后的音视频包并封装输出。
+
+参数路径 `destination`、`ffmpeg/options`、`video` 和 `audio` 均属于
+`RECONFIGURE`。它们只在 `CREATED` 或 `STOPPED` 且工作线程已经退出时接受修改；
+成功后会关闭旧 FFmpeg 输出上下文并使初始化失效，调用方应重新执行 `init()`。
 
 ### ModuleFileWriter
 
@@ -740,6 +1173,10 @@ DRM 显示输出模块。
 | `init()` | 初始化文件写入器；未手动配置的音视频参数和附加数据从输入通道读取。 |
 
 角色：输出消费者，输入编码后的音视频包并写入文件。
+
+参数路径 `path`、`video` 和 `audio` 均属于 `RECONFIGURE`。运行中、`EOS` 或
+`ABNORMAL` 但工作线程尚未退出时返回 `-EBUSY`；停止后修改会释放旧 writer 并要求
+重新执行 `init()`。旧的公开设置接口仍保留，并与编码路径串行访问 writer。
 
 ### ModuleGB28181Client
 
@@ -764,16 +1201,16 @@ GB28181 客户端，支持向 GB28181 服务器推流。
 
 头文件：`module/vo/module_rendererVideo.hpp`
 
-OpenGL ES/X11 视频渲染输出。
+OpenGL ES 视频渲染输出。窗口系统通过内部显示后端接口隔离，默认使用 X11；设置 `FFMEDIA_DISPLAY_BACKEND=wayland` 可选择 Wayland 后端。
 
 | API | 说明 |
 | --- | --- |
-| `ModuleRendererVideo(const ImagePara para = ImagePara(), const std::string& title = "")` | 构造 X11 视频渲染窗口。 |
+| `ModuleRendererVideo(const ImagePara para = ImagePara(), const std::string& title = "")` | 构造视频渲染窗口。 |
 | `setWindowRect(int x, int y, uint32_t w, uint32_t h)` | 设置窗口位置和大小。 |
 | `setImageRect(int x, int y, uint32_t w, uint32_t h)` | 设置图像在窗口中的显示区域。 |
 | `setWindowVisibility(bool isVisible)` | 设置窗口可见性。 |
 | `changeOutputResolution(int width, int height)` | 停止状态下修改输出分辨率并清除窗口。 |
-| `init()` | 初始化 X11/EGL/GLES 渲染资源；输入图像参数为空时从视频输入通道读取。 |
+| `init()` | 初始化显示后端及 EGL/GLES 渲染资源；输入图像参数为空时从视频输入通道读取。 |
 
 角色：输出消费者，输入图像帧并渲染到窗口。
 
@@ -799,7 +1236,8 @@ RTMP 服务器输出模块。
 
 头文件：`module/vo/module_rtspServer.hpp`
 
-RTSP 服务器视频轨道模块，支持 TCP 和 UDP 推流。
+RTSP 服务器模块，支持 TCP 和 UDP 推流。一个实例可直接连接视频和音频生产者，
+实现音视频同时推流；仅连接其中一种生产者时也可用于纯视频或纯音频推流。
 
 | API | 说明 |
 | --- | --- |
@@ -811,30 +1249,17 @@ RTSP 服务器视频轨道模块，支持 TCP 和 UDP 推流。
 
 别名：`ModuleRtspServerVideoTrack`。
 
-角色：输出消费者，常用于视频轨道推流。
-
-### ModuleRtspServerExtend
-
-头文件：`module/vo/module_rtspServer.hpp`
-
-RTSP 服务器扩展轨道，可复用 `ModuleRtspServer` 实现音视频同时推流或纯音频推流。
-
-| API | 说明 |
-| --- | --- |
-| `ModuleRtspServerExtend(std::shared_ptr<ModuleRtspServer> module, const std::string& path, int port)` | 基于已有 RTSP 服务模块构造扩展轨道。 |
-| `setAuthInfo(const std::string& realm, const std::string& username, const std::string& password)` | 初始化前设置身份认证信息。 |
-| `setExtraBuffer(const std::shared_ptr<MediaBuffer>& extra_buffer)` | 设置媒体类型和附加数据。 |
-| `init()` | 初始化扩展轨道；未调用 `setExtraBuffer()` 时从自身输入通道配置底层 RTSP 音视频轨道。 |
-
-别名：`ModuleRtspServerAudioTrack`。
+角色：输出消费者，用于单路或音视频组合 RTSP 推流。
 
 ## Python 绑定注意事项
 
 Python 绑定由 `module/pymodule.cpp` 提供，名称通常与 C++ API 一致，但应注意：
 
 - 数据 Hook 使用 `setMediaBufferConsumeHooker()` / `setMediaBufferProduceHooker()`，Python
-  回调签名为 `(module_name, queue_size_or_index, media_buffer)`。
-- 状态 Hook 使用 `setMediaStatusChangeHooker()`，回调签名为 `(module_name, status)`。
+  回调签名为 `(module_name, queue_size_or_index, media_buffer)`；仅能在 `start()` 前设置，
+  返回值表示是否设置成功。
+- 状态 Hook 使用 `setMediaStatusChangeHooker()`，回调签名为 `(module_name, status)`；同样
+  仅能在 `start()` 前设置并返回设置结果。
 - `setOutputDataCallback()`、`setStatusChangeCallback()` 已不再导出。
 - `addExternalConsumer(name, callback)` 只接收名称和一个三参数媒体回调，并返回外部消费模块。
 - `setProductor()` 仍是兼容接口但不返回连接结果；新代码使用 `connectProducer()`。
@@ -966,7 +1391,7 @@ if (muxer->init() < 0)
 ```
 
 当前会自动读取输入通道附加数据的模块包括 `ModuleAacDec`、`ModuleFFmpegMux`、
-`ModuleFileWriter`、`ModuleRtspServer` 和 `ModuleRtspServerExtend`。其中封装和输出模块还会
+`ModuleFileWriter` 和 `ModuleRtspServer`。其中封装和输出模块还会
 结合输入通道的 `image_para` 或 `sample_info` 自动创建媒体轨道。
 
 兼容和手动配置接口仍然保留：
