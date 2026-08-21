@@ -26,22 +26,21 @@ FFMedia 的主要特点：
 | VI 输入 | `Camera` | UVC、MIPI CSI 摄像头采集 |
 | VI 输入 | `RTSP Client`、`RTMP Client` | 网络拉流或推流输入 |
 | VI 输入 | `File Reader`、`Memory Reader` | 文件、裸流和应用内存输入 |
-| VI 输入 | `FFmpeg Demux` | 使用 FFmpeg 读取文件、网络流和设备输入 |
+| VI 输入 | `FFmpeg Demux` |  文件、网络流和设备输入 |
 | VI 输入 | `Alsa Capture` | ALSA 音频采集 |
 | VP 处理 | `MppDec`、`MppEnc` | H.264、H.265、MJPEG、VP8、VP9、MPEG 等视频硬件编解码 |
 | VP 处理 | `RGA` | 合成、缩放、裁剪、旋转和像素格式转换 |
 | VP 处理 | `Video Stack` | 多路视频拼接后输出 |
 | VP 处理 | `AacDec`、`AacEnc` | AAC 音频编解码 |
 | VP 处理 | `Inference` | 基于 RKNN 的模型推理 |
-| VP 处理 | `ImageProcessor` | GLES/EGL 图像处理及显示前处理 |
+| VP 处理 | `ImageProcessor` | 合成、缩放、裁剪、旋转和像素格式转换 |
 | VO 输出 | `DRM Display`、`Renderer Video` | DRM/KMS 或窗口后端显示 |
 | VO 输出 | `File Writer`、`FFmpeg Mux` | 文件、裸流和网络封装输出 |
 | VO 输出 | `RTSP Server`、`RTMP Server`、`GB28181 Client` | 网络服务、推流和 GB28181 输出 |
 | VO 输出 | `Alsa PlayBack` | ALSA 音频播放 |
 
 此外，`ModuleAppSource` 和 `ModuleAppProcessor` 可把应用自己的采集、处理逻辑接入同一条
-模块管线。具体模块是否参与构建由 CMake 选项决定，使用时还需准备对应平台运行库和设备
-环境；按模块列出的运行时依赖请参见
+模块管线。按模块列出的运行时依赖请参见
 [examples/demo/Readme.md](examples/demo/Readme.md)。
 
 ## 典型数据流
@@ -81,19 +80,21 @@ Producer 可以连接多个 Consumer，一个 Consumer 也可以连接多个 Pro
 
 发布包中的源码示例统一位于 `examples/`：
 
-- `examples/demo/`：C++/Python Demo。
-- `examples/tests/`：CPU 测试与硬件手动测试源码。
+- `examples/demo/`：C++/Python Demo；编译和使用方法见
+  [examples/demo/Readme.md](examples/demo/Readme.md)。
+- `examples/tests/`：CPU 测试与硬件手动测试源码；测试分类、构建和运行方法见
+  [examples/tests/README.md](examples/tests/README.md)。
 - `examples/inference_examples/`：推理示例。
+- `examples/inference/`：独立依赖 FFMedia 发布 SDK 构建的 RKNN 推理扩展、跟踪、OSD 及相关示例；
+  构建和使用方法见 [examples/inference/README.md](examples/inference/README.md)。
 - `examples/external_module/`：外部模块 ABI 示例。
-
-Demo 编译及使用介绍见
-[examples/demo/Readme.md](examples/demo/Readme.md)。
 
 提供以下构建开关：
 
 - `DEMO_OPENCV`：编译 OpenCV Demo，默认关闭。
 - `ENABLE_TESTS`：编译 Tests，默认开启。
 - `ENABLE_INFERENCE_EXAMPLES`：编译 `examples/inference_examples/`，默认关闭。
+- `ENABLE_INFERENCE_EXTENSION`：编译 `examples/inference/` 中独立依赖 SDK 的推理扩展，默认关闭。
 
 例如编译基础 Demo 和 Tests：
 
@@ -112,6 +113,17 @@ cmake -S . -B build \
   -DENABLE_INFERENCE_EXAMPLES=ON
 cmake --build build -j
 ```
+
+如需从发布包根目录编译独立推理扩展：
+
+```bash
+cmake -S . -B build \
+  -DENABLE_TESTS=OFF \
+  -DENABLE_INFERENCE_EXTENSION=ON
+cmake --build build -j
+```
+
+也可以直接进入 `examples/inference/` 执行 `cmake -S . -B build`；该目录会自动发现当前发布包的 FFMedia CMake 配置。
 
 ## ffmedia api 文档
 ffmedia的api详细文档：[docs/ffmedia_api.md](docs/ffmedia_api.md)

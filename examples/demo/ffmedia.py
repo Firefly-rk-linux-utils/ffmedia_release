@@ -487,11 +487,19 @@ class ShowTarget:
 
 
 @dataclass
+class SynchronizeAssignment:
+    module_id: str
+    sync_type: object
+    name: str = ""
+
+
+@dataclass
 class RunConfig:
     modules: list = field(default_factory=list)
     parameters: list = field(default_factory=list)
     connections: list = field(default_factory=list)
     show_targets: list = field(default_factory=list)
+    synchronizers: list = field(default_factory=list)
     duration: float = 0.0
 
 
@@ -576,6 +584,52 @@ def parse_show_target(argument):
     return ShowTarget(module_id, path)
 
 
+def synchronize_type_name(sync_type):
+    names = {
+        ff.SynchronizeType.SYNCHRONIZETYPE_VIDEO: "video",
+        ff.SynchronizeType.SYNCHRONIZETYPE_AUDIO: "audio",
+        ff.SynchronizeType.SYNCHRONIZETYPE_ABSOLUTE: "absolute",
+    }
+    return names.get(sync_type, "unknown")
+
+
+def parse_synchronize_type(value):
+    names = {
+        "video": ff.SynchronizeType.SYNCHRONIZETYPE_VIDEO,
+        "audio": ff.SynchronizeType.SYNCHRONIZETYPE_AUDIO,
+        "abs": ff.SynchronizeType.SYNCHRONIZETYPE_ABSOLUTE,
+        "absolute": ff.SynchronizeType.SYNCHRONIZETYPE_ABSOLUTE,
+    }
+    sync_type = names.get(value)
+    if sync_type is None:
+        raise CliError("sync must use video, audio, or absolute")
+    return sync_type
+
+
+def parse_synchronize_assignment(argument):
+    if argument.count("=") != 1:
+        raise CliError("sync must use MODULE=MODE[:NAME]")
+    module_id, setting = (part.strip() for part in argument.split("=", 1))
+    if not valid_identifier(module_id):
+        raise CliError(
+            "invalid module id in sync assignment: '{}'".format(module_id))
+
+    if setting.count(":") > 1:
+        raise CliError(
+            "sync must use video, audio, or absolute, optionally followed "
+            "by :NAME")
+    if ":" in setting:
+        mode, name = setting.split(":", 1)
+        name = name.strip()
+        if not valid_identifier(name):
+            raise CliError(
+                "sync name must be a valid identifier: '{}'".format(name))
+    else:
+        mode, name = setting, ""
+    return SynchronizeAssignment(
+        module_id, parse_synchronize_type(mode.strip()), name)
+
+
 def parse_duration(value):
     try:
         duration = float(value)
@@ -623,6 +677,9 @@ def make_argument_parser():
     run.add_argument("--show-params", action="append", default=[],
                      metavar="ID[:PATH]",
                      help="print configured parameters and exit before init")
+    run.add_argument("--sync", action="append", default=[],
+                     metavar="MODULE=MODE[:NAME]",
+                     help="configure per-module sync; matching NAME shares it")
     run.add_argument("-d", "--duration", type=parse_duration, default=0.0,
                      metavar="SECONDS",
                      help="stop after SECONDS; zero waits for EOS or signal")
@@ -641,6 +698,8 @@ def make_run_config(arguments):
                           for item in arguments.connect]
     config.show_targets = [parse_show_target(item)
                            for item in arguments.show_params]
+    config.synchronizers = [parse_synchronize_assignment(item)
+                            for item in arguments.sync]
     return config
 
 
@@ -717,6 +776,10 @@ class ModuleInstance:
     descriptor: ModuleDescriptor
     module: object
     assignments: list = field(default_factory=list)
+    sync_configured: bool = False
+    sync_type: object = None
+    sync_name: str = ""
+    synchronizer: object = None
 
 
 def print_parameter_failure(instance, paths, result):
@@ -850,9 +913,56 @@ def create_module_instances(config):
                 "Parameter block references unknown module id: '{}'".format(
                     assignment.module_id), -errno.ENOENT)
         instances[index].assignments.append(assignment)
+
+    for assignment in config.synchronizers:
+        index = index_by_id.get(assignment.module_id)
+        if index is None:
+            raise CliError(
+                "Sync assignment references unknown module id: '{}'".format(
+                    assignment.module_id), -errno.ENOENT)
+        instance = instances[index]
+        if instance.sync_configured:
+            raise CliError(
+                "Duplicate sync assignment for module '{}'".format(
+                    instance.module_id), -errno.EEXIST)
+        instance.sync_configured = True
+        instance.sync_type = assignment.sync_type
+        instance.sync_name = assignment.name
+
     for instance in instances:
         configure_module(instance)
     return instances, index_by_id
+
+
+def configure_module_synchronizers(instances):
+    synchronizers = {}
+    synchronize_types = {}
+    for instance in instances:
+        if not instance.sync_configured:
+            continue
+        key = ("module:" + instance.module_id if not instance.sync_name
+               else "name:" + instance.sync_name)
+        synchronizer = synchronizers.get(key)
+        if synchronizer is None:
+            synchronizer = ff.Synchronize(instance.sync_type)
+            synchronizer.setFirstFrameDuration(50000)
+            synchronizers[key] = synchronizer
+            synchronize_types[key] = instance.sync_type
+        elif synchronize_types[key] != instance.sync_type:
+            raise CliError(
+                "Sync name '{}' uses conflicting modes: {} and {}".format(
+                    instance.sync_name,
+                    synchronize_type_name(synchronize_types[key]),
+                    synchronize_type_name(instance.sync_type)))
+        instance.synchronizer = synchronizer
+        instance.module.setSynchronize(synchronizer)
+
+
+def synchronize_parameter_value(instance):
+    if not instance.sync_configured:
+        return ""
+    value = synchronize_type_name(instance.sync_type)
+    return value if not instance.sync_name else value + ":" + instance.sync_name
 
 
 @dataclass
@@ -1022,6 +1132,10 @@ def print_graph(config, instances):
             producer += "@" + ",".join(str(item)
                                        for item in connection.channels)
         print("  {} -> {}".format(producer, connection.consumer))
+    for instance in instances:
+        if instance.sync_configured:
+            print("  sync {}={}".format(
+                instance.module_id, synchronize_parameter_value(instance)))
 
 
 class PipelineRunner:
@@ -1159,6 +1273,7 @@ def show_configured_parameters(config, instances, index_by_id):
 def run_command(arguments):
     config = make_run_config(arguments)
     instances, index_by_id = create_module_instances(config)
+    configure_module_synchronizers(instances)
     if config.show_targets:
         show_configured_parameters(config, instances, index_by_id)
         return 0

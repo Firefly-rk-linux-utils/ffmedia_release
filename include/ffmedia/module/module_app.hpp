@@ -73,6 +73,7 @@ public:
                MediaChannelId channel_id = MEDIA_CHANNEL_ID_ANY,
                int timeout_ms = 0, uint64_t* ticket = nullptr);
 
+    /** Completed results are retained for the latest 1024 unwaited tickets. */
     int wait(uint64_t ticket, int timeout_ms);
     int sendEos(MediaChannelId channel_id, int timeout_ms = 0,
                 uint64_t* ticket = nullptr);

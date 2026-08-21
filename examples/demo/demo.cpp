@@ -1133,8 +1133,10 @@ int main(int argc, char** argv)
         while (demo_running.load() && !demo_signal_stop)
             sleep(1);
 
-        // Allow downstream queues to consume the final source buffers.
-        usleep(500000);
+        // Allow downstream queues to consume the final source buffers on EOS,
+        // but do not delay an explicit interrupt.
+        if (!demo_signal_stop)
+            usleep(500000);
     }
 
     if (common_source_module) {

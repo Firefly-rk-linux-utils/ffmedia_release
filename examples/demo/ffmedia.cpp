@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/ff_synchronize.hpp"
 #include "base/pixel_fmt.hpp"
 #include "module/base_config.h"
 #include "module/module_media.hpp"
@@ -872,9 +873,66 @@ int parseDuration(const std::string& text, double& duration)
     return 0;
 }
 
+const char* synchronizeTypeName(SynchronizeType type)
+{
+    switch (type) {
+        case SYNCHRONIZETYPE_VIDEO:
+            return "video";
+        case SYNCHRONIZETYPE_AUDIO:
+            return "audio";
+        case SYNCHRONIZETYPE_ABSOLUTE:
+            return "absolute";
+    }
+    return "unknown";
+}
+
+int parseSynchronizeType(const std::string& text, SynchronizeType& type)
+{
+    if (text == "video") {
+        type = SYNCHRONIZETYPE_VIDEO;
+        return 0;
+    }
+    if (text == "audio") {
+        type = SYNCHRONIZETYPE_AUDIO;
+        return 0;
+    }
+    if (text == "abs" || text == "absolute") {
+        type = SYNCHRONIZETYPE_ABSOLUTE;
+        return 0;
+    }
+    return -EINVAL;
+}
+
+int parseSynchronizeParameter(const std::string& text, SynchronizeType& type,
+                              std::string& name)
+{
+    const size_t separator = text.find(':');
+    const std::string mode = text.substr(0, separator);
+    const int ret = parseSynchronizeType(mode, type);
+    if (ret < 0)
+        return ret;
+
+    name.clear();
+    if (separator == std::string::npos)
+        return 0;
+
+    name = text.substr(separator + 1);
+    if (name.empty() || name.find(':') != std::string::npos
+        || !validIdentifier(name)) {
+        return -EINVAL;
+    }
+    return 0;
+}
+
 struct ShowTarget {
     std::string module_id;
     std::string path;
+};
+
+struct SynchronizeAssignment {
+    std::string module_id;
+    SynchronizeType type = SYNCHRONIZETYPE_AUDIO;
+    std::string name;
 };
 
 int parseShowTarget(const std::string& argument, ShowTarget& target)
@@ -892,11 +950,40 @@ int parseShowTarget(const std::string& argument, ShowTarget& target)
     return 0;
 }
 
+int parseSynchronizeAssignment(const std::string& argument,
+                               SynchronizeAssignment& assignment,
+                               std::string& error)
+{
+    const size_t separator = argument.find('=');
+    if (separator == std::string::npos
+        || separator != argument.rfind('=')) {
+        error = "sync must use MODULE=MODE[:NAME]";
+        return -EINVAL;
+    }
+
+    assignment.module_id = trim(argument.substr(0, separator));
+    if (!validIdentifier(assignment.module_id)) {
+        error = "invalid module id in sync assignment: '"
+                + assignment.module_id + "'";
+        return -EINVAL;
+    }
+
+    const std::string setting = trim(argument.substr(separator + 1));
+    const int ret = parseSynchronizeParameter(
+        setting, assignment.type, assignment.name);
+    if (ret < 0) {
+        error = "sync must use video, audio, or absolute, optionally followed "
+                "by :NAME";
+    }
+    return ret;
+}
+
 struct RunConfig {
     std::vector<ModuleDeclaration> modules;
     std::vector<RawParameterAssignment> parameters;
     std::vector<ConnectionSpec> connections;
     std::vector<ShowTarget> show_targets;
+    std::vector<SynchronizeAssignment> synchronizers;
     double duration = 0.0;
 };
 
@@ -929,6 +1016,9 @@ void printRunUsage(const char* program)
         << "      layouts and incoming connections are matched in declaration order.\n"
         << "      --show-params ID[:PATH]\n"
         << "      Print configured parameters and exit before init().\n"
+        << "      --sync MODULE=MODE[:NAME]\n"
+        << "      Configure module synchronization separately. Without NAME,\n"
+        << "      the module gets a private synchronizer; matching NAME shares one.\n"
         << "  -d, --duration SECONDS\n"
         << "      Stop after the duration; zero waits for EOS or a signal.\n"
         << "  -h, --help\n\n"
@@ -945,12 +1035,14 @@ int parseRunArguments(int argc, char** argv, RunConfig& config,
 {
     enum {
         OPT_SHOW_PARAMS = 1000,
+        OPT_SYNC = 1001,
     };
     static const option options[] = {
         {"module", required_argument, nullptr, 'm'},
         {"params", required_argument, nullptr, 'p'},
         {"connect", required_argument, nullptr, 'c'},
         {"show-params", required_argument, nullptr, OPT_SHOW_PARAMS},
+        {"sync", required_argument, nullptr, OPT_SYNC},
         {"duration", required_argument, nullptr, 'd'},
         {"help", no_argument, nullptr, 'h'},
         {nullptr, 0, nullptr, 0},
@@ -1006,6 +1098,15 @@ int parseRunArguments(int argc, char** argv, RunConfig& config,
                     return ret;
                 }
                 config.show_targets.push_back(target);
+                break;
+            }
+            case OPT_SYNC: {
+                SynchronizeAssignment assignment;
+                const int ret = parseSynchronizeAssignment(
+                    optarg, assignment, error);
+                if (ret < 0)
+                    return ret;
+                config.synchronizers.push_back(std::move(assignment));
                 break;
             }
             case 'h':
@@ -1147,6 +1248,10 @@ struct ModuleInstance {
     const ModuleDescriptor* descriptor = nullptr;
     std::shared_ptr<ModuleMedia> module;
     std::vector<RawParameterAssignment> assignments;
+    bool sync_configured = false;
+    SynchronizeType sync_type = SYNCHRONIZETYPE_AUDIO;
+    std::string sync_name;
+    std::shared_ptr<Synchronize> synchronizer;
 };
 
 void printParameterFailure(const ModuleInstance& instance,
@@ -1345,12 +1450,74 @@ int createModuleInstances(
         instances[found->second].assignments.push_back(assignment);
     }
 
+    for (const auto& assignment : config.synchronizers) {
+        auto found = index_by_id.find(assignment.module_id);
+        if (found == index_by_id.end()) {
+            std::cerr << "Sync assignment references unknown module id: '"
+                      << assignment.module_id << "'\n";
+            return -ENOENT;
+        }
+        ModuleInstance& instance = instances[found->second];
+        if (instance.sync_configured) {
+            std::cerr << "Duplicate sync assignment for module '"
+                      << instance.id << "'\n";
+            return -EEXIST;
+        }
+        instance.sync_configured = true;
+        instance.sync_type = assignment.type;
+        instance.sync_name = assignment.name;
+    }
+
     for (auto& instance : instances) {
         const int ret = configureModule(instance);
         if (ret < 0)
             return ret;
     }
     return 0;
+}
+
+int configureModuleSynchronizers(std::vector<ModuleInstance>& instances)
+{
+    std::map<std::string, std::shared_ptr<Synchronize>> synchronizers;
+    std::map<std::string, SynchronizeType> synchronize_types;
+
+    for (auto& instance : instances) {
+        if (!instance.sync_configured)
+            continue;
+
+        const std::string key = instance.sync_name.empty()
+                                    ? "module:" + instance.id
+                                    : "name:" + instance.sync_name;
+        auto found = synchronizers.find(key);
+        if (found == synchronizers.end()) {
+            instance.synchronizer = std::make_shared<Synchronize>(instance.sync_type);
+            instance.synchronizer->setFirstFrameDuration(50000);
+            synchronizers.emplace(key, instance.synchronizer);
+            synchronize_types.emplace(key, instance.sync_type);
+        } else {
+            if (synchronize_types.at(key) != instance.sync_type) {
+                std::cerr << "Sync name '" << key
+                          << "' uses conflicting modes: "
+                          << synchronizeTypeName(synchronize_types.at(key))
+                          << " and "
+                          << synchronizeTypeName(instance.sync_type) << "\n";
+                return -EINVAL;
+            }
+            instance.synchronizer = found->second;
+        }
+        instance.module->setSynchronize(instance.synchronizer);
+    }
+    return 0;
+}
+
+std::string synchronizeParameterValue(const ModuleInstance& instance)
+{
+    if (!instance.sync_configured)
+        return "";
+    std::string value = synchronizeTypeName(instance.sync_type);
+    if (!instance.sync_name.empty())
+        value += ":" + instance.sync_name;
+    return value;
 }
 
 struct GraphPlan {
@@ -1573,6 +1740,12 @@ void printGraph(const RunConfig& config,
         }
         std::cout << " -> " << connection.consumer << "\n";
     }
+    for (const auto& instance : instances) {
+        if (instance.sync_configured) {
+            std::cout << "  sync " << instance.id << "="
+                      << synchronizeParameterValue(instance) << "\n";
+        }
+    }
 }
 
 class PipelineRunner
@@ -1792,6 +1965,9 @@ int runCommand(int argc, char** argv)
     std::map<std::string, size_t> index_by_id;
     int ret = createModuleInstances(
         config, instances, index_by_id);
+    if (ret < 0)
+        return 1;
+    ret = configureModuleSynchronizers(instances);
     if (ret < 0)
         return 1;
 

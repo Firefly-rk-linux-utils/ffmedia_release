@@ -11,6 +11,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -46,6 +47,24 @@ struct CoverOptions {
     uint32_t color = 0xff000000U;
 };
 
+enum class BlendAlphaMode : int32_t {
+    Opaque = 0,
+    Straight = 1,
+    Premultiplied = 2,
+};
+
+struct BlendOptions {
+    ImageCrop rect = {};
+    uint32_t color = 0xffffffffU;
+    float opacity = 1.0f;
+    BlendAlphaMode alpha_mode = BlendAlphaMode::Straight;
+};
+
+struct BlendInputBuffer {
+    MediaChannelId input_id = 0;
+    std::shared_ptr<VideoBuffer> buffer;
+};
+
 enum class DisplayMode {
     None,
     Input,
@@ -68,6 +87,7 @@ struct Options {
     bool mirror = false;
     bool flip = false;
     std::vector<CoverOptions> covers;
+    std::vector<BlendOptions> blends;
     bool change_output = false;
     uint32_t warmup = 20;
     uint32_t iterations = 300;
@@ -238,6 +258,73 @@ bool parseCover(const std::string& text, CoverOptions& cover)
            && parseColor(values[4], cover.color);
 }
 
+bool parseUnitFloat(const std::string& text, float& value)
+{
+    if (text.empty())
+        return false;
+    char* end = nullptr;
+    errno = 0;
+    const float parsed = std::strtof(text.c_str(), &end);
+    if (errno != 0 || !end || *end != '\0' || !std::isfinite(parsed)
+        || parsed < 0.0f || parsed > 1.0f) {
+        return false;
+    }
+    value = parsed;
+    return true;
+}
+
+bool parseBlendAlphaMode(const std::string& text,
+                         BlendAlphaMode& mode)
+{
+    const std::string value = uppercase(text);
+    if (value == "OPAQUE")
+        mode = BlendAlphaMode::Opaque;
+    else if (value == "STRAIGHT")
+        mode = BlendAlphaMode::Straight;
+    else if (value == "PREMULTIPLIED" || value == "PREMULT")
+        mode = BlendAlphaMode::Premultiplied;
+    else
+        return false;
+    return true;
+}
+
+const char* blendAlphaModeName(BlendAlphaMode mode)
+{
+    switch (mode) {
+        case BlendAlphaMode::Opaque:
+            return "opaque";
+        case BlendAlphaMode::Premultiplied:
+            return "premultiplied";
+        default:
+            return "straight";
+    }
+}
+
+bool parseBlend(const std::string& text, BlendOptions& blend)
+{
+    std::vector<std::string> values;
+    size_t begin = 0;
+    while (begin <= text.size()) {
+        const size_t end = text.find(':', begin);
+        values.push_back(text.substr(begin, end - begin));
+        if (end == std::string::npos)
+            break;
+        begin = end + 1;
+    }
+    if (values.size() < 5 || values.size() > 7
+        || !parseUnsigned(values[0], 0, 16383, blend.rect.x)
+        || !parseUnsigned(values[1], 0, 16383, blend.rect.y)
+        || !parseUnsigned(values[2], 1, 16384, blend.rect.w)
+        || !parseUnsigned(values[3], 1, 16384, blend.rect.h)
+        || !parseColor(values[4], blend.color)) {
+        return false;
+    }
+    if (values.size() >= 6 && !parseUnitFloat(values[5], blend.opacity))
+        return false;
+    return values.size() < 7
+           || parseBlendAlphaMode(values[6], blend.alpha_mode);
+}
+
 bool parseRotation(const std::string& text, int32_t& rotation)
 {
     if (text == "0")
@@ -276,6 +363,9 @@ void printUsage(const char* program)
         << "  -m, --mirror 0|1              Horizontal mirror\n"
         << "  -v, --flip 0|1                Vertical flip\n"
         << "  -k, --cover X:Y:W:H:ARGB      Output cover; repeatable (max 16)\n"
+        << "  -b, --blend X:Y:W:H:ARGB[:OPACITY[:ALPHA_MODE]]\n"
+        << "                                  Solid RGBA image layer; repeatable (max 64)\n"
+        << "                                  ALPHA_MODE: opaque|straight|premultiplied\n"
         << "  -C, --change-output 0|1       Configure output through parameters\n\n"
         << "File parameters:\n"
         << "  -i, --input-file FILE         Read input buffer storage\n"
@@ -300,7 +390,10 @@ void printUsage(const char* program)
            " -F NV12 -S 1920x1080 -P 1920x1080 -A 0 -n 1000\n  "
         << program
         << " -f RGB24 -s 1920x1080 -F NV12 -S 1280x720 -n 10"
-           " --display both --display-duration 10\n";
+           " --display both --display-duration 10\n  "
+        << program
+        << " -f RGBA32 -s 640x360 -F NV12 -S 640x360"
+           " --blend 176:104:288:144:0x80dc1464:0.5:straight -n 30\n";
 }
 
 bool parseOptions(int argc, char** argv, Options& options, bool& show_help,
@@ -379,6 +472,12 @@ bool parseOptions(int argc, char** argv, Options& options, bool& show_help,
                     && parseCover(value, cover);
             if (valid)
                 options.covers.push_back(cover);
+        } else if (option == "-b" || option == "--blend") {
+            BlendOptions blend;
+            valid = options.blends.size() < 64
+                    && parseBlend(value, blend);
+            if (valid)
+                options.blends.push_back(blend);
         } else if (option == "-C" || option == "--change-output") {
             valid = parseBoolean(value, options.change_output);
         } else if (option == "-u" || option == "--warmup") {
@@ -516,6 +615,63 @@ std::shared_ptr<VideoBuffer> allocateBuffer(const ImagePara& para)
     return buffer;
 }
 
+void fillSolidRgba32(const std::shared_ptr<VideoBuffer>& buffer,
+                     uint32_t color)
+{
+    const ImagePara para = buffer->getImagePara();
+    std::memset(buffer->getActiveData(), 0, buffer->getSize());
+    auto* data = static_cast<uint8_t*>(buffer->getActiveData());
+    const uint8_t red = static_cast<uint8_t>((color >> 16) & 0xffU);
+    const uint8_t green = static_cast<uint8_t>((color >> 8) & 0xffU);
+    const uint8_t blue = static_cast<uint8_t>(color & 0xffU);
+    const uint8_t alpha = static_cast<uint8_t>((color >> 24) & 0xffU);
+    for (uint32_t y = 0; y < para.height; ++y) {
+        uint8_t* row = data + static_cast<size_t>(y) * para.hstride * 4;
+        for (uint32_t x = 0; x < para.width; ++x) {
+            row[x * 4] = red;
+            row[x * 4 + 1] = green;
+            row[x * 4 + 2] = blue;
+            row[x * 4 + 3] = alpha;
+        }
+    }
+    buffer->flushDrmBuf();
+}
+
+int createBlendInputs(const Options& options, const ImagePara& output_para,
+                      std::vector<BlendInputBuffer>& inputs,
+                      std::string& error)
+{
+    inputs.clear();
+    inputs.reserve(options.blends.size());
+    for (size_t index = 0; index < options.blends.size(); ++index) {
+        const BlendOptions& blend = options.blends[index];
+        if (blend.rect.x >= output_para.width
+            || blend.rect.y >= output_para.height
+            || blend.rect.w > output_para.width - blend.rect.x
+            || blend.rect.h > output_para.height - blend.rect.y) {
+            error = "blend layer " + std::to_string(index)
+                    + " exceeds output bounds";
+            return -ERANGE;
+        }
+        const ImagePara layer_para(
+            blend.rect.w, blend.rect.h, ALIGN(blend.rect.w, 16),
+            ALIGN(blend.rect.h, 16), V4L2_PIX_FMT_RGB32);
+        auto buffer = allocateBuffer(layer_para);
+        if (!buffer) {
+            error = "failed to allocate blend layer "
+                    + std::to_string(index);
+            return -ENOMEM;
+        }
+        fillSolidRgba32(buffer, blend.color);
+
+        BlendInputBuffer input;
+        input.input_id = static_cast<MediaChannelId>(index + 1);
+        input.buffer = std::move(buffer);
+        inputs.push_back(std::move(input));
+    }
+    return 0;
+}
+
 bool readBufferFromFile(const std::string& path,
                         const std::shared_ptr<VideoBuffer>& buffer,
                         std::string& error)
@@ -632,8 +788,22 @@ public:
     int process(const std::shared_ptr<VideoBuffer>& input,
                 const std::shared_ptr<VideoBuffer>& output)
     {
+        MediaBufferContext context;
+        context.buffer = input;
+        context.input_id = 0;
         std::shared_ptr<MediaBuffer> media_output = output;
-        return static_cast<int>(doConsume(input, media_output));
+        return static_cast<int>(doConsume(context, media_output));
+    }
+
+    int cacheBlendInput(MediaChannelId input_id,
+                        const std::shared_ptr<VideoBuffer>& input)
+    {
+        MediaBufferContext context;
+        context.buffer = input;
+        context.input_id = input_id;
+        std::shared_ptr<MediaBuffer> no_output;
+        const ConsumeResult result = doConsume(context, no_output);
+        return result == CONSUME_SKIP ? 0 : static_cast<int>(result);
     }
 
 private:
@@ -687,6 +857,55 @@ ParameterObject imageParaParameters(const ImagePara& para)
         {"format", static_cast<int64_t>(para.v4l2Fmt)},
         {"compression", static_cast<int>(para.compression)},
     });
+}
+
+ParameterObject cropParameters(const ImageCrop& crop)
+{
+    return ParameterObject({
+        {"x", static_cast<int64_t>(crop.x)},
+        {"y", static_cast<int64_t>(crop.y)},
+        {"width", static_cast<int64_t>(crop.w)},
+        {"height", static_cast<int64_t>(crop.h)},
+    });
+}
+
+int configureBlendInputs(BenchmarkModuleImageProcessor& processor,
+                         const Options& options,
+                         const std::vector<BlendInputBuffer>& inputs)
+{
+    if (options.blends.size() != inputs.size())
+        return -EINVAL;
+    for (size_t index = 0; index < inputs.size(); ++index) {
+        const BlendOptions& blend = options.blends[index];
+        const int result = processor.setParameter(
+            "blend",
+            ParameterObject({
+                {"input-id", static_cast<int64_t>(inputs[index].input_id)},
+                {"enabled", true},
+                {"z-order", static_cast<int64_t>(index)},
+                {"source-crop", cropParameters(ImageCrop{})},
+                {"destination-rect", cropParameters(blend.rect)},
+                {"opacity", static_cast<double>(blend.opacity)},
+                {"rotation", 0},
+                {"mirror", false},
+                {"flip", false},
+                {"alpha-mode", static_cast<int>(blend.alpha_mode)},
+            }));
+        if (result < 0)
+            return result;
+    }
+    const auto& requirements = processor.getInputMediaChannelRequirements();
+    for (const BlendInputBuffer& input : inputs) {
+        const auto found = std::find_if(
+            requirements.begin(), requirements.end(),
+            [&input](const MediaChannelRequirement& requirement) {
+                return requirement.input_id == input.input_id
+                       && requirement.media_type == BUFFER_TYPE_VIDEO;
+            });
+        if (found == requirements.end())
+            return -ENOENT;
+    }
+    return 0;
 }
 
 int convertBuffer(const std::shared_ptr<VideoBuffer>& source,
@@ -749,7 +968,9 @@ std::shared_ptr<VideoBuffer> createInput(const ImagePara& input_para,
 
 int runBenchmark(const Options& options,
                  const std::shared_ptr<VideoBuffer>& input,
-                 const ImagePara& output_para, BenchmarkResult& benchmark)
+                 const ImagePara& output_para,
+                 const std::vector<BlendInputBuffer>& blend_inputs,
+                 BenchmarkResult& benchmark)
 {
     BenchmarkModuleImageProcessor gpu(
         input->getImagePara(),
@@ -762,9 +983,24 @@ int runBenchmark(const Options& options,
         result = gpu.setParameter("output",
                                   imageParaParameters(output_para));
     if (result == 0)
+        result = configureBlendInputs(gpu, options, blend_inputs);
+    if (result == 0)
         result = gpu.prepare();
     if (result < 0)
         return result;
+    for (size_t index = 0; index < blend_inputs.size(); ++index) {
+        blend_inputs[index].buffer->setPUstimestamp(
+            -static_cast<int64_t>(index + 1));
+        result = gpu.cacheBlendInput(blend_inputs[index].input_id,
+                                     blend_inputs[index].buffer);
+        if (result != 0)
+            return result;
+    }
+    if (!blend_inputs.empty()) {
+        std::cout << "[BLEND] cached " << blend_inputs.size()
+                  << " auxiliary frame(s); warmup and benchmark submit only "
+                     "main input 0\n";
+    }
     auto output = allocateBuffer(output_para);
     if (!output)
         return -ENOMEM;
@@ -861,7 +1097,63 @@ struct ContentValidation {
     double mean_absolute_error = 0.0;
     int maximum_error = 0;
     double high_error_pixel_ratio = 0.0;
+    uint64_t blend_changed_pixel_writes = 0;
 };
+
+uint8_t clampColor(float value)
+{
+    return static_cast<uint8_t>(std::max(
+        0L, std::min(255L, std::lround(value))));
+}
+
+uint64_t applyCpuBlendReference(
+    const std::shared_ptr<VideoBuffer>& reference,
+    const std::vector<BlendOptions>& blends)
+{
+    if (blends.empty())
+        return 0;
+
+    const ImagePara para = reference->getImagePara();
+    auto* data = static_cast<uint8_t*>(reference->getActiveData());
+    uint64_t changed_pixel_writes = 0;
+    for (const BlendOptions& blend : blends) {
+        const float opacity = blend.opacity;
+        const float source_alpha = static_cast<float>(
+                                       (blend.color >> 24) & 0xffU)
+                                   / 255.0f;
+        const float alpha = blend.alpha_mode == BlendAlphaMode::Opaque
+                                ? opacity
+                                : source_alpha * opacity;
+        const float inverse_alpha = 1.0f - alpha;
+        const uint8_t source[3] = {
+            static_cast<uint8_t>((blend.color >> 16) & 0xffU),
+            static_cast<uint8_t>((blend.color >> 8) & 0xffU),
+            static_cast<uint8_t>(blend.color & 0xffU),
+        };
+        for (uint32_t y = blend.rect.y;
+             y < blend.rect.y + blend.rect.h; ++y) {
+            uint8_t* row = data + static_cast<size_t>(y) * para.hstride * 4;
+            for (uint32_t x = blend.rect.x;
+                 x < blend.rect.x + blend.rect.w; ++x) {
+                uint8_t* pixel = row + static_cast<size_t>(x) * 4;
+                bool changed = false;
+                for (size_t channel = 0; channel < 3; ++channel) {
+                    const float source_contribution = blend.alpha_mode == BlendAlphaMode::Premultiplied
+                                                          ? static_cast<float>(source[channel]) * opacity
+                                                          : static_cast<float>(source[channel]) * alpha;
+                    const uint8_t value = clampColor(
+                        source_contribution
+                        + static_cast<float>(pixel[channel]) * inverse_alpha);
+                    changed = changed || value != pixel[channel];
+                    pixel[channel] = value;
+                }
+                if (changed)
+                    ++changed_pixel_writes;
+            }
+        }
+    }
+    return changed_pixel_writes;
+}
 
 int verifyOutput(const std::shared_ptr<VideoBuffer>& input,
                  const std::shared_ptr<VideoBuffer>& output,
@@ -897,12 +1189,14 @@ int verifyOutput(const std::shared_ptr<VideoBuffer>& input,
 
     actual->invalidateDrmBuf();
     reference->invalidateDrmBuf();
+    validation = ContentValidation();
+    validation.blend_changed_pixel_writes = applyCpuBlendReference(
+        reference, options.blends);
     const auto* actual_data = static_cast<const uint8_t*>(actual->getActiveData());
     const auto* reference_data = static_cast<const uint8_t*>(reference->getActiveData());
     if (!actual_data || !reference_data)
         return -EFAULT;
 
-    validation = ContentValidation();
     validation.checksum = 1469598103934665603ULL;
     bool nonzero = false;
     uint64_t total_error = 0;
@@ -946,7 +1240,7 @@ int verifyOutput(const std::shared_ptr<VideoBuffer>& input,
 
     if (require_nonzero && !nonzero)
         return -EIO;
-    if (require_nonzero
+    if ((require_nonzero || !options.blends.empty())
         && (validation.mean_absolute_error > 10.0
             || validation.high_error_pixel_ratio > 0.01)) {
         return -EILSEQ;
@@ -1058,7 +1352,8 @@ int runDisplay(const Options& options,
               << options.display_height
               << ", duration=" << options.display_duration << "s\n"
               << "[DISPLAY] backend is selected by FFMEDIA_DISPLAY_BACKEND "
-                 "(x11 by default); press Ctrl+C to stop\n";
+                 "(or auto-selected from WAYLAND_DISPLAY/DISPLAY); "
+                 "press Ctrl+C to stop\n";
 
     for (auto& view : views) {
         view.buffer->setPUstimestamp(0);
@@ -1140,6 +1435,7 @@ int main(int argc, char** argv)
               << ", mirror=" << options.mirror
               << ", flip=" << options.flip
               << ", covers=" << options.covers.size()
+              << ", blends=" << options.blends.size()
               << ", change_output=" << options.change_output
               << ", warmup=" << options.warmup
               << ", iterations=" << options.iterations
@@ -1158,6 +1454,18 @@ int main(int argc, char** argv)
     if (!options.output_file.empty())
         std::cout << ", output_file=" << options.output_file;
     std::cout << '\n';
+    for (size_t index = 0; index < options.blends.size(); ++index) {
+        const BlendOptions& blend = options.blends[index];
+        std::cout << "[BLEND] layer=" << index
+                  << ", input=" << index + 1 << ", z-order=" << index
+                  << ", rect="
+                  << blend.rect.x << ':' << blend.rect.y << ':'
+                  << blend.rect.w << ':' << blend.rect.h << ", color=0x"
+                  << std::hex << std::setw(8) << std::setfill('0')
+                  << blend.color << std::dec << std::setfill(' ')
+                  << ", opacity=" << blend.opacity << ", alpha="
+                  << blendAlphaModeName(blend.alpha_mode) << '\n';
+    }
     int result = 0;
     std::shared_ptr<VideoBuffer> input;
     if (input_from_file) {
@@ -1181,8 +1489,17 @@ int main(int argc, char** argv)
                   << "; continuing with allocated input buffer\n";
     }
 
+    std::vector<BlendInputBuffer> blend_inputs;
+    result = createBlendInputs(options, output_para, blend_inputs, error);
+    if (result != 0) {
+        std::cerr << "Failed to prepare blend layers: " << error
+                  << ", error=" << result << '\n';
+        return 1;
+    }
+
     BenchmarkResult benchmark;
-    result = runBenchmark(options, input, output_para, benchmark);
+    result = runBenchmark(options, input, output_para, blend_inputs,
+                          benchmark);
     if (result != 0) {
         std::cerr << "ModuleImageProcessor benchmark failed, error=" << result
                   << '\n';
@@ -1210,6 +1527,11 @@ int main(int argc, char** argv)
                   << validation.mean_absolute_error << ", max="
                   << validation.maximum_error << ", pixels(error>48)="
                   << validation.high_error_pixel_ratio * 100.0 << "%\n";
+        if (!options.blends.empty()) {
+            std::cout << "[VERIFY] CPU SourceOver blend reference: layers="
+                      << options.blends.size() << ", changed-pixel-writes="
+                      << validation.blend_changed_pixel_writes << '\n';
+        }
     }
     if (result != 0) {
         std::cerr << "Output image content verification failed, error="

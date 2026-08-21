@@ -11,7 +11,7 @@
  * Increment this value only for an intentional ABI-breaking SDK release.
  */
 #define FFMEDIA_MODULE_ABI_VERSION 1u
-#define FFMEDIA_SDK_VERSION "2.6.0"
+#define FFMEDIA_SDK_VERSION "2.6.1"
 #define FFMEDIA_GLIBCXX_USE_CXX11_ABI 1
 
 #if FFMEDIA_GLIBCXX_USE_CXX11_ABI >= 0

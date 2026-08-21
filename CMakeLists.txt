@@ -11,12 +11,15 @@ set(CMAKE_CXX_EXTENSIONS ON)
 
 find_package(Threads REQUIRED)
 find_package(FFMedia REQUIRED CONFIG
-             PATHS "${CMAKE_CURRENT_SOURCE_DIR}/lib/cmake/FFMedia"
+             PATHS "${CMAKE_CURRENT_SOURCE_DIR}"
              NO_DEFAULT_PATH)
 
 option(DEMO_OPENCV "Build OpenCV demos" OFF)
 option(ENABLE_TESTS "Build FFMedia tests" ON)
 option(ENABLE_INFERENCE_EXAMPLES "Build inference examples" OFF)
+option(ENABLE_INFERENCE_EXTENSION
+       "Build the standalone RKNN inference extension in examples/inference"
+       OFF)
 
 include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}"
@@ -41,6 +44,9 @@ add_ffmedia_demo(demo_multi_window
     examples/demo/demo_multi_window.cpp)
 add_ffmedia_demo(demo_video_stack
     examples/demo/demo_video_stack.cpp)
+add_ffmedia_demo(demo_image_blend
+    examples/demo/demo_image_blend.cpp)
+
 
 set(FFMEDIA_DEMO_TARGETS
     demo
@@ -48,7 +54,8 @@ set(FFMEDIA_DEMO_TARGETS
     demo_memory_read
     demo_multi_drmplane
     demo_multi_window
-    demo_video_stack)
+    demo_video_stack
+    demo_image_blend)
 
 add_ffmedia_demo(ffmedia examples/demo/ffmedia.cpp)
 target_compile_definitions(ffmedia PRIVATE
@@ -76,6 +83,10 @@ endif()
 
 if(ENABLE_INFERENCE_EXAMPLES)
     add_subdirectory(examples/inference_examples)
+endif()
+
+if(ENABLE_INFERENCE_EXTENSION)
+    add_subdirectory(examples/inference)
 endif()
 
 install(TARGETS ${FFMEDIA_DEMO_TARGETS}

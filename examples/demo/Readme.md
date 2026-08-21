@@ -19,6 +19,7 @@
 | `demo_multi_drmplane.cpp` | C++ | 一个解码源同时显示到多个 DRM plane/window | 是，修改 RTSP 地址 |
 | `demo_multi_window.cpp` | C++ | 同一 DRM plane 上动态切换 1/4/6/9/16 窗口布局 | 是，修改 RTSP 地址 |
 | `demo_video_stack.cpp` | C++ | 多路 RTSP 解码、拼接、显示并重新编码为 RTSP | 是，修改地址和常量 |
+| `demo_image_blend.cpp` | C++ | 基于 ModuleImageProcessor 的图像混合：同一视频文件 + 三路视频 + 自定义画面 | 否，传入视频文件路径 |
 | `demo_opencv.cpp` | C++/OpenCV | 在 RGA 生产钩子中使用 OpenCV 显示 | 是，修改 RTSP 地址 |
 | `demo_opencv_multi.cpp` | C++/OpenCV | 使用多个外部消费者读取同一路 RGA 输出 | 是，修改 RTSP 地址 |
 | `demo_rgablend.cpp` | C++/OpenCV | OpenCV 生成动态图层，RGA 混合后 DRM 显示 | 是，修改 RTSP 地址 |
@@ -79,6 +80,7 @@ build/demo_memory_read
 build/demo_multi_drmplane
 build/demo_multi_window
 build/demo_video_stack
+build/demo_image_blend
 ```
 
 ### 3.2 编译全部 `demo/` C++ 示例
@@ -701,6 +703,35 @@ RTSP -> Decoder -> RGA blend -> DRM Display
 ```
 
 按 Enter 停止。该示例同时要求 OpenCV、RGA 和 DRM Buffer 支持。
+
+### 6.9 `demo_image_blend`
+
+该示例使用 `ModuleImageProcessor` 将同一路视频文件、三路视频和一路自定义画面混合到
+同一输出画布：
+
+```text
+             +-> Decoder 0 -> main (channel 0) ----+
+             +-> Decoder 1 -> blend (channel 1) ---+
+FileReader --+-> Decoder 2 -> blend (channel 2) ---+-> ModuleImageProcessor -> DRM Display
+             +-> Decoder 3 -> blend (channel 3) ---+                        +-> MPP Encoder -> RTSP Server
+AppSource 自定义 RGBA 画面 -> blend (channel 4) +
+```
+
+- 主视频铺满整个 1920×1080 输出。
+- 三路视频分别混合到左上、右上、左下三个 480×270 子窗口。
+- 自定义 RGBA32 渐变画面混合到右下子窗口，使用 straight alpha 半透明叠加。
+- 单个 `ModuleFileReader`（循环播放）扇出到四个 `ModuleMppDec`，四路解码播放同一文件。
+- `ModuleImageProcessor` 的 `blend` 参数通过 `setParameter()` 动态添加辅助输入通道，
+  `connectProducer()` 按连接顺序将各生产者映射到 main / blend 通道。
+
+运行：
+
+```bash
+cmake --build build --target demo_image_blend -j$(nproc)
+./build/demo_image_blend input.mp4
+```
+
+默认启用 DRM 显示（`TEST_DISPLAY`），按 Enter 停止。
 
 ## 7. Python 示例
 

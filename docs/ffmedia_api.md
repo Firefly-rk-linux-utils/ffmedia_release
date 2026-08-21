@@ -716,7 +716,7 @@ ALSA 音频采集源。
 | `ModuleAppSource(channels, options)` | 创建应用输入源并发布一个或多个媒体通道。 |
 | `submit(frame, timeout_ms, ticket)` | 提交外部帧；成功接收返回 0。 |
 | `submit(buffer, channel_id, timeout_ms, ticket)` | 提交已有 `MediaBuffer`。 |
-| `wait(ticket, timeout_ms)` | 等待该帧被全部下游释放。 |
+| `wait(ticket, timeout_ms)` | 等待该帧被全部下游释放；保留最近 1024 个尚未 wait 的完成结果。 |
 | `sendEos(channel_id, ...)` | 向指定通道发送 EOS，随后该通道不再接受普通帧。 |
 | `flush(discard_pending, timeout_ms)` | 丢弃待发送帧或等待待发送及在途帧全部完成。 |
 
@@ -786,7 +786,7 @@ RTSP 客户端输入源，支持 UDP、TCP、多播。
 | `setModuleStackParams(MediaChannelId input_id, const ImageCrop& stack_params)` | 按输入通道 ID 设置拼接区域，并在内部创建或更新对应的 `MediaChannelRequirement`；宽或高为 `0` 时禁用该通道并将其上一次有效区域恢复为背景色。 |
 | `init()` | 初始化拼接输出缓冲。 |
 
-输入通道由 `setModuleStackParams()` 根据 `input_id` 自动创建或更新 requirement，使用标准 `connectProducer()` 和 `removeProductor()` 管理连接。角色：多输入处理组件，内部使用线程池和 RGA 更新拼接缓存；每个启用通道只保留一个在途处理任务，忙碌时跳过新帧。定时线程通过 Clock Buffer 传递单调时钟 PTS，`doConsume()` 收到时钟后直接生成并输出快照。`frame-rate` 使用原子间隔，可在模块运行期间修改，并从下一轮定时调度开始生效。
+输入通道由 `setModuleStackParams()` 根据 `input_id` 自动创建或更新 requirement，使用标准 `connectProducer()` 和 `removeProductor()` 管理连接。角色：多输入处理组件，内部使用线程池和 RGA 更新拼接缓存；每个启用通道只保留一个在途处理任务，忙碌时跳过新帧。定时线程通过 Clock Buffer 传递单调时钟 PTS，`doConsume()` 收到时钟后直接生成并输出快照。`frame-rate` 使用原子间隔，可在模块运行期间修改，并从下一轮定时调度开始生效。`thread-count` 配置线程池最大并发线程数，默认值为 `2`，最小值为 `1`，可通过参数系统动态调整。
 
 ## vp 处理模块
 
@@ -1201,7 +1201,7 @@ GB28181 客户端，支持向 GB28181 服务器推流。
 
 头文件：`module/vo/module_rendererVideo.hpp`
 
-OpenGL ES 视频渲染输出。窗口系统通过内部显示后端接口隔离，默认使用 X11；设置 `FFMEDIA_DISPLAY_BACKEND=wayland` 可选择 Wayland 后端。
+OpenGL ES 视频渲染输出。窗口系统通过内部显示后端接口隔离：未设置 `FFMEDIA_DISPLAY_BACKEND` 时，自动选择wayland或x11。可通过 `FFMEDIA_DISPLAY_BACKEND=wayland` 或 `FFMEDIA_DISPLAY_BACKEND=x11` 显式指定后端。
 
 | API | 说明 |
 | --- | --- |

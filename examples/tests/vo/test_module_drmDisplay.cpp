@@ -831,6 +831,8 @@ int main(int argc, char** argv)
             view.window_rect, view.auto_window_rect, plane_rect.w, plane_rect.h);
 
         std::shared_ptr<ModuleDrmDisplay> display = std::make_shared<ModuleDrmDisplay>(decoded_para, group.plane);
+        display->setSynchronize(
+            std::make_shared<Synchronize>(SYNCHRONIZETYPE_VIDEO));
         display->setPlanePara(view.format, view.plane, view.plane_type,
                               view.zpos, view.linear, view.connector);
         display->setBufferCount(1);
