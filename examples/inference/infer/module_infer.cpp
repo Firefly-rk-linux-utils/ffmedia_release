@@ -79,7 +79,7 @@ ModuleMedia::ConsumeResult ModuleInfer::doConsume(
         return ConsumeResult::CONSUME_SKIP;
     }
 
-    auto* in_buf = dynamic_cast<InferBuffer*>(input_buffer.get());
+    auto* in_buf = dynamic_cast<VideoBuffer*>(input_buffer.get());
     if (!in_buf) {
         ff_error_m("Invalid input buffer type");
         return ConsumeResult::CONSUME_FAILED;
