@@ -127,8 +127,7 @@ ModuleMedia::ConsumeResult ModuleOsd::doConsume(
         return ConsumeResult::CONSUME_FAILED;
     }
 
-    out_buf->setPUstimestamp(in_buf->getPUstimestamp());
-    out_buf->setDUstimestamp(in_buf->getDUstimestamp());
+    out_buf->copyMetadata(*in_buf);
 
     auto start_time = std::chrono::high_resolution_clock::now();
     osd(out_buf);
