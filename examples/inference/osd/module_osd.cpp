@@ -128,6 +128,7 @@ ModuleMedia::ConsumeResult ModuleOsd::doConsume(
     }
 
     out_buf->copyMetadata(*in_buf);
+    out_buf->setImagePara(output);
 
     auto start_time = std::chrono::high_resolution_clock::now();
     osd(out_buf);
