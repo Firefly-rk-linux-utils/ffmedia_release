@@ -88,6 +88,12 @@ public:
      */
     int setInputBuffer(const std::shared_ptr<MediaBuffer>& input_buffer);
 
+    /**
+     * @description: 刷新交错队列并写入封装器缓存。此调用应在对象初始化之后使用。
+     * @return {int} 成功返回 0，失败返回负数。
+     */
+    int flush();
+
 protected:
     ConsumeResult doConsume(const MediaBufferContext& input,
                             std::shared_ptr<MediaBuffer>& output_buffer) override;

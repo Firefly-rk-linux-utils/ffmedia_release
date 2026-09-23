@@ -650,8 +650,7 @@ rtsp://<设备IP>:8554/live/1
 
 ### 6.6 `demo_opencv`
 
-运行前修改 `demo/demo_opencv.cpp` 中的 RTSP 地址，并确保构建时启用
-`DEMO_OPENCV=ON`。
+确保构建时启用`DEMO_OPENCV=ON`。
 
 ```text
 RTSP -> MPP Decoder -> RGA(BGR24、1/2 尺寸)
@@ -660,7 +659,7 @@ RTSP -> MPP Decoder -> RGA(BGR24、1/2 尺寸)
 ```
 
 ```bash
-./build/demo_opencv
+./build/demo_opencv 'rtsp://user:password@host/path'
 ```
 
 OpenCV 回调运行在 RGA 工作线程内。`cv::imshow()` 或其他回调处理过慢会直接降低管线吞吐。
@@ -696,10 +695,8 @@ RTSP -> Decoder -> RGA blend -> DRM Display
           OpenCV 动态 BGRA 时间戳图层
 ```
 
-运行前修改 `demo/demo_rgablend.cpp` 中的 RTSP 地址：
-
 ```bash
-./build/demo_rgablend
+./build/demo_rgablend 'rtsp://user:password@host/path'
 ```
 
 按 Enter 停止。该示例同时要求 OpenCV、RGA 和 DRM Buffer 支持。
@@ -976,4 +973,5 @@ python3 -m pip install --force-reinstall python/ff_pymedia-2.6.0-cp310-cp310-lin
 更多接口和核心机制说明：
 
 - [`../docs/ffmedia_api.md`](../docs/ffmedia_api.md)
+- [`../docs/ffmedia_parameters.md`](../docs/ffmedia_parameters.md)
 - [`../docs/module_media.md`](../docs/module_media.md)

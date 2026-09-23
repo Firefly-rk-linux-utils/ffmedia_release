@@ -34,7 +34,7 @@ endmacro()
 
 ####################################################################################
 
-set(FFMedia_VERSION "2.6.1")
+set(FFMedia_VERSION "2.6.2")
 set(FFMedia_MODULE_ABI_VERSION "1")
 set(FFMedia_GLIBCXX_USE_CXX11_ABI "1")
 set(FFMedia_CXX_STANDARD 17)

@@ -1,2 +1,2 @@
 ./lib/aarch64-linux-gnu/libff_media.so -> libff_media.so.1
-./lib/aarch64-linux-gnu/libff_media.so.1 -> libff_media.so.2.6.1
+./lib/aarch64-linux-gnu/libff_media.so.1 -> libff_media.so.2.6.2

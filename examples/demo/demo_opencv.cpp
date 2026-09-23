@@ -60,15 +60,19 @@ int main(int argc, char** argv)
     ImagePara output_para;
     External_ctx* ctx1 = NULL;
 
-    rtsp_c = make_shared<ModuleRtspClient>("rtsp://admin:firefly123@168.168.2.96:554/av_stream");
+    if (argc != 2) {
+        ff_error("Usage: %s rtsp://user:password@host/path\n", argv[0]);
+        return 1;
+    }
+
+    rtsp_c = make_shared<ModuleRtspClient>(argv[1]);
     ret = rtsp_c->init();
     if (ret < 0) {
         ff_error("rtsp client init failed\n");
         goto FAILED;
     }
 
-    input_para = rtsp_c->getOutputImagePara();
-    dec = make_shared<ModuleMppDec>(input_para);
+    dec = make_shared<ModuleMppDec>();
     dec->setProductor(rtsp_c);
     ret = dec->init();
     if (ret < 0) {

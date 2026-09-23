@@ -25,6 +25,7 @@
 #include <module/ffmedia_abi.hpp>
 
 #include "base/pixel_fmt.hpp"
+#include "base/media_metrics.hpp"
 #include "base/video_buffer.hpp"
 #include "base/ff_synchronize.hpp"
 #include "base/ff_type.hpp"
@@ -190,6 +191,10 @@ public:
      * @return {MediaStatus} 返回对象状态。
      */
     MediaStatus getModuleStatus() const;
+    /** Copy a best-effort runtime metrics snapshot into out. */
+    int getMetrics(MediaMetrics& out) const;
+    /** Reset runtime metrics without changing module configuration. */
+    void resetMetrics();
     /**
      * @description: 获取对象输入数据的媒体类型。
      * @return {MEDIA_BUFFER_TYPE}
@@ -289,6 +294,11 @@ protected:
     OutputBufferList availableOutputBuffers() const;
     bool outputBuffersInFlight();
 
+    /** Record metrics for custom application-owned input queues. */
+    void recordMetricInput() noexcept;
+    void recordMetricQueueDepth(size_t queue_depth) noexcept;
+    void recordMetricInputDropped(uint64_t count = 1) noexcept;
+
     ModuleType getModuleType() const noexcept;
     void setModuleType(ModuleType type) noexcept;
     void setMediaType(MEDIA_BUFFER_TYPE type) noexcept;
@@ -317,6 +327,8 @@ private:
     struct OutputPoolEpoch;
     struct RecycleState;
     struct FrameRecycleDeleter;
+    struct WorkContext;
+    enum class WorkInputEvent : int;
 
     void resetModule();
 
@@ -326,6 +338,11 @@ private:
     void notifyProduce();
     void notifyConsume();
     void work();
+    bool setupWorker();
+    WorkInputEvent waitForInput(WorkContext& context);
+    bool consumeInput(WorkContext& context);
+    bool produce(WorkContext& context);
+    void teardownWorker(WorkContext& context);
     void _dumpPipe(int depth, std::function<void(ModuleMedia*, int)> func);
     static void printChannelPara(ModuleMedia* module, int depth);
     static void printSummary(ModuleMedia* module, int depth);

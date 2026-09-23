@@ -9,11 +9,28 @@
 #pragma once
 #include "module/module_media.hpp"
 
+#include <cstdint>
+#include <functional>
+
 namespace FFMedia
 {
 class FFMEDIA_API ModuleGB28181Client : public ModuleMedia
 {
 public:
+    using ReceiveHandler = std::function<void(const std::shared_ptr<MediaBuffer>&)>;
+    // Handlers run on the SIP/RTP worker paths and must return promptly.
+    // Return 0 for success; negative values generate a protocol error.
+    using ControlHandler = std::function<int(const std::string& command,
+                                             const std::string& deviceId,
+                                             const std::string& xml)>;
+    using RecordQueryHandler = std::function<int(
+        const std::string& deviceId, const std::string& startTime,
+        const std::string& endTime, std::string& recordListXml)>;
+    using SessionHandler = std::function<int(const std::string& sessionName,
+                                             const std::string& deviceId,
+                                             int64_t rangeStartUs,
+                                             double scale, bool paused)>;
+
     /**
      * Build the gb28181 client module
      *
@@ -73,6 +90,15 @@ public:
      * @param seconds       interval seconds
      */
     int setKeepaliveDuration(int seconds);
+    int setReceiveHandler(ReceiveHandler handler);
+    int setControlHandler(ControlHandler handler);
+    int setRecordQueryHandler(RecordQueryHandler handler);
+    int setSessionHandler(SessionHandler handler);
+    int setTlsCertificates(const std::string& clientCert,
+                           const std::string& clientKey,
+                           const std::string& caCert,
+                           const std::string& keyPassword = std::string());
+    int setTlsVerify(int enabled);
 
 protected:
     ConsumeResult doConsume(const MediaBufferContext& input,

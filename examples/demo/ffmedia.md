@@ -465,6 +465,94 @@ CLI 可识别对 `;`、`{`、`}`、反斜杠和单双引号的反斜杠转义。
 `params` 和 `--show-params` 创建的也不是正在播放的实例，所以其中的 `status`、`seek-max`、
 `seekable` 不能代替对活动实例的运行期查询。
 
+### 8.2 Trace 统计
+
+`run` 支持在 Demo 层安装消费和生产 hook，输出模块指标、队列、处理耗时和延迟信息。
+Trace 只影响 `ffmedia` Demo，不改变公共模块 ABI。模块指标来自
+`ModuleMedia::getMetrics()` 快照；消费和生产 hook 用于点到点延迟和本地时钟延迟关联。
+延迟统计会跳过每个模块的第一帧作为预热；`MediaMetrics` 自身不做 trace 预热，其累计范围
+从模块对象创建或最近一次 `resetMetrics()` 开始。
+
+#### 参数
+
+```text
+--trace[=MODULE]
+--trace-interval-ms N
+--trace-latency FROM=TO
+--trace-local-latency MODULE
+```
+
+- `--trace`：输出所有模块的 `MediaMetrics` 统计；使用 `--trace=src` 时只输出指定模块。
+  该参数可以重复。
+
+- `--trace-interval-ms N`：设置周期报告间隔，单位毫秒，默认 `1000`。使用该参数也会启用模块统计。
+
+- `--trace-latency FROM=TO`：输出指定起点到终点的点到点延迟，可以重复指定多个边。延迟通过
+  PTS 匹配起点生产帧和终点消费帧，测量区间为 `source produce -> target consume-arrival`，不依赖
+  `--trace`。
+  
+- `--trace-local-latency MODULE`：输出指定模块的本地时钟延迟，可以重复指定多个模块。根模块在
+  
+  生产帧时测量，其他模块在消费帧时测量，计算当前时刻与帧 PTS 的差值。
+
+示例：
+
+```bash
+# 只输出所有模块的模块统计，每秒刷新一次
+./ffmedia run ... --trace
+
+# 只输出 src 和 dis 的模块指标
+./ffmedia run ... --trace=src --trace=dis
+
+# 只测量 src 到 dis 的点到点延迟
+./ffmedia run ... --trace-latency src=dis
+
+# 同时查看 dis 的帧时间戳滞后时间
+./ffmedia run ... --trace-latency src=dis --trace-local-latency dis
+```
+
+#### 输出口径
+
+模块统计示例：
+
+```text
+[trace] interval elapsed=1.002s counters=total rates=interval \
+  metrics=ModuleMedia::getMetrics
+[trace] module=enc in=120 out=120 in-fps=30.00 out-fps=30.00 \
+  metrics-enabled=1 queue-last=0 queue-max-total=2 \
+  process-samples=119 process-ms[last/avg/max]=2.0/1.9/4.2 \
+  dropped-in=0 dropped-process=0 dropped-out=0 \
+  buffer-pool-exhausted=0 errors=0
+```
+
+- `in` 和 `out` 对应 `input_frames` 和 `output_frames`，是模块指标生命周期内的累计值；
+  `in-fps` 和 `out-fps` 使用相邻 trace 报告的快照差值计算。
+- `queue-last` 是快照时的输入队列深度；`queue-max-total` 是 `queue_peak_depth`，不是当前报告
+  间隔内的峰值。
+- `process-samples` 和 `process-ms` 对应 `MediaMetrics` 合并的 `doConsume()`/`doProduce()`
+  处理耗时统计；`last` 是最近一次样本，可能在一个无新样本的报告周期内保持不变。
+- `dropped-in`、`dropped-process`、`dropped-out`、`buffer-pool-exhausted` 和 `errors` 是模块
+  指标生命周期内的累计值。
+- `metrics-enabled=0` 表示模块关闭了指标采集；除当前队列深度外，指标不会继续更新。
+- 快照失败时会在后续 trace 报告中输出 `metrics-snapshot-failures-total`。
+
+延迟输出示例：
+
+```text
+[trace] point-to-point src->dis samples=119 \
+  latency-ms[min/avg/p50/p95/p99/max]=8.1/14.6/12.7/24.8/31.2/35.0 \
+  stddev-ms=5.4 invalid=0
+[trace] local-latency module=dis samples=119 \
+  latency-ms[min/avg/p50/p95/p99/max]=21.0/28.4/27.9/35.6/39.1/42.0 \
+  stddev-ms=4.1 invalid=0
+```
+
+`point-to-point` 是显式 `FROM=TO` 的帧延迟；`local-latency` 是指定模块 hook 时刻计算的帧时间戳滞后时间，
+即 `local_clock_now - PUstimestamp`。两者均输出累计分布，并在最终退出时再输出一次 `final` 报告。
+只有当帧 PTS 与本地墙上时钟或单调时钟处于同一时间基准时，该值才有实际意义。非正 PTS、
+负差值或超过 10 分钟的差值会被视为无效；PTS 无法匹配或缓存溢出时，报告会增加对应的
+`unmatched`、`source-overflow` 或 `invalid` 计数。
+
 ## 9. 常用管线示例
 
 以下命令均从仓库根目录运行。请按目标设备修改输入路径、输出路径、网络地址、Camera 格式和
@@ -477,8 +565,8 @@ LD_LIBRARY_PATH=./build ./build/ffmedia run \
   -m source=ffmpeg-demux \
   -m decoder=mpp-dec \
   -m output=file-writer \
-  -p 'source:source{uri=/data/input.mp4;loop=0};buffer-count=20' \
-  -p 'decoder:fast=true;buffer-count=10;output{format=NV12;compression=0}' \
+  -p 'source:source{uri=/data/input.mp4;loop=0}' \
+  -p 'decoder:output{format=NV12}' \
   -p 'output:path=/data/output.nv12' \
   -c source@0=decoder \
   -c decoder=output
@@ -494,7 +582,7 @@ LD_LIBRARY_PATH=./build ./build/ffmedia run \
   -m camera=cam \
   -m scale=rga \
   -m display=drm-display \
-  -p 'camera:device=/dev/video0;capture{width=1920;height=1080;format=NV12;compression=linear};frame-rate=30' \
+  -p 'camera:device=/dev/video0;capture{width=1920;height=1080;format=NV12};frame-rate=30' \
   -p 'scale:output{width=1280;height=720;format=NV12;compression=linear};rotation=0' \
   -p 'display:plane{format=NV12;connector=0};window-rect{x=0;y=0;width=1280;height=720}' \
   -c camera=scale \
@@ -505,13 +593,23 @@ Camera 必须实际支持所配置的分辨率和 FourCC。DRM 自动选择失�
 `ffmedia params drm-display plane` 查询字段，再指定目标设备上的 `plane/id` 和
 `plane/connector`。
 
+单窗口模式下，`ModuleDrmDisplay` 默认在提交每帧后等待一次 DRM vblank。需要优先降低模块等待
+时间时，可以关闭该等待：
+
+```bash
+-p 'display:display-mode=1;drm-sync=false'
+```
+
+`drm-sync` 仅控制 `display-mode=1` 的 `ModuleDrmDisplay::doConsume()` 路径；多窗口模式仍由
+图层显示线程同步。
+
 ### 9.3 使用 `image-processor` 配置裁剪、旋转和输出
 
 `image-processor` 的结构参数可在一个 `-p` 中完整描述：
 
 ```bash
 -m gpu=image-processor \
--p 'gpu:transform{crop{x=0;y=0;width=1920;height=1080};rotation=90;mirror=false;flip=false};output{width=720;height=1280;format=NV12;compression=linear}'
+-p 'gpu:transform{crop{x=0;y=0;width=1920;height=1080};rotation=90;};output{width=720;height=1280;format=NV12}'
 ```
 
 将其放入 Camera 或解码链路时，像普通处理节点一样连接：
@@ -575,8 +673,7 @@ LD_LIBRARY_PATH=./build ./build/ffmedia run \
   -m encoder=mpp-enc \
   -m push=rtmp-client \
   -p 'source:source{uri=/data/input.mp4;loop=0}' \
-  -p 'decoder:output{format=NV12;compression=0}' \
-  -p 'encoder:encode{codec=5;fps=30;gop=60}' \
+  -p 'encoder:encode{codec=5}' \
   -p 'push:source{url=rtmp://192.168.1.10/live/test;publish=false};timeout{seconds=5;microseconds=0}' \
   -c source@0=decoder \
   -c decoder=encoder \
@@ -593,9 +690,9 @@ LD_LIBRARY_PATH=./build ./build/ffmedia run \
   -m source0=ffmpeg-demux -m decoder0=mpp-dec \
   -m source1=ffmpeg-demux -m decoder1=mpp-dec \
   -m stack=video-stack -m output=file-writer \
-  -p 'source0:source{uri=/data/input0.mp4;loop=1}' \
-  -p 'source1:source{uri=/data/input1.mp4;loop=1}' \
-  -p 'stack:output{width=1280;height=720;hstride=1280;vstride=720;format=NV12;compression=linear};frame-rate=30;background-color{r=20;g=20;b=20}' \
+  -p 'source0:source{uri=/data/input0.mp4}' \
+  -p 'source1:source{uri=/data/input1.mp4}' \
+  -p 'stack:output{width=1280;height=720;format=NV12};frame-rate=30;background-color{r=20;g=20;b=20}' \
   -p 'stack:input-layout{input-id=0;crop{x=0;y=0;width=640;height=720}}' \
   -p 'stack:input-layout{input-id=1;crop{x=640;y=0;width=640;height=720}}' \
   -p 'output:path=/data/video-stack.nv12' \
@@ -604,6 +701,229 @@ LD_LIBRARY_PATH=./build ./build/ffmedia run \
   -c stack=output \
   --duration 10
 ```
+
+### 9.8 `file-reader` 读取裸 H.264 并显示
+
+`file-reader` 适合读取裸 H.264、H.265、MJPEG 或带有简单容器头的文件；文件格式由读取器
+自动识别。裸流没有容器中的分辨率信息时，需要给解码器配置输入参数。
+
+```bash
+LD_LIBRARY_PATH=./build ./build/ffmedia run \
+  -m source=file-reader \
+  -m decoder=mpp-dec \
+  -m display=renderer-video \
+  -p 'source:source{path=/data/input.h264;loop=false}' \
+  -p 'decoder:input{width=1920;height=1080;format=H264};output{format=NV12;compression=0}' \
+  -p 'display:title="H.264 preview";window{x=0;y=0;width=1280;height=720}' \
+  -c source=decoder \
+  -c decoder=display
+```
+
+### 9.9 RTSP 拉流并显示
+
+```bash
+LD_LIBRARY_PATH=./build ./build/ffmedia run \
+  -m source=rtsp-client \
+  -m decoder=mpp-dec \
+  -m display=renderer-video \
+  -p 'source:source{url=rtsp://192.168.1.20:554/live;stream-type=1}' \
+  -p 'display:title="RTSP preview"' \
+  -c source=decoder \
+  -c decoder=display
+```
+
+`stream-type=0` 为 UDP，`1` 为 TCP，`2` 为组播。网络不稳定时可设置
+`source:timeout-ms`，并使用 `--duration` 或 Ctrl+C 结束运行。
+
+### 9.10 RTMP 拉流并显示
+
+`rtmp-client` 作为拉流源时必须设置 `publish=true`，因此它是 root 模块：
+
+```bash
+LD_LIBRARY_PATH=./build ./build/ffmedia run \
+  -m source=rtmp-client \
+  -m decoder=mpp-dec \
+  -m display=drm-display \
+  -p 'source:source{url=rtmp://192.168.1.20:1935/live/camera;publish=true}' \
+  -p 'display:display-mode=1;drm-sync=false' \
+  -c source=decoder \
+  -c decoder=display
+```
+
+### 9.11 Camera 编码后输出 RTSP Server
+
+```bash
+LD_LIBRARY_PATH=./build ./build/ffmedia run \
+  -m camera=cam \
+  -m encoder=mpp-enc \
+  -m server=rtsp-server \
+  -p 'camera:device=/dev/video0;capture{width=1920;height=1080;format=NV12};frame-rate=30' \
+  -p 'encoder:encode{codec=h264;fps=30;gop=60;bitrate=4096;rc-mode=cbr}' \
+  -p 'server:endpoint{path=/camera;port=8554}' \
+  -c camera=encoder \
+  -c encoder=server
+```
+
+客户端使用 `rtsp://<设备地址>:8554/camera` 连接。`rtsp-server` 也可以接收音频输入，
+见下面的音视频封装示例。
+
+### 9.12 编码后输出 RTMP Server
+
+```bash
+LD_LIBRARY_PATH=./build ./build/ffmedia run \
+  -m camera=cam \
+  -m encoder=mpp-enc \
+  -m server=rtmp-server \
+  -p 'camera:device=/dev/video0;capture{width=1280;height=720;format=NV12};frame-rate=30' \
+  -p 'encoder:encode{codec=h264;fps=30;gop=60;bitrate=2048}' \
+  -p 'server:endpoint{path=/live;port=1935}' \
+  -c camera=encoder \
+  -c encoder=server
+```
+
+RTMP 服务地址为 `rtmp://<设备地址>:1935/live`。服务端参数还支持
+`max-clients`、`max-timeout-count` 和 `timeout`。
+
+### 9.13 ALSA 采集、AAC 编码并封装为 MP4
+
+```bash
+LD_LIBRARY_PATH=./build ./build/ffmedia run \
+  -m capture=alsa-capture \
+  -m encoder=aac-enc \
+  -m mux=ffmpeg-mux \
+  -p 'capture:source{device=default;sample{format=s16;channels=2;sample-rate=48000;samples=1024};layout=0}' \
+  -p 'encoder:aot=aac-lc;bitrate=128000;sample{format=s16;channels=2;sample-rate=48000;samples-per-frame=1024}' \
+  -p 'mux:destination{uri=/data/capture.m4a;format=mp4}' \
+  -c capture=encoder \
+  -c encoder=mux \
+  --duration 30
+```
+
+设备不支持 `default` 时，将 `source/device` 改为 `hw:0,0` 等 ALSA 设备名。采集参数应与
+`arecord --dump-hw-params` 显示的能力一致。
+
+### 9.14 AAC 解码并通过 ALSA 播放
+
+该示例要求输入文件包含 AAC 音频流，解码器输出的 PCM 参数会传递给播放模块：
+
+```bash
+LD_LIBRARY_PATH=./build ./build/ffmedia run \
+  -m source=ffmpeg-demux \
+  -m decoder=aac-dec \
+  -m playback=alsa-playback \
+  -p 'source:source{uri=/data/input.m4a;loop=0}' \
+  -p 'playback:device{name=default;layout=0}' \
+  -c source@1=decoder \
+  -c decoder=playback
+```
+
+如果音频不是输入文件的 1 号通道，可先用 `--show-params` 或运行日志确认通道号；也可以
+省略 `@1` 让连接逻辑按音频格式自动匹配。
+
+### 9.15 摄像头同时显示、保存和推流
+
+同一个生产者可以连接多个消费者。下面的分支分别用于本地预览、H.264 文件保存和 RTSP
+推流，三条分支共享摄像头采集帧：
+
+```bash
+LD_LIBRARY_PATH=./build ./build/ffmedia run \
+  -m camera=cam -m display=drm-display \
+  -m encoder=mpp-enc -m record=file-writer -m server=rtsp-server \
+  -p 'camera:device=/dev/video11;capture{width=1920;height=1080;format=NV12};frame-rate=30' \
+  -p 'display:display-mode=1;drm-sync=false' \
+  -p 'encoder:encode{codec=h264;fps=30;gop=60;bitrate=4096}' \
+  -p 'record:path=/data/camera.h264' \
+  -p 'server:endpoint{path=/camera;port=8554}' \
+  -c camera=display \
+  -c camera=encoder \
+  -c encoder=record \
+  -c encoder=server
+```
+
+### 9.16 GB28181 视频输出
+
+GB28181 需要设备标识、SIP 服务端和鉴权信息；以下值是占位示例，请替换为平台实际配置：
+
+```bash
+LD_LIBRARY_PATH=./build ./build/ffmedia run \
+  -m source=ffmpeg-demux \
+  -m decoder=mpp-dec \
+  -m encoder=mpp-enc \
+  -m gb=gb28181-client \
+  -p 'source:source{uri=/data/input.mp4;loop=0}' \
+  -p 'encoder:encode{codec=h264;fps=25;gop=50;bitrate=2048}' \
+  -p 'gb:local{user-id=34020000001320000001;user-agent=ffmedia;transport=0;port=5060}' \
+  -p 'gb:server{id=34020000002000000001;realm=3402000000;ip=192.168.1.30;port=5060;expiry=3600}' \
+  -p 'gb:device{name=camera-01;manufacturer=ffmedia;channel=34020000001320000001}' \
+  -p 'gb:authentication{username=34020000001320000001;password=secret}' \
+  -c source@0=decoder \
+  -c decoder=encoder \
+  -c encoder=gb
+```
+
+### 9.17 图像处理后使用窗口渲染
+
+`renderer-video` 适用于带 Wayland 或 X11 的开发机；无窗口环境请使用 `drm-display`。
+
+```bash
+LD_LIBRARY_PATH=./build ./build/ffmedia run \
+  -m source=ffmpeg-demux \
+  -m decoder=mpp-dec \
+  -m processor=image-processor \
+  -m display=renderer-video \
+  -p 'source:source{uri=/data/input.mp4;loop=0}' \
+  -p 'processor:transform{crop{x=320;y=180;width=1280;height=720};rotation=90};output{width=720;height=1280;format=NV12;compression=linear}' \
+  -p 'display:title="processed preview";window{x=0;y=0;width=720;height=1280}' \
+  -c source@0=decoder \
+  -c decoder=processor \
+  -c processor=display
+```
+
+### 9.18 使用 trace 检查端到端延迟
+
+可以只打开模块统计，也可以只指定点到点或本地时钟延迟。下面的命令同时观察 Camera 到
+显示的处理统计和延迟：
+
+```bash
+LD_LIBRARY_PATH=./build ./build/ffmedia run \
+  -m src=cam -m dec=mpp-dec -m dis=drm-display \
+  -p 'src:device=/dev/video0;capture{width=1280;height=720;format=NV12};frame-rate=30' \
+  -p 'dec:output{format=NV12;compression=0}' \
+  -p 'dis:display-mode=1;drm-sync=false' \
+  -c src=dec -c dec=dis \
+  --trace=src --trace=dec --trace=dis \
+  --trace-latency src=dis --trace-local-latency dis \
+  --trace-interval-ms 1000
+```
+
+`--trace-latency` 的点到点统计依赖起点和终点帧的 PTS 匹配；经过 RTP/RTCP 等网络协议时，
+应优先确认发送端和接收端时间戳的时间基准。`--trace-local-latency` 只反映目标模块 hook
+时刻的帧时间戳滞后时间，不等同于屏幕扫描完成时间；跨设备或 RTP/RTCP 转换后的相对 PTS 不能直接
+解释为真实的本地时钟延迟。
+
+### 9.19 摄像头和麦克风合并为 RTSP 音视频流
+
+`rtsp-server` 的 0 号输入通道接视频，1 号输入通道接音频；视频和音频可以分别编码后接入
+同一个服务端：
+
+```bash
+LD_LIBRARY_PATH=./build ./build/ffmedia run \
+  -m camera=cam -m venc=mpp-enc \
+  -m capture=alsa-capture -m aenc=aac-enc \
+  -m server=rtsp-server \
+  -p 'camera:device=/dev/video0;capture{width=1280;height=720;format=NV12};frame-rate=25' \
+  -p 'venc:encode{codec=h264;fps=25;gop=50;bitrate=2048}' \
+  -p 'capture:source{device=default;sample{format=s16;channels=2;sample-rate=48000;samples=1024};layout=0}' \
+  -p 'aenc:aot=aac-lc;bitrate=128000;sample{format=s16;channels=2;sample-rate=48000;samples-per-frame=1024}' \
+  -p 'server:endpoint{path=/av;port=8554}' \
+  -c camera=venc \
+  -c venc=server \
+  -c capture=aenc \
+  -c aenc=server
+```
+
+播放地址为 `rtsp://<设备地址>:8554/av`。如果输入设备只有视频或只有音频，可以只连接
+对应的一条分支。
 
 ## 10. 错误信息和排查
 

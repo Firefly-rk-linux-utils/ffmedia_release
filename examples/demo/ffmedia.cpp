@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -30,6 +31,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -62,6 +64,7 @@
 #if FFMPEG_SUPPORT
 #include "module/vi/module_ffmpegDemux.hpp"
 #include "module/vo/module_ffmpegMux.hpp"
+#include "module/vo/module_recorder.hpp"
 #endif
 
 #if OPENGL_SUPPORT
@@ -240,6 +243,8 @@ std::vector<ModuleDescriptor> buildModuleDescriptors()
 #if FFMPEG_SUPPORT
     addDescriptor(descriptors, "ffmpeg-mux", "vo", "FFmpeg output muxer", true,
                   &createModule<ModuleFFmpegMux>);
+    addDescriptor(descriptors, "recorder", "vo", "Segmented recording sink",
+                  true, &createModule<ModuleRecorder>);
 #endif
 #if OPENGL_SUPPORT
     addDescriptor(descriptors, "renderer-video", "vo",
@@ -777,6 +782,26 @@ struct ConnectionSpec {
     std::vector<MediaChannelId> channels;
 };
 
+int parseTraceLatencyPair(const std::string& argument,
+                          std::pair<std::string, std::string>& latency_pair,
+                          std::string& error)
+{
+    const size_t separator = argument.find('=');
+    if (separator == std::string::npos || separator != argument.rfind('=')) {
+        error = "trace point pair must use FROM=TO";
+        return -EINVAL;
+    }
+    latency_pair.first = trim(argument.substr(0, separator));
+    latency_pair.second = trim(argument.substr(separator + 1));
+    if (!validIdentifier(latency_pair.first)
+        || !validIdentifier(latency_pair.second)
+        || latency_pair.first == latency_pair.second) {
+        error = "invalid trace latency pair: '" + argument + "'";
+        return -EINVAL;
+    }
+    return 0;
+}
+
 int parseChannelId(const std::string& text, MediaChannelId& channel)
 {
     if (text.empty())
@@ -985,6 +1010,13 @@ struct RunConfig {
     std::vector<ShowTarget> show_targets;
     std::vector<SynchronizeAssignment> synchronizers;
     double duration = 0.0;
+    bool trace = false;
+    bool trace_latency = false;
+    bool trace_local_latency = false;
+    std::vector<std::string> trace_modules;
+    uint64_t trace_interval_ms = 1000;
+    std::vector<std::pair<std::string, std::string>> trace_latency_pairs;
+    std::vector<std::string> trace_local_latency_modules;
 };
 
 void printGeneralUsage(const char* program)
@@ -1021,6 +1053,17 @@ void printRunUsage(const char* program)
         << "      the module gets a private synchronizer; matching NAME shares one.\n"
         << "  -d, --duration SECONDS\n"
         << "      Stop after the duration; zero waits for EOS or a signal.\n"
+        << "      --trace[=MODULE]\n"
+        << "      Enable per-module ModuleMedia::getMetrics statistics\n"
+        << "      (all modules by default).\n"
+        << "      Use --trace=MODULE; repeat for selected modules.\n"
+        << "      --trace-interval-ms N\n"
+        << "      Periodic trace report interval (default: 1000).\n"
+        << "      --trace-latency FROM=TO\n"
+        << "      Enable point-to-point latency statistics only. Repeatable.\n"
+        << "      --trace-local-latency MODULE\n"
+        << "      Print local clock latency for the selected module. Repeatable.\n"
+        << "      Trace latency skips the first frame of each module as warm-up.\n"
         << "  -h, --help\n\n"
         << "Example:\n"
         << "  " << program << " run \\\n"
@@ -1036,6 +1079,10 @@ int parseRunArguments(int argc, char** argv, RunConfig& config,
     enum {
         OPT_SHOW_PARAMS = 1000,
         OPT_SYNC = 1001,
+        OPT_TRACE = 1002,
+        OPT_TRACE_INTERVAL_MS = 1003,
+        OPT_TRACE_LATENCY = 1004,
+        OPT_TRACE_LOCAL_LATENCY = 1005,
     };
     static const option options[] = {
         {"module", required_argument, nullptr, 'm'},
@@ -1044,6 +1091,13 @@ int parseRunArguments(int argc, char** argv, RunConfig& config,
         {"show-params", required_argument, nullptr, OPT_SHOW_PARAMS},
         {"sync", required_argument, nullptr, OPT_SYNC},
         {"duration", required_argument, nullptr, 'd'},
+        {"trace", optional_argument, nullptr, OPT_TRACE},
+        {"trace-interval-ms", required_argument, nullptr,
+         OPT_TRACE_INTERVAL_MS},
+        {"trace-latency", required_argument, nullptr,
+         OPT_TRACE_LATENCY},
+        {"trace-local-latency", required_argument, nullptr,
+         OPT_TRACE_LOCAL_LATENCY},
         {"help", no_argument, nullptr, 'h'},
         {nullptr, 0, nullptr, 0},
     };
@@ -1107,6 +1161,57 @@ int parseRunArguments(int argc, char** argv, RunConfig& config,
                 if (ret < 0)
                     return ret;
                 config.synchronizers.push_back(std::move(assignment));
+                break;
+            }
+            case OPT_TRACE: {
+                config.trace = true;
+                if (optarg) {
+                    const std::string module = trim(optarg);
+                    if (!validIdentifier(module)) {
+                        error = "invalid trace module: '" + module + "'";
+                        return -EINVAL;
+                    }
+                    config.trace_modules.push_back(module);
+                }
+                break;
+            }
+            case OPT_TRACE_INTERVAL_MS: {
+                if (!optarg || *optarg == '\0') {
+                    error = "invalid trace interval";
+                    return -EINVAL;
+                }
+                errno = 0;
+                char* end = nullptr;
+                const unsigned long long value = std::strtoull(optarg, &end, 10);
+                if (errno == ERANGE || !end || *end != '\0' || value == 0
+                    || value > std::numeric_limits<uint64_t>::max()) {
+                    error = "invalid trace interval: '"
+                            + std::string(optarg) + "'";
+                    return -EINVAL;
+                }
+                config.trace_interval_ms = static_cast<uint64_t>(value);
+                config.trace = true;
+                break;
+            }
+            case OPT_TRACE_LATENCY: {
+                std::pair<std::string, std::string> latency_pair;
+                const int ret = parseTraceLatencyPair(
+                    optarg ? optarg : "", latency_pair, error);
+                if (ret < 0)
+                    return ret;
+                config.trace_latency_pairs.push_back(std::move(latency_pair));
+                config.trace_latency = true;
+                break;
+            }
+            case OPT_TRACE_LOCAL_LATENCY: {
+                const std::string module = trim(optarg ? optarg : "");
+                if (!validIdentifier(module)) {
+                    error = "invalid trace local latency module: '" + module
+                            + "'";
+                    return -EINVAL;
+                }
+                config.trace_local_latency_modules.push_back(module);
+                config.trace_local_latency = true;
                 break;
             }
             case 'h':
@@ -1523,6 +1628,7 @@ std::string synchronizeParameterValue(const ModuleInstance& instance)
 struct GraphPlan {
     std::vector<size_t> topological_order;
     std::vector<size_t> roots;
+    std::vector<size_t> leaves;
     std::vector<std::vector<size_t>> incoming_connections;
 };
 
@@ -1623,6 +1729,8 @@ int buildGraphPlan(const RunConfig& config,
         }
         if (indegree[i] == 0)
             plan.roots.push_back(i);
+        if (outgoing[i].empty())
+            plan.leaves.push_back(i);
     }
 
     std::vector<size_t> remaining = indegree;
@@ -1710,9 +1818,6 @@ int initializeGraph(const RunConfig& config,
             std::cerr << "Failed to initialize module '" << consumer.id
                       << "' (" << consumer.descriptor->type << "), ret="
                       << ret << " (" << errorText(ret) << ")\n";
-            printModuleParameters(
-                *consumer.module,
-                consumer.id + "=" + consumer.descriptor->type);
             return ret;
         }
     }
@@ -1748,17 +1853,26 @@ void printGraph(const RunConfig& config,
     }
 }
 
+#include "ffmedia_trace.hpp"
 class PipelineRunner
 {
 public:
     PipelineRunner(std::vector<ModuleInstance>& instances,
-                   const GraphPlan& plan)
+                   const GraphPlan& plan, const RunConfig& config)
         : instances_(instances)
     {
         for (size_t root : plan.roots) {
             roots_.push_back(instances_[root].module);
             root_ids_.insert(instances_[root].id);
         }
+        if (config.trace || config.trace_latency || config.trace_local_latency)
+            tracer_ = std::make_unique<PipelineTrace>(
+                instances_, plan, config.trace_interval_ms,
+                config.trace_latency_pairs,
+                config.trace_local_latency_modules,
+                config.trace_modules,
+                config.trace, config.trace_latency,
+                config.trace_local_latency);
     }
 
     void start()
@@ -1772,6 +1886,22 @@ public:
                     })) {
                 throw std::runtime_error(
                     "failed to install status hook for " + id);
+            }
+            if (tracer_) {
+                const size_t trace_index = tracer_->moduleIndex(id);
+                if (!instance.module->setMediaBufferConsumeHooker(
+                        [this, trace_index](const std::string&, int queue_size,
+                                            const std::shared_ptr<MediaBuffer>& buffer) {
+                            tracer_->onConsume(trace_index, queue_size, buffer);
+                        })
+                    || !instance.module->setMediaBufferProduceHooker(
+                        [this, trace_index](const std::string&, int queue_size,
+                                            const std::shared_ptr<MediaBuffer>& buffer) {
+                            tracer_->onProduce(trace_index, queue_size, buffer);
+                        })) {
+                    throw std::runtime_error(
+                        "failed to install trace hooks for " + id);
+                }
             }
         }
 
@@ -1791,6 +1921,8 @@ public:
     {
         const auto start_time = std::chrono::steady_clock::now();
         while (!stop_requested_.load() && !g_signal_stop) {
+            if (tracer_)
+                tracer_->tick();
             if (duration > 0.0) {
                 const double elapsed = std::chrono::duration<double>(
                                            std::chrono::steady_clock::now() - start_time)
@@ -1822,6 +1954,8 @@ public:
                     thread.join();
             }
         }
+        if (tracer_)
+            tracer_->reportFinal();
         for (const auto& root : roots_)
             root->dumpPipeSummary();
         started_ = false;
@@ -1868,6 +2002,7 @@ private:
     std::atomic_bool failed_{false};
     std::atomic_bool all_roots_eos_{false};
     bool started_ = false;
+    std::unique_ptr<PipelineTrace> tracer_;
 };
 
 int modulesCommand(int argc, char** argv)
@@ -1967,6 +2102,29 @@ int runCommand(int argc, char** argv)
         config, instances, index_by_id);
     if (ret < 0)
         return 1;
+    for (const auto& latency_pair : config.trace_latency_pairs) {
+        if (index_by_id.find(latency_pair.first) == index_by_id.end()
+            || index_by_id.find(latency_pair.second) == index_by_id.end()) {
+            std::cerr << "--trace-latency references unknown module: "
+                      << latency_pair.first << "=" << latency_pair.second
+                      << "\n";
+            return 1;
+        }
+    }
+    for (const auto& module : config.trace_local_latency_modules) {
+        if (index_by_id.find(module) == index_by_id.end()) {
+            std::cerr << "--trace-local-latency references unknown module: "
+                      << module << "\n";
+            return 1;
+        }
+    }
+    for (const auto& module : config.trace_modules) {
+        if (index_by_id.find(module) == index_by_id.end()) {
+            std::cerr << "--trace references unknown module: " << module
+                      << "\n";
+            return 1;
+        }
+    }
     ret = configureModuleSynchronizers(instances);
     if (ret < 0)
         return 1;
@@ -1988,7 +2146,7 @@ int runCommand(int argc, char** argv)
         return 1;
 
     printGraph(config, instances);
-    PipelineRunner pipeline(instances, plan);
+    PipelineRunner pipeline(instances, plan, config);
     pipeline.start();
     pipeline.wait(config.duration);
     pipeline.stop();

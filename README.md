@@ -60,7 +60,8 @@ Camera / File / RTSP / Memory
 连接；正常停止时，输出 Buffer 会在最后一个下游共享引用释放后回收到对应模块。
 
 各个模块成员函数、参数系统和 Buffer 生命周期说明请参看
-[docs/ffmedia_api.md](docs/ffmedia_api.md) 及 [docs/module_media.md](docs/module_media.md)。
+[docs/ffmedia_api.md](docs/ffmedia_api.md)、[docs/ffmedia_parameters.md](docs/ffmedia_parameters.md)
+及 [docs/module_media.md](docs/module_media.md)。
 需要快速运行现成管线时，可使用 C++ 的 `examples/demo/ffmedia.cpp` 或 Python 的
 `examples/demo/ffmedia.py` 参数 CLI，入口说明见
 [examples/demo/Readme.md](examples/demo/Readme.md)。
@@ -145,6 +146,41 @@ ffmedia的api详细文档：[docs/ffmedia_api.md](docs/ffmedia_api.md)
 2. 采集数据的帧率与刷新屏幕的帧率不可能完全一致，对于要求低延迟显示来说，可能就会有延迟时间的波动，为了解决这个问题，就需要动态调整屏幕的刷新率，调整hdmitx的 phy clk，dp、edp的v0pll，dsi的aupll 时钟频率，尽可能与数据采集频率趋于一致，让延迟波动控制在可接受范围。
 
 通过以上两步可以让显示延迟从1ms~17.6ms的波动范围降低至1ms~7ms。
+
+## 日志控制
+
+日志级别默认为 `INFO`，输出到标准输出。日志宏会按照“当前级别大于等于消息级别”的规则
+输出消息，因此级别越高，输出内容越详细。
+
+| 数值 | 级别 | 输出内容 |
+| ---: | --- | --- |
+| `0` | `ERROR` | 仅错误 |
+| `1` | `WARN` | 错误和警告 |
+| `2` | `INFO` | 错误、警告和一般信息（默认） |
+| `3` | `DEBUG` | 包含调试信息 |
+| `4` | `VERBOSE` | 最详细的日志 |
+
+通过环境变量配置日志级别。推荐使用大写变量；为兼容已有程序，也支持小写的
+`ff_log_level`，并且小写变量优先：
+
+```bash
+export FFMEDIA_LOG_LEVEL=3
+LD_LIBRARY_PATH="$PWD/lib" ./bin/ffmedia run ...
+```
+
+将日志追加写入文件可设置 `FFMEDIA_LOG_OUTPUT`：
+
+```bash
+export FFMEDIA_LOG_LEVEL=2
+export FFMEDIA_LOG_OUTPUT=/tmp/ffmedia.log
+LD_LIBRARY_PATH="$PWD/lib" ./bin/ffmedia run ...
+```
+
+输出文件以追加方式打开；如果路径为空、文件无法打开或未设置该变量，日志继续输出到
+标准输出。环境变量需要在启动程序前设置，修改后重新启动进程才会生效。
+
+说明：`ff_error`、`ff_warn`、`ff_info`、`ff_debug` 和 `ff_verbo` 等日志宏受上述级别控制；
+`ff_print` 用于无级别输出，不会被 `FFMEDIA_LOG_LEVEL` 过滤。
 
 ## 常见问题
 

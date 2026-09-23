@@ -9,6 +9,9 @@
 
 #pragma once
 
+#include <cstdint>
+#include <vector>
+
 #include "module/module_media.hpp"
 #include "base/ff_type.hpp"
 
@@ -75,7 +78,8 @@ public:
      */
     void setDuration(int64_t _duration);
     /**
-     * @description: 改变对象的编码参数。此调用应在对象停止时调用。
+     * @description: 改变对象的编码参数。运行中可调整编码控制参数，但不能切换编码格式；
+     *               编码格式切换需在对象停止时调用。
      * @param {media_codec_t} type      编码格式类型，支持 H264、H265 和 MJPEG。
      * @param {int} fps                 编码帧率。
      * @param {int} gop                 两个关键帧之间的间隔数。
@@ -90,13 +94,39 @@ public:
                               EncodeProfile profile = ENCODE_PROFILE_HIGH);
 
     /**
-     * @description: 设置帧内刷新（GDR）。此调用应在对象初始化之前调用。
+     * @description: 设置下一帧为关键帧（IDR）。
+     * @return {int} 成功返回0，失败返回负数错误码。
+     */
+    int setIdrFrame();
+
+    /**
+     * @description: 设置帧内刷新（GDR）。运行中变更会在下一帧编码前下发到编码器。
      * @param {bool} intra_refresh      开机或关闭帧内刷新。
      * @param {int} refresh_mode        刷新模式：0(按行刷新)、1(按列刷新)。
      * @param {int} refresh_num         每次刷新多少MB行或列。
-     * @return {*}
+     * @return {int} 成功返回0，参数或下发失败返回负数错误码。
      */
-    void setIntraRefresh(bool intra_refresh, int refresh_mode, int refresh_num);
+    int setIntraRefresh(bool intra_refresh, int refresh_mode, int refresh_num);
+
+    /**
+     * @description: 设置 H.264/H.265 slice 分片配置。运行中变更会在下一帧编码前下发。
+     * @param {uint32_t} split_mode  分片模式：0关闭，1按字节，2按CTU。
+     * @param {uint32_t} split_arg   按字节时的最大分片大小，或按CTU时的CTU数量。
+     * @param {uint32_t} split_out   输出模式位：1低延迟，2携带segment信息。
+     * @return {int} 成功返回0，参数或下发失败返回负数错误码。
+     */
+    int setSplit(uint32_t split_mode, uint32_t split_arg, uint32_t split_out);
+
+    /**
+     * @description: 设置后续编码帧携带的自定义 SEI 用户数据。MPP 会将
+     *              payload 封装为 unregistered user-data SEI；uuid 为空时
+     *              使用 MPP 默认 UUID，否则必须为 16 字节。
+     * @param {std::vector<uint8_t>} payload SEI 用户数据，不含 SEI 头。
+     * @param {std::vector<uint8_t>} uuid    可选的 16 字节 UUID。
+     * @return {int} 成功返回0，参数或运行时不支持时返回负数错误码。
+     */
+    int setSeiUserData(const std::vector<uint8_t>& payload,
+                       const std::vector<uint8_t>& uuid = {});
 
     /**
      * @description: 设置获取帧超时时间，默认为0。

@@ -318,6 +318,10 @@ public:
      */
     int setPlaneDisplayMode(DrmDisplayPlane::PLANE_DISPLAY_MODE mode);
 
+    /** Enable or disable the DRM vblank wait used by single-window output. */
+    bool setDrmSyncEnabled(bool enabled);
+    bool isDrmSyncEnabled() const;
+
     void getPlaneSize(uint32_t* w, uint32_t* h);
     void getWindowSize(uint32_t* w, uint32_t* h);
 

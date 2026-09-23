@@ -422,4 +422,5 @@ source->stop();
 - 正常退出时从源节点显式调用 `stop()`，并确保派生资源在工作线程停止后再释放。
 - 普通模块优先使用 `initBuffer()` 创建输出池；只有硬件导入等特殊场景才需要自定义缓冲池。
 
-完整参数接口、状态查询和其他公共 API 参见 [FFMedia API](ffmedia_api.md)。
+完整公共 API 参见 [FFMedia API](ffmedia_api.md)；模块参数路径、对象事务和运行期配置参见
+[FFMedia 模块参数系统](ffmedia_parameters.md)。

@@ -7,18 +7,6 @@
 
 using namespace FFMedia;
 
-namespace
-{
-
-int checkResult(const char* operation, int ret)
-{
-    if (ret < 0)
-        std::fprintf(stderr, "%s failed, ret=%d\n", operation, ret);
-    return ret;
-}
-
-}  // namespace
-
 int main(int argc, char** argv)
 {
     if (argc != 2) {
@@ -30,8 +18,10 @@ int main(int argc, char** argv)
     auto source = std::make_shared<ModuleRtspClient>(
         argv[1], RTSP_STREAM_TYPE_TCP, true, true);
     int ret = source->init();
-    if (checkResult("initialize RTSP source", ret) < 0)
+    if (ret < 0) {
+        std::printf("rtsp client init failed, ret=%d\n", ret);
         return ret;
+    }
 
     for (const auto& channel : source->getOutputMediaChannels()) {
         std::printf("source channel=%u name=%s type=%d codec=%d\n",
@@ -43,11 +33,15 @@ int main(int argc, char** argv)
     // automatically ignores unrelated channels such as RTSP audio.
     auto decoder = std::make_shared<ModuleMppDec>();
     ret = decoder->connectProducer(source);
-    if (checkResult("connect RTSP source to decoder", ret) < 0)
+    if (ret < 0) {
+        std::printf("failed to connect RTSP source to decoder, ret=%d\n", ret);
         return ret;
+    }
     ret = decoder->init();
-    if (checkResult("initialize decoder", ret) < 0)
+    if (ret < 0) {
+        std::printf("failed to initialize decoder, ret=%d\n", ret);
         return ret;
+    }
 
     MediaInputChannel decoder_input;
     if (decoder->getInputMediaChannel(0, decoder_input)) {
@@ -60,11 +54,15 @@ int main(int argc, char** argv)
     // video channel during init(), so no manual ImagePara copy is required.
     auto display = std::make_shared<ModuleDrmDisplay>();
     ret = display->connectProducer(decoder);
-    if (checkResult("connect decoder to DRM display", ret) < 0)
+    if (ret < 0) {
+        std::printf("failed to connect decoder to DRM display, ret=%d\n", ret);
         return ret;
+    }
     ret = display->init();
-    if (checkResult("initialize DRM display", ret) < 0)
+    if (ret < 0) {
+        std::printf("failed to initialize DRM display, ret=%d\n", ret);
         return ret;
+    }
 
     // Starting the source starts the connected processing pipeline.
     source->start();

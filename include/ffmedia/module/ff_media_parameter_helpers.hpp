@@ -45,6 +45,8 @@ inline ParameterObject imageParaToParameterObject(const ImagePara& value)
 inline int parameterObjectToImagePara(const ParameterObject& object,
                                       ImagePara& value)
 {
+    constexpr uint32_t kMaxDimension = 16384;
+    constexpr uint32_t kMaxStride = 32768;
     int64_t compression = 0;
     int ret = parameterObjectUint32(object, "width", value.width);
     if (ret == 0)
@@ -59,6 +61,9 @@ inline int parameterObjectToImagePara(const ParameterObject& object,
         ret = object.getMember("compression", compression);
     if (ret < 0)
         return ret;
+    if (value.width > kMaxDimension || value.height > kMaxDimension
+        || value.hstride > kMaxStride || value.vstride > kMaxStride)
+        return -ERANGE;
     if (compression < static_cast<int>(ImageCompression::Linear)
         || compression > static_cast<int>(ImageCompression::Afbc16x16)) {
         return -EINVAL;
@@ -73,25 +78,38 @@ inline ParameterInfo imageParaParameter(
     uint32_t flags = PARAMETER_FLAG_READABLE | PARAMETER_FLAG_WRITABLE,
     bool atomic = true)
 {
-    const int64_t maximum = static_cast<int64_t>(std::numeric_limits<uint32_t>::max());
+    constexpr int64_t kMaxDimension = 16384;
+    constexpr int64_t kMaxStride = 32768;
+    const int64_t format_max = static_cast<int64_t>(std::numeric_limits<uint32_t>::max());
     ParameterInfo compression = integerParameter(
         "compression", static_cast<int>(value.compression),
         static_cast<int>(ImageCompression::Linear),
         static_cast<int>(ImageCompression::Afbc16x16));
     compression.enum_values = {
         ParameterEnumValue("linear",
-                           static_cast<int>(ImageCompression::Linear)),
+                           static_cast<int>(ImageCompression::Linear),
+                           "Linear image layout"),
         ParameterEnumValue("afbc-16x16",
-                           static_cast<int>(ImageCompression::Afbc16x16)),
+                           static_cast<int>(ImageCompression::Afbc16x16),
+                           "AFBC 16x16 compressed layout"),
     };
     return objectParameter(
         name,
         {
-            integerParameter("width", value.width, 0, maximum),
-            integerParameter("height", value.height, 0, maximum),
-            integerParameter("hstride", value.hstride, 0, maximum),
-            integerParameter("vstride", value.vstride, 0, maximum),
-            integerParameter("format", value.v4l2Fmt, 0, maximum),
+            integerParameter("width", value.width, 0,
+                             kMaxDimension,
+                             "Visible image width", "pixels"),
+            integerParameter("height", value.height, 0,
+                             kMaxDimension,
+                             "Visible image height", "pixels"),
+            integerParameter("hstride", value.hstride, 0,
+                             kMaxStride,
+                             "Image horizontal stride", "pixels"),
+            integerParameter("vstride", value.vstride, 0,
+                             kMaxStride,
+                             "Image vertical stride", "pixels"),
+            integerParameter("format", value.v4l2Fmt, 0, format_max,
+                             "V4L2 pixel format fourcc"),
             compression,
         },
         description, flags, atomic);
@@ -110,6 +128,7 @@ inline ParameterObject imageCropToParameterObject(const ImageCrop& value)
 inline int parameterObjectToImageCrop(const ParameterObject& object,
                                       ImageCrop& value)
 {
+    constexpr uint32_t kMaxDimension = 16384;
     int ret = parameterObjectUint32(object, "x", value.x);
     if (ret == 0)
         ret = parameterObjectUint32(object, "y", value.y);
@@ -117,6 +136,10 @@ inline int parameterObjectToImageCrop(const ParameterObject& object,
         ret = parameterObjectUint32(object, "width", value.w);
     if (ret == 0)
         ret = parameterObjectUint32(object, "height", value.h);
+    if (ret == 0
+        && (value.x > kMaxDimension || value.y > kMaxDimension
+            || value.w > kMaxDimension || value.h > kMaxDimension))
+        return -ERANGE;
     return ret;
 }
 
@@ -126,14 +149,22 @@ inline ParameterInfo imageCropParameter(
     uint32_t flags = PARAMETER_FLAG_READABLE | PARAMETER_FLAG_WRITABLE,
     bool atomic = true)
 {
-    const int64_t maximum = static_cast<int64_t>(std::numeric_limits<uint32_t>::max());
+    constexpr int64_t kMaxDimension = 16384;
     return objectParameter(
         name,
         {
-            integerParameter("x", value.x, 0, maximum),
-            integerParameter("y", value.y, 0, maximum),
-            integerParameter("width", value.w, 0, maximum),
-            integerParameter("height", value.h, 0, maximum),
+            integerParameter("x", value.x, 0,
+                             kMaxDimension,
+                             "Crop left offset", "pixels"),
+            integerParameter("y", value.y, 0,
+                             kMaxDimension,
+                             "Crop top offset", "pixels"),
+            integerParameter("width", value.w, 0,
+                             kMaxDimension,
+                             "Crop width", "pixels"),
+            integerParameter("height", value.h, 0,
+                             kMaxDimension,
+                             "Crop height", "pixels"),
         },
         description, flags, atomic);
 }
@@ -151,6 +182,9 @@ inline ParameterObject sampleInfoToParameterObject(const SampleInfo& value)
 inline int parameterObjectToSampleInfo(const ParameterObject& object,
                                        SampleInfo& value)
 {
+    constexpr int64_t kMaxChannels = 8;
+    constexpr int64_t kMaxSampleRate = 192000;
+    constexpr int64_t kMaxSamplesPerFrame = 8192;
     int64_t format = 0;
     int64_t channels = 0;
     int64_t sample_rate = 0;
@@ -165,9 +199,9 @@ inline int parameterObjectToSampleInfo(const ParameterObject& object,
     if (ret < 0)
         return ret;
     if (format < SAMPLE_FMT_NONE || format >= SAMPLE_FMT_NB
-        || channels < 0 || channels > std::numeric_limits<int>::max()
-        || sample_rate < 0 || sample_rate > std::numeric_limits<int>::max()
-        || samples < 0 || samples > std::numeric_limits<int>::max()) {
+        || channels < 0 || channels > kMaxChannels
+        || sample_rate < 0 || sample_rate > kMaxSampleRate
+        || samples < 0 || samples > kMaxSamplesPerFrame) {
         return -ERANGE;
     }
     value.fmt = static_cast<SampleFormat>(format);
@@ -183,17 +217,24 @@ inline ParameterInfo sampleInfoParameter(
     uint32_t flags = PARAMETER_FLAG_READABLE | PARAMETER_FLAG_WRITABLE,
     bool atomic = true)
 {
+    constexpr int64_t kMaxChannels = 8;
+    constexpr int64_t kMaxSampleRate = 192000;
+    constexpr int64_t kMaxSamplesPerFrame = 8192;
     return objectParameter(
         name,
         {
             integerParameter("format", value.fmt, SAMPLE_FMT_NONE,
-                             SAMPLE_FMT_NB - 1),
+                             SAMPLE_FMT_NB - 1,
+                             "Audio sample format"),
             integerParameter("channels", value.channels, 0,
-                             std::numeric_limits<int>::max()),
+                             kMaxChannels,
+                             "Audio channel count", "channels"),
             integerParameter("sample-rate", value.sample_rate, 0,
-                             std::numeric_limits<int>::max(), "", "Hz"),
+                             kMaxSampleRate,
+                             "Audio sample rate", "Hz"),
             integerParameter("samples", value.nb_samples, 0,
-                             std::numeric_limits<int>::max()),
+                             kMaxSamplesPerFrame,
+                             "Samples per frame", "samples"),
         },
         description, flags, atomic);
 }

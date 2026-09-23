@@ -6,6 +6,8 @@
 #include <module/ffmedia_abi.hpp>
 #include <module/module_app.hpp>
 #include <module/module_media.hpp>
+#include <base/media_capabilities.hpp>
+#include <base/media_metrics.hpp>
 
 #include <module/vi/module_cam.hpp>
 #include <module/vi/module_fileReader.hpp>
@@ -34,6 +36,7 @@
 #if FFMPEG_SUPPORT
 #include <module/vi/module_ffmpegDemux.hpp>
 #include <module/vo/module_ffmpegMux.hpp>
+#include <module/vo/module_recorder.hpp>
 #endif
 
 #if OPENGL_SUPPORT

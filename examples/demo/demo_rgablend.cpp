@@ -50,13 +50,16 @@ int main(int argc, char** argv)
     shared_ptr<ModuleMppDec> dec = NULL;
     shared_ptr<ModuleRga> rga = NULL;
     shared_ptr<ModuleDrmDisplay> drm_display = NULL;
-    ImagePara input_para;
     rga_blend_ctx blend_ctx;
     blend_ctx.rga = NULL;
     blend_ctx.vb = NULL;
 
+    if (argc != 2) {
+        ff_error("Usage: %s rtsp://user:password@host/path\n", argv[0]);
+        return 1;
+    }
     // 1. rtsp client module
-    rtsp_c = make_shared<ModuleRtspClient>("rtsp://admin:firefly123@172.16.2.99:554/av_stream", RTSP_STREAM_TYPE_TCP);
+    rtsp_c = make_shared<ModuleRtspClient>(argv[1], RTSP_STREAM_TYPE_TCP);
     ret = rtsp_c->init();
     if (ret < 0) {
         ff_error("rtsp client init failed\n");
@@ -64,8 +67,7 @@ int main(int argc, char** argv)
     }
 
     // 2. dec module
-    input_para = rtsp_c->getOutputImagePara();
-    dec = make_shared<ModuleMppDec>(input_para);
+    dec = make_shared<ModuleMppDec>();
     dec->setProductor(rtsp_c);
     ret = dec->init();
     if (ret < 0) {
@@ -74,8 +76,8 @@ int main(int argc, char** argv)
     }
 
     // 3. rga module
-    input_para = dec->getOutputImagePara();
-    rga = make_shared<ModuleRga>(input_para, input_para, RGA_ROTATE_NONE);
+    auto output_para = dec->getOutputImagePara();
+    rga = make_shared<ModuleRga>(output_para, RGA_ROTATE_NONE);
     rga->setProductor(dec);
     ret = rga->init();
     if (ret < 0) {
@@ -85,7 +87,7 @@ int main(int argc, char** argv)
 
 
     // 4. rga blend ctx
-    input_para = rga->getOutputImagePara();
+    auto input_para = rga->getOutputImagePara();
     // Use rga output ImagePara construct the blend BGRA ImagePara
     ImagePara BGRA_para(input_para.width, input_para.height, input_para.hstride, input_para.vstride, V4L2_PIX_FMT_BGR32);
     blend_ctx.rga = rga;
@@ -112,18 +114,7 @@ int main(int argc, char** argv)
     if (ret < 0) {
         ff_error("drm display init failed\n");
         return ret;
-    } else {
-        uint32_t t_w, t_h;
-        drm_display->getPlaneSize(&t_w, &t_h);
-        uint32_t w = std::min(t_w, input_para.width);
-        uint32_t h = std::min(t_h, input_para.height);
-        uint32_t x = (t_w - w) / 2;
-        uint32_t y = (t_h - h) / 2;
-
-        ff_info("x y w h %d %d %d %d\n", x, y, w, h);
-        drm_display->setPlaneRect(x, y, w, h);
     }
-
     // 4. start origin producer
     rtsp_c->start();
 

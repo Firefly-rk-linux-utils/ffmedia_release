@@ -1,13 +1,13 @@
-FFMedia SDK version: 2.6.1
+FFMedia SDK version: 2.6.2
 Module ABI version: 1
 libstdc++ C++11 ABI: 1
 SONAME: libff_media.so.1
 C++ standard: C++17
 Architecture: AArch64
 Build type: Release
-Source version: v2.6.1
-Source commit: 5883cc0c93625cd5b105511de04c601f204b1157
-Source describe: v2.6.1
+Source version: v2.6.2
+Source commit: be0cbfb59aed4df7d334cfd3fa372f81a4b5e5c6
+Source describe: v2.6.2
 Source state: dirty
 Release mode: development
 Publishable final release: no
@@ -20,12 +20,12 @@ CMake: 3.16.3
 Required GLIBC: GLIBC_2.29
 Required GLIBCXX: GLIBCXX_3.4.26
 Required CXXABI: CXXABI_1.3.11
-Runtime libraries: libdrm.so.2,libpthread.so.0,libEGL.so.1,libresolv.so.2,libGLESv2.so.2,libdl.so.2,libstdc++.so.6,libm.so.6,libgcc_s.so.1,libc.so.6,ld-linux-aarch64.so.1
-Library: libff_media.so.2.6.1
-Library Build ID: 858594f10d6ced77e083d32800faa5249d075476
-Library SHA256: 98652352e5c10e0fa64debba96b3382d87515e0a48a7adcee72c9623e8bb629b
+Runtime libraries: libdrm.so.2,libpthread.so.0,libresolv.so.2,libdl.so.2,libstdc++.so.6,libm.so.6,libgcc_s.so.1,libc.so.6,ld-linux-aarch64.so.1
+Library: libff_media.so.2.6.2
+Library Build ID: 74abdad54b81bcb8d2c1bc5f10fba0d36f175664
+Library SHA256: 85d85b796796ea1c951daaf609ae22e652aa689167537bbf1bf32f09b5b0903f
 CLI: bin/ffmedia
-CLI Build ID: 378134d1d1536ff2f49fa5faee478a8e25677524
-CLI SHA256: c2fe018524efc0393439608bc21810f2e50a56b50849a765e34b93c0bad1ada6
-Python wheels: ff_pymedia-2.6.1-cp310-cp310-linux_aarch64.whl,ff_pymedia-2.6.1-cp311-cp311-linux_aarch64.whl
+CLI Build ID: 69950696e1eee128f4419d2e35e6057a72804b1f
+CLI SHA256: f6b0c374ce155e9ca876f52fb5fb19a96fbba72a8dd9836cf8f3875ef0929748
+Python wheels: ff_pymedia-2.6.2-cp310-cp310-linux_aarch64.whl,ff_pymedia-2.6.2-cp311-cp311-linux_aarch64.whl
 Artifact validation: passed

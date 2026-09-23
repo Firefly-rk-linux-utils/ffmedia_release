@@ -133,6 +133,8 @@ def build_module_descriptors():
         "ModuleGB28181Client")
     add("ffmpeg-mux", "vo", "FFmpeg output muxer", True,
         "ModuleFFmpegMux")
+    add("recorder", "vo", "Segmented recording sink", True,
+        "ModuleRecorder")
     add("renderer-video", "vo", "Window video renderer", True,
         "ModuleRendererVideo")
     add("alsa-playback", "vo", "ALSA playback sink", True,
@@ -1113,10 +1115,6 @@ def initialize_graph(config, instances, index_by_id, plan):
             print("Failed to initialize module '{}' ({}), ret={} ({})".format(
                 consumer.module_id, consumer.descriptor.type_name,
                 result, error_text(result)), file=sys.stderr)
-            print_module_parameters(
-                consumer.module,
-                "{}={}".format(consumer.module_id,
-                               consumer.descriptor.type_name))
             raise CliError("module initialization failed", result)
 
 
